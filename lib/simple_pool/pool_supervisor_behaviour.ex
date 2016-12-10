@@ -1,4 +1,4 @@
-defmodule Noizu.SmartPool.PoolSupervisorBehaviour do
+defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
   @callback tests() :: :ok
   defmacro __using__(options) do
     #process_identifier = Dict.get(options, :process_identifier)
@@ -10,7 +10,7 @@ defmodule Noizu.SmartPool.PoolSupervisorBehaviour do
 
     quote do
       use Supervisor
-      @behaviour Noizu.SmartPool.PoolSupervisorBehaviour
+      @behaviour Noizu.SimplePool.PoolSupervisorBehaviour
       @base Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat
       @worker_supervisor Module.concat([@base, "WorkerSupervisor"])
       @pool_server Module.concat([@base, "Server"])

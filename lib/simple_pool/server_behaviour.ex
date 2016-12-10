@@ -1,8 +1,8 @@
-defmodule Noizu.SmartPool.ServerBehaviour do
-  @callback lazy_load(Noizu.SmartPool.Server.State.t) :: Noizu.SmartPool.Server.State.t
+defmodule Noizu.SimplePool.ServerBehaviour do
+  @callback lazy_load(Noizu.SimplePool.Server.State.t) :: Noizu.SimplePool.Server.State.t
 
   @callback load() :: any
-  @callback lazy_load(Noizu.SmartPool.Server.State.t) :: {any, Noizu.SmartPool.Server.State.t}
+  @callback lazy_load(Noizu.SimplePool.Server.State.t) :: {any, Noizu.SimplePool.Server.State.t}
 
   @callback status() :: any
 
@@ -28,7 +28,7 @@ defmodule Noizu.SmartPool.ServerBehaviour do
       require Amnesia
       require Amnesia.Fragment
 
-      @behaviour Noizu.SmartPool.ServerBehaviour
+      @behaviour Noizu.SimplePool.ServerBehaviour
       @base Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat
 
       #=========================================================================
@@ -54,7 +54,7 @@ defmodule Noizu.SmartPool.ServerBehaviour do
         end
         {{node, process}, sequence} = @base.book_keeping_init()
 
-        state = %Noizu.SmartPool.Server.State{
+        state = %Noizu.SimplePool.Server.State{
           pool: sup,
           nmid_generator: {{node, process}, sequence},
           status_details: nil,
@@ -259,35 +259,35 @@ defmodule Noizu.SmartPool.ServerBehaviour do
         #=========================================================================
         def handle_call({:load_complete, {outcome, details}}, _from, state) do
             state = if outcome == :ok do
-              %Noizu.SmartPool.Server.State{state| status: :online, status_details: details}
+              %Noizu.SimplePool.Server.State{state| status: :online, status_details: details}
             else
-              %Noizu.SmartPool.Server.State{state| status: :degrade, status_details: details}
+              %Noizu.SimplePool.Server.State{state| status: :degrade, status_details: details}
             end
             {:reply, :ok, state}
         end
 
-        def handle_call({:status}, _from, %Noizu.SmartPool.Server.State{status: status} = state) do
+        def handle_call({:status}, _from, %Noizu.SimplePool.Server.State{status: status} = state) do
           {:reply, status, state}
         end
 
-        def handle_call({:generate, :nmid}, _from, %Noizu.SmartPool.Server.State{nmid_generator: {{node, process}, sequence}} = state) do
+        def handle_call({:generate, :nmid}, _from, %Noizu.SimplePool.Server.State{nmid_generator: {{node, process}, sequence}} = state) do
           {nmid, state} = @base.generate_nmid(state)
           {:reply, nmid, state}
         end
 
-        def handle_call({:add_worker, nmid}, _from, %Noizu.SmartPool.Server.State{pool: sup} = state) do
+        def handle_call({:add_worker, nmid}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
           # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
           response = add(nmid, :worker, sup)
           {:reply, response, state}
         end
 
-        def handle_call({:remove_worker, nmid}, _from, %Noizu.SmartPool.Server.State{pool: sup} = state) do
+        def handle_call({:remove_worker, nmid}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
           # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
           response = remove(nmid, :worker, sup)
           {:reply, response, state}
         end
 
-        def handle_call({:fetch, nmid, details}, _from, %Noizu.SmartPool.Server.State{pool: sup} = state) do
+        def handle_call({:fetch, nmid, details}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
               {:ok, pid} = add(nmid, :worker, sup)
               response = GenServer.call(pid, {:fetch, details})
               {:reply, response, state}
@@ -303,9 +303,9 @@ defmodule Noizu.SmartPool.ServerBehaviour do
           {:noreply, state}
         end
 
-        def handle_cast({:load}, %Noizu.SmartPool.Server.State{status: status} = state) do
+        def handle_cast({:load}, %Noizu.SimplePool.Server.State{status: status} = state) do
           if status == :uninitialized do
-            state = %Noizu.SmartPool.Server.State{state| status: :initializing}
+            state = %Noizu.SimplePool.Server.State{state| status: :initializing}
 
             spawn fn ->
               {status, details} = lazy_load(state)

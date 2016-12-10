@@ -1,9 +1,9 @@
-defmodule Noizu.SmartPool.Behaviour do
+defmodule Noizu.SimplePool.Behaviour do
 
   @callback nmid_seed() :: {integer, integer}
   @callback lookup_table() :: atom
   @callback book_keeping_init() :: {{integer, integer}, integer}
-  @callback generate_nmid(Noizu.SmartPool.Server.State.t) :: {integer, Noizu.SmartPool.Server.State.t}
+  @callback generate_nmid(Noizu.SimplePool.Server.State.t) :: {integer, Noizu.SimplePool.Server.State.t}
 
   def simple_nmid({node, process}, sequence) do
     # node < 100,  0-99
@@ -36,7 +36,7 @@ defmodule Noizu.SmartPool.Behaviour do
       require Amnesia
       require Amnesia.Fragment
       import unquote(__MODULE__)
-      @behaviour Noizu.SmartPool.Behaviour
+      @behaviour Noizu.SimplePool.Behaviour
 
       if (!unquote(disable_lookup_table)) do
         @lookup_table Module.concat([__MODULE__, "LookupTable"])
@@ -46,7 +46,7 @@ defmodule Noizu.SmartPool.Behaviour do
       end
 
       if (!unquote(disable_generate_nmid)) do
-        def generate_nmid(%Noizu.SmartPool.Server.State{nmid_generator: {{node, process}, sequence}} = state) do
+        def generate_nmid(%Noizu.SimplePool.Server.State{nmid_generator: {{node, process}, sequence}} = state) do
           sequence = sequence + 1
           nmid = simple_nmid({node, process}, sequence)
 
@@ -58,7 +58,7 @@ defmodule Noizu.SmartPool.Behaviour do
           end
 
           # TODO - Update Mnesia - # Todo setup master nmid coordinator. Processes just ask it to assign a sequence, and identifier.
-          state = %Noizu.SmartPool.Server.State{state| nmid_generator: {{node, process}, sequence} }
+          state = %Noizu.SimplePool.Server.State{state| nmid_generator: {{node, process}, sequence} }
           {nmid, state}
         end
       end
@@ -97,7 +97,7 @@ defmodule Noizu.SmartPool.Behaviour do
 
       if (unquote(default_worker)) do
         defmodule Worker do
-          use Noizu.SmartPool.WorkerBehaviour, unquote(options)
+          use Noizu.SimplePool.WorkerBehaviour, unquote(options)
           def tests() do
             :ok
           end
@@ -106,7 +106,7 @@ defmodule Noizu.SmartPool.Behaviour do
 
       if (unquote(default_server)) do
         defmodule Server do
-          use Noizu.SmartPool.ServerBehaviour, unquote(options)
+          use Noizu.SimplePool.ServerBehaviour, unquote(options)
           def lazy_load(state) do
             IO.puts "NYI - lazy load"
             state
@@ -116,7 +116,7 @@ defmodule Noizu.SmartPool.Behaviour do
 
       if (unquote(default_worker_supervisor)) do
         defmodule WorkerSupervisor do
-          use Noizu.SmartPool.WorkerSupervisorBehaviour, unquote(options)
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options)
           def tests() do
             :ok
           end
@@ -125,7 +125,7 @@ defmodule Noizu.SmartPool.Behaviour do
 
       if (unquote(default_pool_supervisor)) do
         defmodule PoolSupervisor do
-          use Noizu.SmartPool.PoolSupervisorBehaviour, unquote(options)
+          use Noizu.SimplePool.PoolSupervisorBehaviour, unquote(options)
           def tests() do
             :ok
           end

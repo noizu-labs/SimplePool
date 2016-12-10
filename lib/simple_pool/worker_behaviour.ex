@@ -1,9 +1,9 @@
-defmodule Noizu.SmartPool.WorkerBehaviour do
+defmodule Noizu.SimplePool.WorkerBehaviour do
 
-  @callback initial_state(any) :: Noizu.SmartPool.Worker.State.t
-  @callback initialize(Noizu.SmartPool.Worker.State.t) :: Noizu.SmartPool.Worker.State.t
-  @callback fetch(any, Noizu.SmartPool.Worker.State.t) :: {any, Noizu.SmartPool.Worker.State.t}
-  @callback load(Noizu.SmartPool.Worker.State.t) :: {any, Noizu.SmartPool.Worker.State.t}
+  @callback initial_state(any) :: Noizu.SimplePool.Worker.State.t
+  @callback initialize(Noizu.SimplePool.Worker.State.t) :: Noizu.SimplePool.Worker.State.t
+  @callback fetch(any, Noizu.SimplePool.Worker.State.t) :: {any, Noizu.SimplePool.Worker.State.t}
+  @callback load(Noizu.SimplePool.Worker.State.t) :: {any, Noizu.SimplePool.Worker.State.t}
 
   defmacro __using__(options) do
     global_verbose = Dict.get(options, :verbose, false)
@@ -11,7 +11,7 @@ defmodule Noizu.SmartPool.WorkerBehaviour do
 
     quote do
       import unquote(__MODULE__)
-      @behaviour Noizu.SmartPool.WorkerBehaviour
+      @behaviour Noizu.SimplePool.WorkerBehaviour
 
       def start_link(nmid) do
         if (unquote(global_verbose) || unquote(module_verbose)) do
@@ -36,7 +36,7 @@ defmodule Noizu.SmartPool.WorkerBehaviour do
       # Handlers
       #=========================================================================
       #=========================================================================
-      def handle_call({:fetch, details}, from, %Noizu.SmartPool.Worker.State{initialized: false} = state) do
+      def handle_call({:fetch, details}, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
         state = initialize(state)
         if state.initialized do
           handle_call({:fetch, details}, from, state)

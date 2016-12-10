@@ -1,5 +1,5 @@
-defmodule Noizu.SmartPool.Server.State do
-alias Noizu.SmartPool.Server.State
+defmodule Noizu.SimplePool.Server.State do
+alias Noizu.SimplePool.Server.State
 
   @type t :: %State{
     pool: any,
