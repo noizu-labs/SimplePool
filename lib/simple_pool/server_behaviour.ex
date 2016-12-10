@@ -30,7 +30,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       @behaviour Noizu.SimplePool.ServerBehaviour
       @base Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat
-
+      @worker_supervisor Module.concat([@base, "WorkerSupervisor"])
       #=========================================================================
       #=========================================================================
       # Genserver Lifecycle
@@ -251,6 +251,28 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         defp remove(nmid, :worker, sup) when is_bitstring(nmid) do
           remove(nmid |> Integer.parse() |> elem(0), :worker, sup)
         end
+
+
+
+        @doc """
+          Add worker pool keyed by nmid. Worker must know how to load itself, and provide a load method.
+        """
+        def worker_pid!(nmid) when is_bitstring(nmid) do
+          String.to_integer(nmid)
+            |> worker_pid!()
+        end
+
+        def worker_pid!(nmid) when is_integer(nmid) or is_tuple(nmid) do
+          case alive?(nmid, :worker) do
+            {false, :nil} ->
+              # Call Server to spawn worker and then fetch results.
+              add!(nmid)
+            {true, pid} ->
+              # Call worker directly
+              {:ok, pid}
+          end
+        end
+
 
         #=========================================================================
         #=========================================================================
