@@ -1,15 +1,17 @@
-0
 defmodule Noizu.SimplePool.ServerBehaviour do
-
   # Must be implemented
   @callback lazy_load(Noizu.SimplePool.Server.State.t) :: {any, Noizu.SimplePool.Server.State.t}
 
   # Provided
   @callback load() :: any
 
+  @callback lookup_identifier(any) :: {:ok, any} | {:error, any}
+
   @callback status() :: any
 
   @callback generate(:nmid) :: any
+
+  @callback normid(any) :: any
 
   @callback add!(any) :: any
   @callback add!(any, :asynch) :: any
@@ -21,11 +23,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   @callback fetch!(any, any)  :: any
   @callback fetch!(any, any, :asynch, any) :: any
 
-  @callback pid_or_spawn(any) :: {:ok, any} | {:error, any}
+  @callback get_pid(any) :: {:ok, any} | {:error, any}
+  @callback pid_or_spawn!(any) :: {:ok, any} | {:error, any}
 
   @callback start_link(any, any) :: any
   @callback init(any) :: any
-  @callback terminate(any, any, any) :: any
+  @callback terminate(any, any) :: any
   @callback alive?(any, :worker) :: any
   @callback add(any, :worker, any) :: any
   @callback start(any, :worker, any) :: any
@@ -47,9 +50,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     :load,
     :status,
     :generate,
+    :lookup_identifier,
+    :normid,
     :add!,
     :remove!,
     :fetch!,
+    :get_pid,
     :pid_or_spawn!,
     :alive?,
     :add,
@@ -121,7 +127,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
     # @terminate
     if (unquote(only.terminate) && !unquote(override.terminate)) do
-      def terminate(reason, request, state) do
+      def terminate(reason, state) do
         :ok
       end
     end # end terminate
@@ -168,7 +174,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       # @add!
       if (unquote(only.add!) && !unquote(override.add!)) do
-
         @doc """
           Add worker pool keyed by nmid. Worker must know how to load itself, and provide a load method.
         """
@@ -179,7 +184,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       # @remove!
       if (unquote(only.remove!) && !unquote(override.remove!)) do
-
         @doc """
           Remove worker process.
         """
@@ -190,7 +194,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       # @fetch!
       if (unquote(only.fetch!) && !unquote(override.fetch!)) do
-
         @doc """
           Fetch information about worker. Exact information is class dependent.
         """
@@ -202,19 +205,96 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end # end fetch!
 
+      # @get_pid
+      if (unquote(only.get_pid) && !unquote(override.get_pid)) do
+        @doc """
+          return cached pid for process or spawn if dead and return newly created pid.
+        """
+        def get_pid(nmid) do
+          nmid = normid(nmid)
+          case alive?(nmid, :worker) do
+            {false, :nil} -> {:error, :not_found}
+            {true, pid} -> {:ok, pid}
+          end
+        end
+      end # end get_pid
+
+
       # @pid_or_spawn!
       if (unquote(only.pid_or_spawn!) && !unquote(override.pid_or_spawn!)) do
-
         @doc """
           return cached pid for process or spawn if dead and return newly created pid.
         """
         def pid_or_spawn!(nmid) do
+          nmid = normid(nmid)
           case alive?(nmid, :worker) do
             {false, :nil} -> add!(nmid)
             {true, pid} -> {:ok, pid}
           end
         end
       end # end pid_or_spawn!
+
+      # @lookup_identifier
+      if (unquote(only.lookup_identifier) && !unquote(override.lookup_identifier)) do
+        @doc """
+          lookup identifier to use from input tuple. If you wish to key against tuple keys simply
+          implement a method that returns the passed tuple plus any format validation logic required.
+        """
+        def lookup_identifier(nmid) do
+          raise "You must implement lookup_identifier if #{__MODULE__} callers will pass in {tuple, identifiers}."
+        end
+      end
+
+      # @normid
+      if (unquote(only.normid) && !unquote(override.normid)) do
+        @doc """
+          Normalize nmid into value used for record keeping.
+        """
+        def normid(nmid) when is_integer(nmid) do
+          nmid
+        end
+
+        def normid(nmid) when is_bitstring(nmid) do
+          nmid |> String.to_integer
+        end
+
+        def normid(nmid) when is_tuple(nmid) do
+          nmid
+        end
+
+        def normid(nmid) when is_tuple(nmid) do
+          case :ets.lookup(@base.lookup_table(), nmid) do
+             [{_key, {:identifier, identifier}}] -> identifier
+             [{_key, {:not_found, attempts, retry_after}}] ->
+               if (retry_after < :os.system_time(:seconds)) do
+                 :not_found
+               else
+                 case lookup_identifier(nmid) do
+                   {:ok, identifier} ->
+                     :ets.insert(@base.lookup_table(), {nmid, {:identifier, identifier}})
+                     identifier
+                   e ->
+                     attempts = Enum.max([attempts + 1, 2000])
+                     retry = Enum.max([attempts + 15, 1200])
+                     :ets.insert(@base.lookup_table(), {nmid, {:not_found, attempts, :os.system_time(:seconds) + retry}})
+                     :not_found
+                 end
+               end
+             [] ->
+               case lookup_identifier(nmid) do
+                 {:ok, identifier} ->
+                   :ets.insert(@base.lookup_table(), {nmid, {:identifier, identifier}})
+                   identifier
+                 e ->
+                   :ets.insert(@base.lookup_table(), {nmid, {:not_found, 1, :os.system_time(:seconds) + 15}})
+                   :not_found
+               end
+          end
+        end
+
+
+      end # end normid
+
 
       # @remove!
       if (unquote(only.remove!) && !unquote(override.remove!)) do
@@ -273,7 +353,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           {false, :nil}
         end
 
-        def alive?(nmid, :worker) when is_number(nmid) or is_tuple(nmid) do
+        def alive?(nmid, :worker) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
+          nmid = normid(nmid)
           case :ets.info(@base.lookup_table()) do
             :undefined -> {false, :nil}
             _ ->
@@ -288,10 +369,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               end
           end
         end
-
-        def alive?(nmid, :worker) when is_bitstring(nmid) do
-          alive?(nmid |> Integer.parse() |> elem(0), :worker)
-        end
       end # end alive?
 
 
@@ -300,7 +377,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         #-----------------------------------------------------------------------------
       # @add
       if (unquote(only.add) && !unquote(override.add)) do
-        defp add(nmid, :worker, sup) do
+        def add(nmid, :worker, sup) do
           case alive?(nmid, :worker) do
               {:false, :nil} -> start(nmid, :worker, sup)
               {:true, pid} -> {:ok, pid}
@@ -314,7 +391,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         #-----------------------------------------------------------------------------
       # @start
       if (unquote(only.start) && !unquote(override.start)) do
-        defp start(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
+        def start(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
+          nmid = normid(nmid)
           childSpec = @worker_supervisor.child(nmid)
           case Supervisor.start_child(sup, childSpec) do
             {:ok, pid} ->
@@ -328,11 +406,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               error
           end
         end
-
-        defp start(nmid, :worker, sup) when is_bitstring(nmid) do
-          start(nmid |> Integer.parse() |> elem(0), :worker, sup)
-        end
-
       end # end start
 
         #-----------------------------------------------------------------------------
@@ -340,7 +413,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         #-----------------------------------------------------------------------------
         # @start
         if (unquote(only.start) && !unquote(override.start)) do
-        defp start(nmid, arguments, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
+        def start(nmid, arguments, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
           childSpec = @worker_supervisor.child(nmid, arguments)
           case Supervisor.start_child(sup, childSpec) do
             {:ok, pid} ->
@@ -355,7 +428,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end
         end
 
-        defp start(nmid, arguments, :worker, sup) when is_bitstring(nmid) do
+        def start(nmid, arguments, :worker, sup) when is_bitstring(nmid) do
           start(nmid |> Integer.parse() |> elem(0), arguments, :worker, sup)
         end
       end # end start
@@ -366,12 +439,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
         # @remove
         if (unquote(only.remove) && !unquote(override.remove)) do
-        defp remove(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
+        def remove(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
           Supervisor.terminate_child(sup, nmid)
           Supervisor.delete_child(sup, nmid)
           :ets.delete(@base.lookup_table(), nmid)
         end
-        defp remove(nmid, :worker, sup) when is_bitstring(nmid) do
+        def remove(nmid, :worker, sup) when is_bitstring(nmid) do
           remove(nmid |> Integer.parse() |> elem(0), :worker, sup)
         end
 
@@ -442,6 +515,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           response = add(nmid, :worker, sup)
           {:reply, response, state}
         end
+
+        def handle_cast({:add_worker, nmid}, %Noizu.SimplePool.Server.State{pool: sup} = state) do
+          # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
+          spawn fn() -> add(nmid, :worker, sup) end
+          {:noreply, state}
+        end
       end # end call_add_worker
 
       # @call_remove_worker
@@ -495,8 +574,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end
         end
       end # end cast_load
-
-
       @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__
@@ -505,6 +582,5 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     quote do
     end # end quote
   end # end __before_compile__
-
 
 end

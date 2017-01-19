@@ -106,7 +106,7 @@ defmodule Noizu.SimplePool.Behaviour do
           end
 
           # Start Ets Lookup Table for Worker book keeping.
-          :ets.new(ets_table, [:named_table, :set, read_concurrency: true])
+          :ets.new(ets_table, [:public, :named_table, :set, read_concurrency: true])
 
           # Return Sequence Information
           {nmid_seed, sequence}

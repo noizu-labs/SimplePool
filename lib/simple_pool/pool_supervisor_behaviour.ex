@@ -52,7 +52,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
           end
 
           {:ok, pool_supervisor} = Supervisor.start_child(sup, supervisor(@worker_supervisor, [], []))
-          Supervisor.start_child(sup, worker(@pool_server, [pool_supervisor, @base.nmid_seed()], []))
+          {:ok, pool_supervisor} = Supervisor.start_child(sup, worker(@pool_server, [pool_supervisor, @base.nmid_seed()], []))
 
           # Lazy Load Children Load Children
           GenServer.cast(@pool_server, {:load})
