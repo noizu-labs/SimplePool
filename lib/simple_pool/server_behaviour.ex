@@ -427,12 +427,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end # end call_status
 
       # @call_generte
-      if (unquote(only.call_generte) && !unquote(override.call_generte)) do
+      if (unquote(only.call_generate) && !unquote(override.call_generate)) do
         def handle_call({:generate, :nmid}, _from, %Noizu.SimplePool.Server.State{nmid_generator: {{node, process}, sequence}} = state) do
           {nmid, state} = @base.generate_nmid(state)
           {:reply, nmid, state}
         end
-      end # end call_generte
+      end # end call_generate
 
       # @call_add_worker
       if (unquote(only.call_add_worker) && !unquote(override.call_add_worker)) do
