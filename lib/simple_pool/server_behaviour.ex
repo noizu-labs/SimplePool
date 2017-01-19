@@ -1,3 +1,4 @@
+0
 defmodule Noizu.SimplePool.ServerBehaviour do
 
   # Must be implemented
@@ -323,7 +324,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :ets.insert(@base.lookup_table(), {nmid, pid})
               {:ok, pid}
             error ->
-              Logger.error("#{__MODULE__} unable to start #{inspect nmid}")
+              IO.puts("#{__MODULE__} unable to start #{inspect nmid}")
               error
           end
         end
@@ -349,7 +350,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :ets.insert(@base.lookup_table(), {nmid, pid})
               {:ok, pid}
             error ->
-              Logger.error("#{__MODULE__} unable to start #{inspect nmid}")
+              IO.puts("#{__MODULE__} unable to start #{inspect nmid}")
               error
           end
         end
@@ -426,7 +427,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end # end call_status
 
-      # @call_generte
+      # @call_generate
       if (unquote(only.call_generate) && !unquote(override.call_generate)) do
         def handle_call({:generate, :nmid}, _from, %Noizu.SimplePool.Server.State{nmid_generator: {{node, process}, sequence}} = state) do
           {nmid, state} = @base.generate_nmid(state)
@@ -467,8 +468,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         #=========================================================================
         #=========================================================================
 
-      # @call_load
-      if (unquote(only.call_load) && !unquote(override.call_load)) do
+      # @cast_load
+      if (unquote(only.cast_load) && !unquote(override.cast_load)) do
 
         if (!unquote(asynch_load)) do
           def handle_cast({:load}, state) do
@@ -493,7 +494,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             end
           end
         end
-      end # end call_load
+      end # end cast_load
 
 
       @before_compile unquote(__MODULE__)
