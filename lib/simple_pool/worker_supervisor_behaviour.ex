@@ -1,12 +1,23 @@
 defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
-  #@callback tests() :: :ok
+  @callback start_link() :: any
+  @callback child(any) :: any
+  @callback child(any, any) :: any
+  @callback init(any) :: any
+
+  @provided_methods [
+      :start_link,
+      :child,
+      :init
+  ]
+
   defmacro __using__(options) do
     max_restarts = Dict.get(options, :max_restarts, 100)
     max_seconds = Dict.get(options, :max_seconds, 5)
     strategy = Dict.get(options, :strategy, :one_for_one)
     global_verbose = Dict.get(options, :verbose, false)
     module_verbose = Dict.get(options, :worker_supervisor_verbose, false)
-
+    only = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :only, @provided_methods))
+    override = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :override, []))
 
     quote do
       #@behaviour Noizu.SimplePool.WorkerSupervisorBehaviour
@@ -17,6 +28,8 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       use Supervisor
       import unquote(__MODULE__)
 
+    # @start_link
+    if (unquote(only.start_link) && !unquote(override.start_link)) do
       def start_link do
         if (unquote(global_verbose) || unquote(module_verbose)) do
           "************************************************\n" <>
@@ -25,7 +38,10 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
         end
         Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}])
       end
+    end # end start_link
 
+    # @child
+    if (unquote(only.child) && !unquote(override.child)) do
       def child(nmid) do
         worker(@worker, [nmid], [id: nmid])
       end
@@ -33,7 +49,10 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       def child(id, params) do
         worker(@worker, [params], [id: id])
       end
+    end # end child
 
+    # @init
+    if (unquote(only.init) && !unquote(override.init)) do
       def init(any) do
         if (unquote(global_verbose) || unquote(module_verbose)) do
           "************************************************\n" <>
@@ -42,6 +61,9 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
         end
         supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])
       end
+    end # end init
+
+
     end # end quote
   end #end __using__
 

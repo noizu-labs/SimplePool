@@ -1,9 +1,18 @@
 defmodule Noizu.SimplePool.Behaviour do
-
   @callback nmid_seed() :: {integer, integer}
   @callback lookup_table() :: atom
   @callback book_keeping_init() :: {{integer, integer}, integer}
   @callback generate_nmid(Noizu.SimplePool.Server.State.t) :: {integer, Noizu.SimplePool.Server.State.t}
+
+  def map_intersect(list, subset) do
+    List.foldl(
+      list,
+      %{},
+      fn(entry, acc) ->
+        Map.put(acc, entry, Enum.member?(subset, entry))
+      end
+    )
+  end
 
   def simple_nmid({node, process}, sequence) do
     # node < 100,  0-99
@@ -18,6 +27,7 @@ defmodule Noizu.SimplePool.Behaviour do
     default_worker_supervisor = Enum.member?(defaults, :worker_supervisor)
     default_pool_supervisor = Enum.member?(defaults, :pool_supervisor)
 
+    # @TODO standardize around override/only logic.
     disable = Dict.get(options, :disable, [])
     disable_lookup_table = Enum.member?(disable, :lookup_table)
     disable_book_keeping_init = Enum.member?(disable, :book_keeping_init)
@@ -25,12 +35,20 @@ defmodule Noizu.SimplePool.Behaviour do
     global_verbose = Dict.get(options, :verbose, false)
     module_verbose = Dict.get(options, :base_verbose, false)
 
+    # @TODO copy/merge any key global options and set in worker/supervisor option set if not overriden.
+    worker_options = Dict.get(options, :worker_options, [])
+      |> Dict.put(:verbose, global_verbose)
+    server_options = Dict.get(options, :server_options, [])
+      |> Dict.put(:verbose, global_verbose)
+    worker_supervisor_options = Dict.get(options, :worker_supervisor_options, [])
+      |> Dict.put(:verbose, global_verbose)
+    pool_supervisor_options = Dict.get(options, :pool_supervisor_options, [])
+      |> Dict.put(:verbose, global_verbose)
+
     nmid_table = Dict.get(options, :nmid_table)
-
-    if nmid_table == nil do
+    if nmid_table == nil && !disable_generate_nmid do
        raise "NMID_TABLE must be set to environments NMID Generator Table"
-     end
-
+    end
 
     quote do
       require Amnesia
@@ -97,7 +115,7 @@ defmodule Noizu.SimplePool.Behaviour do
 
       if (unquote(default_worker)) do
         defmodule Worker do
-          use Noizu.SimplePool.WorkerBehaviour, unquote(options)
+          use Noizu.SimplePool.WorkerBehaviour, unquote(worker_options)
           def tests() do
             :ok
           end
@@ -106,9 +124,9 @@ defmodule Noizu.SimplePool.Behaviour do
 
       if (unquote(default_server)) do
         defmodule Server do
-          use Noizu.SimplePool.ServerBehaviour, unquote(options)
+          use Noizu.SimplePool.ServerBehaviour, unquote(server_options)
           def lazy_load(state) do
-            IO.puts "NYI - lazy load"
+            IO.puts "#{__MODULE__}.lazy_load Default"
             state
           end
         end
@@ -116,19 +134,13 @@ defmodule Noizu.SimplePool.Behaviour do
 
       if (unquote(default_worker_supervisor)) do
         defmodule WorkerSupervisor do
-          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options)
-          def tests() do
-            :ok
-          end
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(worker_supervisor_options)
         end
       end
 
       if (unquote(default_pool_supervisor)) do
         defmodule PoolSupervisor do
-          use Noizu.SimplePool.PoolSupervisorBehaviour, unquote(options)
-          def tests() do
-            :ok
-          end
+          use Noizu.SimplePool.PoolSupervisorBehaviour, unquote(pool_supervisor_options)
         end
       end
 
