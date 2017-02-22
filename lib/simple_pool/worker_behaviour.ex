@@ -18,6 +18,8 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   @provided_methods [
       :start_link,
       :init,
+      :terminate,
+      :terminate_hook,
       :call_uninitialized,
       :call_fetch,
       :call_load
@@ -32,7 +34,8 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     quote do
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.WorkerBehaviour
-
+      @base Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat
+      @server Module.concat([@base, "Server"])
 
       # @start_link
       if (unquote(only.start_link) && !unquote(override.start_link)) do
@@ -46,6 +49,28 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         end
       end # end start_link
 
+      # @terminate
+      if (unquote(only.terminate) && !unquote(override.terminate)) do
+        def terminate(reason, state) do
+          if (unquote(global_verbose) || unquote(module_verbose)) do
+            "************************************************\n" <>
+            "* TERMINATE #{__MODULE__} (#{inspect state.entity_ref })\n" <>
+            "************************************************\n" |> IO.puts()
+          end
+          @server.dereg_worker(state.entity_ref)
+          terminate_hook(reason, state)
+          :ok
+        end
+      end # end start_link
+
+      # @terminate
+      if (unquote(only.terminate_hook) && !unquote(override.terminate_hook)) do
+        def terminate_hook(reason, state) do
+          :ok
+        end
+      end # end start_link
+
+
       # @init
       if (unquote(only.init) && !unquote(override.init)) do
         def init(nmid) do
@@ -54,6 +79,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             "* INIT #{__MODULE__} (#{inspect nmid })\n" <>
             "************************************************\n" |> IO.puts()
           end
+          @server.reg_worker(nmid, self())
           {:ok, initial_state(nmid)}
         end
       end # end init

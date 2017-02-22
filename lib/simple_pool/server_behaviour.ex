@@ -2,6 +2,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   # Must be implemented
   @callback lazy_load(Noizu.SimplePool.Server.State.t) :: {any, Noizu.SimplePool.Server.State.t}
 
+  @callback init_hook(any) :: {:ok, any} | {:error, any}
+
   # Provided
   @callback load() :: any
 
@@ -46,6 +48,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   @provided_methods [
     :start_link,
     :init,
+    :init_hook,
     :terminate,
     :load,
     :status,
@@ -68,7 +71,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     :call_add_worker,
     :call_remove_worker,
     :call_fetch,
-    :cast_load
+    :cast_load,
+
+
+    :get_reg_worker,
+    :dereg_worker,
+    :reg_worker
   ]
 
   defmacro __using__(options) do
@@ -77,6 +85,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     only = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :only, @provided_methods))
     override = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :override, []))
     asynch_load = Dict.get(options, :asynch_load, false)
+    distributed? = Dict.get(options, :user_distributed_calls, false)
 
     quote do
       import unquote(__MODULE__)
@@ -104,6 +113,14 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
     end # end start_link
 
+    # @init_hook
+    #@TODO push some of this out to a Behaviour Provider
+    if (unquote(only.init_hook) && !unquote(override.init_hook)) do
+      def init_hook(state) do
+        {:ok, state}
+      end
+    end # end init_hook
+
     # @init
     if (unquote(only.init) && !unquote(override.init)) do
       def init({sup, {node, process}} = p) do
@@ -114,14 +131,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
         {{node, process}, sequence} = @base.book_keeping_init()
 
-        state = %Noizu.SimplePool.Server.State{
+        init_hook(%Noizu.SimplePool.Server.State{
           pool: sup,
           nmid_generator: {{node, process}, sequence},
           status_details: nil,
           status: :uninitialized
-        }
-
-        {:ok, state}
+        })
       end
     end # end init
 
@@ -316,6 +331,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def add!(nmid, :asynch) do
           GenServer.cast(__MODULE__, {:add_worker, nmid})
         end
+
       end # end add!
 
       # @fetch!
@@ -355,19 +371,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
         def alive?(nmid, :worker) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
           nmid = normid(nmid)
-          case :ets.info(@base.lookup_table()) do
-            :undefined -> {false, :nil}
-            _ ->
-              case :ets.lookup(@base.lookup_table(), nmid) do
-                 [{_key, pid}] ->
-                    if Process.alive?(pid) do
-                      {true, pid}
-                    else
-                      {false, :nil}
-                    end
-                  [] -> {false, :nil}
-              end
-          end
+          get_reg_worker(nmid)
         end
       end # end alive?
 
@@ -396,17 +400,49 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           childSpec = @worker_supervisor.child(nmid)
           case Supervisor.start_child(sup, childSpec) do
             {:ok, pid} ->
-              :ets.insert(@base.lookup_table(), {nmid, pid})
+              #reg_worker(nmid, pid)
               {:ok, pid}
+
             {:error, {:already_started, pid}} ->
-              :ets.insert(@base.lookup_table(), {nmid, pid})
+              #reg_worker(nmid, pid)
               {:ok, pid}
             error ->
-              IO.puts("#{__MODULE__} unable to start #{inspect nmid}")
+              #Logger.warn("#{__MODULE__} unable to start #{inspect nmid}")
               error
+          end # end case
+        end # end def
+      end # end start
+
+
+      if (unquote(only.reg_worker) && !unquote(override.reg_worker)) do
+        def reg_worker(nmid, pid) do
+          :ets.insert(@base.lookup_table(), {nmid, pid})
+        end
+      end
+
+      if (unquote(only.dereg_worker) && !unquote(override.dereg_worker)) do
+        def dereg_worker(nmid) do
+          :ets.delete(@base.lookup_table(), nmid)
+        end
+      end
+
+      if (unquote(only.get_reg_worker) && !unquote(override.get_reg_worker)) do
+        def get_reg_worker(nmid) do
+          case :ets.info(@base.lookup_table()) do
+            :undefined -> {false, :nil}
+            _ ->
+              case :ets.lookup(@base.lookup_table(), nmid) do
+                 [{_key, pid}] ->
+                    if Process.alive?(pid) do
+                      {true, pid}
+                    else
+                      {false, :nil}
+                    end
+                  [] -> {false, :nil}
+              end
           end
         end
-      end # end start
+      end
 
         #-----------------------------------------------------------------------------
         # start/4
@@ -417,10 +453,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           childSpec = @worker_supervisor.child(nmid, arguments)
           case Supervisor.start_child(sup, childSpec) do
             {:ok, pid} ->
-              :ets.insert(@base.lookup_table(), {nmid, pid})
               {:ok, pid}
             {:error, {:already_started, pid}} ->
-              :ets.insert(@base.lookup_table(), {nmid, pid})
               {:ok, pid}
             error ->
               IO.puts("#{__MODULE__} unable to start #{inspect nmid}")
@@ -442,7 +476,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def remove(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
           Supervisor.terminate_child(sup, nmid)
           Supervisor.delete_child(sup, nmid)
-          :ets.delete(@base.lookup_table(), nmid)
+          #dereg_worker(nmid)
         end
         def remove(nmid, :worker, sup) when is_bitstring(nmid) do
           remove(nmid |> Integer.parse() |> elem(0), :worker, sup)
