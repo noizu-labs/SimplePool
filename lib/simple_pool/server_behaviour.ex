@@ -72,11 +72,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     :call_remove_worker,
     :call_fetch,
     :cast_load,
-
-
-    :get_reg_worker,
-    :dereg_worker,
-    :reg_worker
   ]
 
   defmacro __using__(options) do
@@ -86,6 +81,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     override = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :override, []))
     asynch_load = Dict.get(options, :asynch_load, false)
     distributed? = Dict.get(options, :user_distributed_calls, false)
+    worker_lookup_handler = Dict.get(options, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation)
 
     quote do
       import unquote(__MODULE__)
@@ -130,7 +126,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           "************************************************\n" |> IO.puts()
         end
         {{node, process}, sequence} = @base.book_keeping_init()
-
+        unquote(worker_lookup_handler).update_endpoint(@base)
         init_hook(%Noizu.SimplePool.Server.State{
           pool: sup,
           nmid_generator: {{node, process}, sequence},
@@ -332,6 +328,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           GenServer.cast(__MODULE__, {:add_worker, nmid})
         end
 
+        def add!(rnode, nmid, :asynch) do
+          GenServer.cast({__MODULE__, rnode}, {:add_worker, nmid})
+        end
+
       end # end add!
 
       # @fetch!
@@ -371,10 +371,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
         def alive?(nmid, :worker) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
           nmid = normid(nmid)
-          get_reg_worker(nmid)
+          unquote(worker_lookup_handler).get_reg_worker(@base, nmid)
         end
       end # end alive?
 
+      def worker_lookup() do
+        unquote(worker_lookup_handler)
+      end
 
         #-----------------------------------------------------------------------------
         # add/3
@@ -412,37 +415,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end # end case
         end # end def
       end # end start
-
-
-      if (unquote(only.reg_worker) && !unquote(override.reg_worker)) do
-        def reg_worker(nmid, pid) do
-          :ets.insert(@base.lookup_table(), {nmid, pid})
-        end
-      end
-
-      if (unquote(only.dereg_worker) && !unquote(override.dereg_worker)) do
-        def dereg_worker(nmid) do
-          :ets.delete(@base.lookup_table(), nmid)
-        end
-      end
-
-      if (unquote(only.get_reg_worker) && !unquote(override.get_reg_worker)) do
-        def get_reg_worker(nmid) do
-          case :ets.info(@base.lookup_table()) do
-            :undefined -> {false, :nil}
-            _ ->
-              case :ets.lookup(@base.lookup_table(), nmid) do
-                 [{_key, pid}] ->
-                    if Process.alive?(pid) do
-                      {true, pid}
-                    else
-                      {false, :nil}
-                    end
-                  [] -> {false, :nil}
-              end
-          end
-        end
-      end
 
         #-----------------------------------------------------------------------------
         # start/4
