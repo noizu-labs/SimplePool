@@ -99,6 +99,16 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             {:reply, :initilization_failed, state}
           end
         end
+
+        def handle_cast(any_call, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+          state = initialize(state)
+          if state.initialized do
+            handle_cast(any_call, state)
+          else
+            {:noreply, state}
+          end
+        end
+        
       end # end call_uninitialized
 
       # @call_fetch

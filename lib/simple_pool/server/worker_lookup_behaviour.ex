@@ -12,9 +12,11 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     def reg_worker(mod, nmid, pid) do
       :ets.insert(mod.lookup_table(), {nmid, pid})
     end
+
     def dereg_worker(mod, nmid) do
       :ets.delete(mod.lookup_table(), nmid)
     end
+
     def get_reg_worker(mod, nmid) do
       case :ets.info(mod.lookup_table()) do
         :undefined -> {false, :nil}
@@ -24,9 +26,12 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                 if Process.alive?(pid) do
                   {true, pid}
                 else
+                  dereg_worker(mod, nmid)
                   {false, :nil}
                 end
-              [] -> {false, :nil}
+              [] ->
+                dereg_worker(mod, nmid)
+                {false, :nil}
           end
       end
     end

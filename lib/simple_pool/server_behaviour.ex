@@ -87,6 +87,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       import unquote(__MODULE__)
       require Amnesia
       require Amnesia.Fragment
+      require Logger
 
       @behaviour Noizu.SimplePool.ServerBehaviour
       @base Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat
@@ -143,6 +144,77 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
     end # end terminate
 
+      def s_call!(worker, call, timeout \\ 15_000) do
+        worker = normid(worker)
+        try do
+          case pid_or_spawn!(worker) do
+            {:ok, pid} -> GenServer.call(pid, call, timeout)
+            _ -> :error
+          end # end case
+        catch
+          :exit, e ->
+            Logger.warn "#{@base} - dead worker (#{inspect worker})"
+            unquote(worker_lookup_handler).dereg_worker(@base, worker)
+            case pid_or_spawn!(worker) do
+              {:ok, pid} -> GenServer.call(pid, call, timeout)
+              _ -> :error
+            end  # end case
+        end # end try
+      end # end s_call!
+
+      def s_cast!(worker, call) do
+        worker = normid(worker)
+        try do
+          case pid_or_spawn!(worker) do
+            {:ok, pid} -> GenServer.cast(pid, call)
+            _ -> :error
+          end
+        catch
+          :exit, e ->
+            Logger.warn "#{@base} - dead worker (#{inspect worker})"
+            unquote(worker_lookup_handler).dereg_worker(@base, worker)
+            case pid_or_spawn!(worker) do
+              {:ok, pid} -> GenServer.cast(pid, call)
+              _ -> :error
+            end # end case
+        end # end try
+      end # end s_cast!
+
+      def s_call(worker, call, timeout \\ 15_000) do
+        worker = normid(worker)
+        try do
+          case get_pid(worker) do
+            {:ok, pid} -> GenServer.call(pid, call, timeout)
+            _ -> :error
+          end
+        catch
+          :exit, e ->
+            Logger.warn "#{@base} - dead worker (#{inspect worker})"
+            unquote(worker_lookup_handler).dereg_worker(@base, worker)
+            case pid_or_spawn!(worker) do
+              {:ok, pid} -> GenServer.call(pid, call, timeout)
+              _ -> :error
+            end # end case
+        end # end try
+      end # end s_call
+
+      def s_cast(worker, call) do
+        worker = normid(worker)
+        try do
+          case get_pid(worker) do
+            {:ok, pid} -> IO.inspect  GenServer.cast(pid, call)
+            _ -> :error
+          end
+        catch
+          :exit, e ->
+            Logger.warn "#{@base} - dead worker (#{inspect worker})"
+            unquote(worker_lookup_handler).dereg_worker(@base, worker)
+            case pid_or_spawn!(worker) do
+              {:ok, pid} -> GenServer.cast(pid, call)
+              _ -> :error
+            end
+        end
+      end # end_rescue
 
       #=========================================================================
       #=========================================================================
@@ -270,7 +342,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
 
         def normid(nmid) when is_tuple(nmid) do
-          nmid
+          {:ok, n} = lookup_identifier(nmid)
+          n
         end
 
         def normid(nmid) when is_tuple(nmid) do
@@ -354,7 +427,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               GenServer.cast(__MODULE__, {:fetch, nmid, details, caller})
             {true, pid} ->
               # Call worker directly
-              GenServer.cast(pid, {:fetch, nmid, details, caller})
+              s_cast(pid, {:fetch, nmid, details, caller})
           end
         end
       end # end fetch!
@@ -542,7 +615,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(only.call_fetch) && !unquote(override.call_fetch)) do
         def handle_call({:fetch, nmid, details}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
               {:ok, pid} = add(nmid, :worker, sup)
-              response = GenServer.call(pid, {:fetch, details})
+              response = s_call(pid, {:fetch, details})
               {:reply, response, state}
         end
       end # end call_fetch
