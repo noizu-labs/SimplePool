@@ -57,7 +57,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             "* TERMINATE #{__MODULE__} (#{inspect state.entity_ref })\n" <>
             "************************************************\n" |> IO.puts()
           end
-          @server.worker_lookup().dereg_worker(@base, state.entity_ref)
+          @server.worker_lookup().dereg_worker!(@base, state.entity_ref)
           terminate_hook(reason, state)
           :ok
         end
@@ -79,7 +79,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             "* INIT #{__MODULE__} (#{inspect nmid })\n" <>
             "************************************************\n" |> IO.puts()
           end
-          @server.worker_lookup().reg_worker(@base, nmid, self())
+          @server.worker_lookup().reg_worker!(@base, nmid, self())
           {:ok, initial_state(nmid)}
         end
       end # end init
@@ -108,7 +108,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             {:noreply, state}
           end
         end
-        
+
       end # end call_uninitialized
 
       # @call_fetch

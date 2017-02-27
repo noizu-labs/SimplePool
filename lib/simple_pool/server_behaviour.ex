@@ -127,7 +127,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           "************************************************\n" |> IO.puts()
         end
         {{node, process}, sequence} = @base.book_keeping_init()
-        unquote(worker_lookup_handler).update_endpoint(@base)
+        unquote(worker_lookup_handler).update_endpoint!(@base)
         init_hook(%Noizu.SimplePool.Server.State{
           pool: sup,
           nmid_generator: {{node, process}, sequence},
@@ -154,7 +154,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         catch
           :exit, e ->
             Logger.warn "#{@base} - dead worker (#{inspect worker})"
-            unquote(worker_lookup_handler).dereg_worker(@base, worker)
+            unquote(worker_lookup_handler).dereg_worker!(@base, worker)
             case pid_or_spawn!(worker) do
               {:ok, pid} -> GenServer.call(pid, call, timeout)
               _ -> :error
@@ -172,7 +172,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         catch
           :exit, e ->
             Logger.warn "#{@base} - dead worker (#{inspect worker})"
-            unquote(worker_lookup_handler).dereg_worker(@base, worker)
+            unquote(worker_lookup_handler).dereg_worker!(@base, worker)
             case pid_or_spawn!(worker) do
               {:ok, pid} -> GenServer.cast(pid, call)
               _ -> :error
@@ -190,7 +190,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         catch
           :exit, e ->
             Logger.warn "#{@base} - dead worker (#{inspect worker})"
-            unquote(worker_lookup_handler).dereg_worker(@base, worker)
+            unquote(worker_lookup_handler).dereg_worker!(@base, worker)
             case pid_or_spawn!(worker) do
               {:ok, pid} -> GenServer.call(pid, call, timeout)
               _ -> :error
@@ -208,7 +208,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         catch
           :exit, e ->
             Logger.warn "#{@base} - dead worker (#{inspect worker})"
-            unquote(worker_lookup_handler).dereg_worker(@base, worker)
+            unquote(worker_lookup_handler).dereg_worker!(@base, worker)
             case pid_or_spawn!(worker) do
               {:ok, pid} -> GenServer.cast(pid, call)
               _ -> :error
@@ -298,6 +298,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           case alive?(nmid, :worker) do
             {false, :nil} -> {:error, :not_found}
             {true, pid} -> {:ok, pid}
+            error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, get_pid"
           end
         end
       end # end get_pid
@@ -313,6 +314,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           case alive?(nmid, :worker) do
             {false, :nil} -> add!(nmid)
             {true, pid} -> {:ok, pid}
+            error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, pid_or_spawn!"
           end
         end
       end # end pid_or_spawn!
@@ -345,38 +347,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           {:ok, n} = lookup_identifier(nmid)
           n
         end
-
-        def normid(nmid) when is_tuple(nmid) do
-          case :ets.lookup(@base.lookup_table(), nmid) do
-             [{_key, {:identifier, identifier}}] -> identifier
-             [{_key, {:not_found, attempts, retry_after}}] ->
-               if (retry_after < :os.system_time(:seconds)) do
-                 :not_found
-               else
-                 case lookup_identifier(nmid) do
-                   {:ok, identifier} ->
-                     :ets.insert(@base.lookup_table(), {nmid, {:identifier, identifier}})
-                     identifier
-                   e ->
-                     attempts = Enum.max([attempts + 1, 2000])
-                     retry = Enum.max([attempts + 15, 1200])
-                     :ets.insert(@base.lookup_table(), {nmid, {:not_found, attempts, :os.system_time(:seconds) + retry}})
-                     :not_found
-                 end
-               end
-             [] ->
-               case lookup_identifier(nmid) do
-                 {:ok, identifier} ->
-                   :ets.insert(@base.lookup_table(), {nmid, {:identifier, identifier}})
-                   identifier
-                 e ->
-                   :ets.insert(@base.lookup_table(), {nmid, {:not_found, 1, :os.system_time(:seconds) + 15}})
-                   :not_found
-               end
-          end
-        end
-
-
       end # end normid
 
 
@@ -444,7 +414,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
         def alive?(nmid, :worker) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
           nmid = normid(nmid)
-          unquote(worker_lookup_handler).get_reg_worker(@base, nmid)
+          unquote(worker_lookup_handler).get_reg_worker!(@base, nmid)
         end
       end # end alive?
 
@@ -461,6 +431,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           case alive?(nmid, :worker) do
               {:false, :nil} -> start(nmid, :worker, sup)
               {:true, pid} -> {:ok, pid}
+              error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, add"
           end
         end
       end # end add
