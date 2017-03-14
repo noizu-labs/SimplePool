@@ -32,9 +32,17 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             "* START_LINK #{__MODULE__}\n" <>
             "************************************************\n" |> IO.puts()
           end
-          {:ok, sup} = Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}])
-          start_children(sup)
-          {:ok, sup}
+
+          case Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}]) do
+            {:ok, sup} ->
+              IO.puts "#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}"
+              start_children(sup)
+              {:ok, sup}
+            {:error, {:already_started, sup}} ->
+              IO.puts "#{__MODULE__}.start_link Supervisor Already Started. Handling unexected state.  #{inspect sup}"
+              #start_children(sup)
+              {:ok, sup}
+          end
         end
       end # end start_link
 
@@ -51,8 +59,14 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             "|===============================================================================\n" |> IO.puts()
           end
 
-          {:ok, pool_supervisor} = Supervisor.start_child(sup, supervisor(@worker_supervisor, [], []))
-          {:ok, pool_supervisor} = Supervisor.start_child(sup, worker(@pool_server, [pool_supervisor, @base.nmid_seed()], []))
+          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [], [])) do
+            {:ok, pool_supervisor} ->
+              Supervisor.start_child(sup, worker(@pool_server, [pool_supervisor, @base.nmid_seed()], []))
+            error ->
+              IO.puts "#{__MODULE__}.start_children #{inspect @worker_supervisor} Already Started. Handling unexected state.
+              #{inspect error}
+              "
+          end
 
           # Lazy Load Children Load Children
           GenServer.cast(@pool_server, {:load})
