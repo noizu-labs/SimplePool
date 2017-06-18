@@ -228,7 +228,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           Load pool from datastore.
         """
         def load() do
-          GenServer.call(__MODULE__, {:load})
+          GenServer.cast(__MODULE__, {:load})
         end
       end # end load
 
