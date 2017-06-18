@@ -87,6 +87,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       import unquote(__MODULE__)
       require Amnesia
       require Amnesia.Fragment
+      require Amnesia.Helper
       require Logger
 
       @behaviour Noizu.SimplePool.ServerBehaviour

@@ -53,6 +53,7 @@ defmodule Noizu.SimplePool.Behaviour do
     quote do
       require Amnesia
       require Amnesia.Fragment
+      require Amnesia.Helper
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.Behaviour
 
