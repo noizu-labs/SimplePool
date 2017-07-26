@@ -8,7 +8,7 @@ defmodule Noizu.SimplePool.Mixfile do
      package: package(),
      deps: deps(),
      description: "Noizu Simple Pool",
-     docs: docs
+     docs: docs()
    ]
  end # end project
 
