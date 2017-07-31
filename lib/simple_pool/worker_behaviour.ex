@@ -22,14 +22,15 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       :terminate_hook,
       :call_uninitialized,
       :call_fetch,
-      :call_load
+      :call_load,
+      :s_redirect
     ]
 
   defmacro __using__(options) do
-    global_verbose = Dict.get(options, :verbose, false)
-    module_verbose = Dict.get(options, :worker_verbose, false)
-    only = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :only, @provided_methods))
-    override = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :override, []))
+    global_verbose = Keyword.get(options, :verbose, false)
+    module_verbose = Keyword.get(options, :worker_verbose, false)
+    only = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Keyword.get(options, :only, @provided_methods))
+    override = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Keyword.get(options, :override, []))
 
     quote do
       import unquote(__MODULE__)
@@ -126,6 +127,48 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           {:noreply, state}
         end
       end # end call_load
+
+      # @s_redirect
+      if (unquote(only.s_redirect) && !unquote(override.s_redirect)) do
+        def handle_cast({:s_cast, {mod, nmid}, args}, state) do
+          if (mod == @base) do
+            handle_cast(args, state)
+          else
+            @server.worker_lookup().clear_process!(mod, nmid, {self(), node})
+            mod.Server.s_cast(nmid, args)
+            {:noreply, state}
+          end
+        end # end handle_cast/:s_cast
+
+        def handle_cast({:s_cast!, {mod, nmid}, args}, state) do
+          if (mod == @base) do
+            handle_cast(args, state)
+          else
+            @server.worker_lookup().clear_process!(mod, nmid, {self(), node})
+            mod.Server.s_cast!(nmid, args)
+            {:noreply, state}
+          end
+        end # end handle_cast/:s_cast!
+
+        def handle_call({:s_call, {mod, nmid, time_out}, call}, from, state) do
+          if (mod == @base) do
+            handle_call(call, from, state)
+          else
+            @server.worker_lookup().clear_process!(mod, nmid, {self(), node})
+            {:reply, :s_retry, state}
+          end
+        end # end handle_call/:s_call
+
+        def handle_call({:s_call!, {mod, nmid, time_out}, call}, from, state) do
+          if (mod == @base) do
+            handle_call(call, from, state)
+          else
+            @server.worker_lookup().clear_process!(mod, nmid, {self(), node})
+            {:reply, :s_retry, state}
+          end
+        end # end handle_call/:s_call!
+      end # end s_redirect
+
 
       @before_compile unquote(__MODULE__)
     end # end quote

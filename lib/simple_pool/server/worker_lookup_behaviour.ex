@@ -3,14 +3,19 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
   @callback get_reg_worker!(atom, any) :: {boolean, pid|any}
   @callback dereg_worker!(atom, any) :: :ok | :error
   @callback reg_worker!(atom, any, pid) :: :ok | {:error, any}
+  @callback clear_process!(atom, any, node_pid :: any) :: :ok | :error
 
   defmodule DefaultImplementation do
-    def update_endpoint!(mod) do
+    def update_endpoint!(_mod) do
       :ok
     end
 
     def reg_worker!(mod, nmid, pid) do
       :ets.insert(mod.lookup_table(), {nmid, pid})
+    end
+
+    def clear_process!(mod, nmid, _pid_node) do
+      :ets.delete(mod.lookup_table(), nmid)
     end
 
     def dereg_worker!(mod, nmid) do

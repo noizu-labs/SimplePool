@@ -72,16 +72,17 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     :call_remove_worker,
     :call_fetch,
     :cast_load,
+    :s_redirect
   ]
 
   defmacro __using__(options) do
-    global_verbose = Dict.get(options, :verbose, false)
-    module_verbose = Dict.get(options, :server_verbose, false)
-    only = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :only, @provided_methods))
-    override = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :override, []))
-    asynch_load = Dict.get(options, :asynch_load, false)
-    distributed? = Dict.get(options, :user_distributed_calls, false)
-    worker_lookup_handler = Dict.get(options, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation)
+    global_verbose = Keyword.get(options, :verbose, false)
+    module_verbose = Keyword.get(options, :server_verbose, false)
+    only = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Keyword.get(options, :only, @provided_methods))
+    override = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Keyword.get(options, :override, []))
+    asynch_load = Keyword.get(options, :asynch_load, false)
+    distributed? = Keyword.get(options, :user_distributed_calls, false)
+    worker_lookup_handler = Keyword.get(options, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation)
 
     quote do
       import unquote(__MODULE__)
@@ -147,9 +148,18 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       def s_call!(worker, call, timeout \\ 15_000) do
         worker = normid(worker)
+        redirect_call = {:s_call!, {@base, worker, timeout}, call}
         try do
           case pid_or_spawn!(worker) do
-            {:ok, pid} -> GenServer.call(pid, call, timeout)
+            {:ok, pid} ->
+              case GenServer.call(pid, redirect_call, timeout) do
+                :s_retry ->
+                  case pid_or_spawn!(worker) do
+                    {:ok, pid} -> GenServer.call(pid, redirect_call, timeout)
+                    _ -> :error
+                  end
+                v -> v
+              end
             _ -> :error
           end # end case
         catch
@@ -157,7 +167,15 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             Logger.warn "#{@base} - dead worker (#{inspect worker})"
             unquote(worker_lookup_handler).dereg_worker!(@base, worker)
             case pid_or_spawn!(worker) do
-              {:ok, pid} -> GenServer.call(pid, call, timeout)
+              {:ok, pid} ->
+                case GenServer.call(pid, redirect_call, timeout) do
+                  :s_retry ->
+                    case pid_or_spawn!(worker) do
+                      {:ok, pid} -> GenServer.call(pid, redirect_call, timeout)
+                      _ -> :error
+                    end
+                  v -> v
+                end
               _ -> :error
             end  # end case
         end # end try
@@ -165,9 +183,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       def s_cast!(worker, call) do
         worker = normid(worker)
+        redirect_call = {:s_cast!, {@base, worker}, call}
         try do
           case pid_or_spawn!(worker) do
-            {:ok, pid} -> GenServer.cast(pid, call)
+            {:ok, pid} -> GenServer.cast(pid, redirect_call)
             _ -> :error
           end
         catch
@@ -175,7 +194,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             Logger.warn "#{@base} - dead worker (#{inspect worker})"
             unquote(worker_lookup_handler).dereg_worker!(@base, worker)
             case pid_or_spawn!(worker) do
-              {:ok, pid} -> GenServer.cast(pid, call)
+              {:ok, pid} -> GenServer.cast(pid, redirect_call)
               _ -> :error
             end # end case
         end # end try
@@ -183,9 +202,18 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       def s_call(worker, call, timeout \\ 15_000) do
         worker = normid(worker)
+        redirect_call = {:s_call, {@base, worker, timeout}, call}
         try do
           case get_pid(worker) do
-            {:ok, pid} -> GenServer.call(pid, call, timeout)
+            {:ok, pid} ->
+              case GenServer.call(pid, redirect_call, timeout) do
+                :s_retry ->
+                  case get_pid(worker) do
+                    {:ok, pid} -> GenServer.call(pid, redirect_call, timeout)
+                    _ -> :error
+                  end
+                v -> v
+              end
             _ -> :error
           end
         catch
@@ -193,7 +221,15 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             Logger.warn "#{@base} - dead worker (#{inspect worker})"
             unquote(worker_lookup_handler).dereg_worker!(@base, worker)
             case pid_or_spawn!(worker) do
-              {:ok, pid} -> GenServer.call(pid, call, timeout)
+              {:ok, pid} ->
+                case GenServer.call(pid, redirect_call, timeout) do
+                  :s_retry ->
+                    case get_pid(worker) do
+                      {:ok, pid} -> GenServer.call(pid, redirect_call, timeout)
+                      _ -> :error
+                    end
+                  v -> v
+                end
               _ -> :error
             end # end case
         end # end try
@@ -201,9 +237,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       def s_cast(worker, call) do
         worker = normid(worker)
+        redirect_call = {:s_cast, {@base, worker}, call}
         try do
           case get_pid(worker) do
-            {:ok, pid} -> IO.inspect  GenServer.cast(pid, call)
+            {:ok, pid} -> IO.inspect  GenServer.cast(pid, redirect_call)
             _ -> :error
           end
         catch
@@ -211,7 +248,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             Logger.warn "#{@base} - dead worker (#{inspect worker})"
             unquote(worker_lookup_handler).dereg_worker!(@base, worker)
             case pid_or_spawn!(worker) do
-              {:ok, pid} -> GenServer.cast(pid, call)
+              {:ok, pid} -> GenServer.cast(pid, redirect_call)
               _ -> :error
             end
         end
@@ -625,6 +662,49 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end
         end
       end # end cast_load
+
+
+      # @s_redirect
+      if (unquote(only.s_redirect) && !unquote(override.s_redirect)) do
+        def handle_cast({:s_cast, {mod, nmid}, args}, state) do
+          if (mod == @base) do
+            handle_cast(args, state)
+          else
+            __MODULE__.worker_lookup().clear_process!(mod, nmid, {self(), node})
+            mod.Server.s_cast(nmid, args)
+            {:noreply, state}
+          end
+        end # end handle_cast/:s_cast
+
+        def handle_cast({:s_cast!, {mod, nmid}, args}, state) do
+          if (mod == @base) do
+            handle_cast(args, state)
+          else
+            __MODULE__.worker_lookup().clear_process!(mod, nmid, {self(), node})
+            mod.Server.s_cast!(nmid, args)
+            {:noreply, state}
+          end
+        end # end handle_cast/:s_cast!
+
+        def handle_call({:s_call, {mod, nmid, time_out}, call}, from, state) do
+          if (mod == @base) do
+            handle_call(call, from, state)
+          else
+            __MODULE__.worker_lookup().clear_process!(mod, nmid, {self(), node})
+            mod.Server.s_call(nmid, call, time_out)
+          end
+        end # end handle_call/:s_call
+
+        def handle_call({:s_call!, {mod, nmid, time_out}, call}, from, state) do
+          if (mod == @base) do
+            handle_call(call, from, state)
+          else
+            __MODULE__.worker_lookup().clear_process!(mod, nmid, {self(), node})
+            mod.Server.s_call!(nmid, call, time_out)
+          end
+        end # end handle_call/:s_call!
+      end # end s_redirect
+
       @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__
