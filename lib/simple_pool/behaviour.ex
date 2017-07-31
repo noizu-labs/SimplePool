@@ -21,31 +21,31 @@ defmodule Noizu.SimplePool.Behaviour do
   end
 
   defmacro __using__(options) do
-    defaults = Dict.get(options, :defaults, [])
+    defaults = Keyword.get(options, :defaults, [])
     default_worker = Enum.member?(defaults, :worker)
     default_server = Enum.member?(defaults, :server)
     default_worker_supervisor = Enum.member?(defaults, :worker_supervisor)
     default_pool_supervisor = Enum.member?(defaults, :pool_supervisor)
 
     # @TODO standardize around override/only logic.
-    disable = Dict.get(options, :disable, [])
+    disable = Keyword.get(options, :disable, [])
     disable_lookup_table = Enum.member?(disable, :lookup_table)
     disable_book_keeping_init = Enum.member?(disable, :book_keeping_init)
     disable_generate_nmid = Enum.member?(disable, :generate_nmid)
-    global_verbose = Dict.get(options, :verbose, false)
-    module_verbose = Dict.get(options, :base_verbose, false)
+    global_verbose = Keyword.get(options, :verbose, false)
+    module_verbose = Keyword.get(options, :base_verbose, false)
 
     # @TODO copy/merge any key global options and set in worker/supervisor option set if not overriden.
-    worker_options = Dict.get(options, :worker_options, [])
-      |> Dict.put(:verbose, global_verbose)
-    server_options = Dict.get(options, :server_options, [])
-      |> Dict.put(:verbose, global_verbose)
-    worker_supervisor_options = Dict.get(options, :worker_supervisor_options, [])
-      |> Dict.put(:verbose, global_verbose)
-    pool_supervisor_options = Dict.get(options, :pool_supervisor_options, [])
-      |> Dict.put(:verbose, global_verbose)
+    worker_options = Keyword.get(options, :worker_options, [])
+      |> Keyword.put(:verbose, global_verbose)
+    server_options = Keyword.get(options, :server_options, [])
+      |> Keyword.put(:verbose, global_verbose)
+    worker_supervisor_options = Keyword.get(options, :worker_supervisor_options, [])
+      |> Keyword.put(:verbose, global_verbose)
+    pool_supervisor_options = Keyword.get(options, :pool_supervisor_options, [])
+      |> Keyword.put(:verbose, global_verbose)
 
-    nmid_table = Dict.get(options, :nmid_table)
+    nmid_table = Keyword.get(options, :nmid_table)
     if nmid_table == nil && !disable_generate_nmid do
        raise "NMID_TABLE must be set to environments NMID Generator Table"
     end

@@ -130,22 +130,24 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
 
       # @s_redirect
       if (unquote(only.s_redirect) && !unquote(override.s_redirect)) do
-        def handle_cast({:s_cast, {mod, nmid}, args}, state) do
+        def handle_cast({:s_cast, {mod, nmid}, call}, state) do
           if (mod == @base) do
-            handle_cast(args, state)
+            handle_cast(call, state)
           else
             @server.worker_lookup().clear_process!(mod, nmid, {self(), node})
-            mod.Server.s_cast(nmid, args)
+            server = Module.concat(mod, "Server")
+            server.s_cast(nmid, call)
             {:noreply, state}
           end
         end # end handle_cast/:s_cast
 
-        def handle_cast({:s_cast!, {mod, nmid}, args}, state) do
+        def handle_cast({:s_cast!, {mod, nmid}, call}, state) do
           if (mod == @base) do
-            handle_cast(args, state)
+            handle_cast(call, state)
           else
             @server.worker_lookup().clear_process!(mod, nmid, {self(), node})
-            mod.Server.s_cast!(nmid, args)
+            server = Module.concat(mod, "Server")
+            server.s_cast!(nmid, call)
             {:noreply, state}
           end
         end # end handle_cast/:s_cast!

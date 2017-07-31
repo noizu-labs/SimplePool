@@ -663,25 +663,26 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end # end cast_load
 
-
       # @s_redirect
       if (unquote(only.s_redirect) && !unquote(override.s_redirect)) do
-        def handle_cast({:s_cast, {mod, nmid}, args}, state) do
+        def handle_cast({:s_cast, {mod, nmid}, call}, state) do
           if (mod == @base) do
-            handle_cast(args, state)
+            handle_cast(call, state)
           else
             __MODULE__.worker_lookup().clear_process!(mod, nmid, {self(), node})
-            mod.Server.s_cast(nmid, args)
+            server = Module.concat(mod, "Server")
+            server.s_cast(nmid, call)
             {:noreply, state}
           end
         end # end handle_cast/:s_cast
 
-        def handle_cast({:s_cast!, {mod, nmid}, args}, state) do
+        def handle_cast({:s_cast!, {mod, nmid}, call}, state) do
           if (mod == @base) do
-            handle_cast(args, state)
+            handle_cast(call, state)
           else
             __MODULE__.worker_lookup().clear_process!(mod, nmid, {self(), node})
-            mod.Server.s_cast!(nmid, args)
+            server = Module.concat(mod, "Server")
+            server.s_cast!(nmid, call)
             {:noreply, state}
           end
         end # end handle_cast/:s_cast!
@@ -691,7 +692,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             handle_call(call, from, state)
           else
             __MODULE__.worker_lookup().clear_process!(mod, nmid, {self(), node})
-            mod.Server.s_call(nmid, call, time_out)
+            {:reply, :s_retry, state}
           end
         end # end handle_call/:s_call
 
@@ -700,7 +701,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             handle_call(call, from, state)
           else
             __MODULE__.worker_lookup().clear_process!(mod, nmid, {self(), node})
-            mod.Server.s_call!(nmid, call, time_out)
+            {:reply, :s_retry, state}
           end
         end # end handle_call/:s_call!
       end # end s_redirect
