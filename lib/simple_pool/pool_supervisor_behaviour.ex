@@ -1,21 +1,50 @@
 defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
+  alias Noizu.SimplePool.OptionSettings
+  alias Noizu.SimplePool.OptionValue
+  alias Noizu.SimplePool.OptionList
+
+  @callback option_settings() :: Map.t
   @callback start_link() :: any
   @callback start_children(any) :: any
-  @callback start_init(any) :: any
 
-  @provided_methods [:start_link, :start_children, :init]
+  @methods([:start_link, :start_children, :init])
+
+  @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
+  @default_features([:lazy_load, :s_redirect, :inactivity_check])
+
+  @default_max_seconds(5)
+  @default_max_restarts(1000)
+  @default_strategy(:one_for_one)
+
+  def prepare_options(options) do
+    settings = %OptionSettings{
+      option_settings: %{
+        features: %OptionList{option: :features, default: Application.get_env(Noizu.SimplePool, :default_features, @default_features), valid_members: @features, membership_set: false},
+        only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
+        override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
+        verbose: %OptionValue{option: :verbose, default: Application.get_env(Noizu.SimplePool, :verbose, false)},
+
+        max_restarts: %OptionValue{option: :max_restarts, default: Application.get_env(Noizu.SimplePool, :pool_max_restarts, @default_max_restarts)},
+        max_seconds: %OptionValue{option: :max_seconds, default: Application.get_env(Noizu.SimplePool, :pool_max_seconds, @default_max_seconds)},
+        strategy: %OptionValue{option: :strategy, default: Application.get_env(Noizu.SimplePool, :pool_strategy, @default_strategy)}
+      }
+    }
+
+    initial = OptionSettings.expand(settings, options)
+    modifications = Map.put(initial.effective_options, :required, List.foldl(@methods, %{}, fn(x, acc) -> Map.put(acc, x, initial.effective_options.only[x] && !initial.effective_options.override[x]) end))
+    %OptionSettings{initial| effective_options: Map.merge(initial.effective_options, modifications)}
+  end
+
 
   defmacro __using__(options) do
-    #process_identifier = Dict.get(options, :process_identifier)
-    max_restarts = Dict.get(options, :max_restarts, 100)
-    max_seconds = Dict.get(options, :max_seconds, 5)
-    strategy = Dict.get(options, :strategy, :one_for_one)
-    global_verbose = Dict.get(options, :verbose, false)
-    module_verbose = Dict.get(options, :pool_supervisor_verbose, false)
+    option_settings = prepare_options(options)
+    options = option_settings.effective_options
 
-    only = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :only, @provided_methods))
-    override = Noizu.SimplePool.Behaviour.map_intersect(@provided_methods, Dict.get(options, :override, []))
-
+    required = options.required
+    max_restarts = options.max_restarts
+    max_seconds = options.max_seconds
+    strategy = options.strategy
+    verbose = options.verbose
     quote do
       use Supervisor
       @behaviour Noizu.SimplePool.PoolSupervisorBehaviour
@@ -24,13 +53,15 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       @pool_server Module.concat([@base, "Server"])
       import unquote(__MODULE__)
 
+      def option_settings do
+        unquote(Macro.escape(option_settings))
+      end
+
       # @start_link
-      if (unquote(only.start_link) && !unquote(override.start_link)) do
+      if (unquote(required.start_link)) do
         def start_link do
-          if (unquote(global_verbose) || unquote(module_verbose)) do
-            "************************************************\n" <>
-            "* START_LINK #{__MODULE__}\n" <>
-            "************************************************\n" |> IO.puts()
+          if unquote(verbose) do
+            @base.banner("#{__MODULE__}.start_link") |> IO.puts
           end
 
           case Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}]) do
@@ -47,23 +78,23 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       end # end start_link
 
       # @start_children
-      if (unquote(only.start_children) && !unquote(override.start_children)) do
+      if (unquote(required.start_children)) do
         def start_children(sup) do
-          if (unquote(global_verbose) || unquote(module_verbose)) do
-            "----------- START_CHILDREN: ----------------------------------------------------\n" <>
-            "| Options: #{inspect unquote(options)}\n"  <>
-            "| #{__MODULE__}\n"  <>
-            "| worker_supervisor: #{@worker_supervisor}\n"  <>
-            "| worker_server: #{@pool_server}\n"  <>
-            "| nmid_seed: #{inspect @base.nmid_seed()}\n"  <>
-            "|===============================================================================\n" |> IO.puts()
+          if unquote(verbose) do
+            Noizu.SimplePool.Behaviour .banner("#{__MODULE__} START_CHILDREN",
+            " Options: #{inspect unquote(Macro.escape(options))}\n"  <>
+            " #{__MODULE__}\n"  <>
+            " worker_supervisor: #{@worker_supervisor}\n"  <>
+            " worker_server: #{@pool_server}\n"  <>
+            " nmid_seed: #{inspect @base.nmid_seed()}")
+            |> IO.puts()
           end
 
           case Supervisor.start_child(sup, supervisor(@worker_supervisor, [], [])) do
             {:ok, pool_supervisor} ->
-              Supervisor.start_child(sup, worker(@pool_server, [pool_supervisor, @base.nmid_seed()], []))
+              Supervisor.start_child(sup, worker(@pool_server, [pool_supervisor], []))
             error ->
-              IO.puts "#{__MODULE__}.start_children #{inspect @worker_supervisor} Already Started. Handling unexected state.
+              IO.puts "#{__MODULE__}.start_children #{inspect @worker_supervisor} Already Started. Handling unexepected state.
               #{inspect error}
               "
           end
@@ -75,24 +106,22 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
 
       # @init
-      if (unquote(only.init) && !unquote(override.init)) do
+      if (unquote(required.init)) do
         def init(arg) do
-          if (unquote(global_verbose) || unquote(module_verbose)) do
-            "************************************************\n" <>
-            "* INIT #{__MODULE__} (#{inspect arg})\n" <>
-            "************************************************\n" |> IO.puts()
+          if unquote(verbose) do
+            Noizu.SimplePool.Behaviour .banner("#{__MODULE__} INIT", "args: #{inspect arg}") |> IO.puts()
           end
           supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])
         end
       end # end init
 
-      @before_compile unquote(__MODULE__)
+      #@before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__
 
-  defmacro __before_compile__(_env) do
-    quote do
-    end # end quote
-  end # end __before_compile__
+#  defmacro __before_compile__(_env) do
+#    quote do
+#    end # end quote
+#  end # end __before_compile__
 
 end

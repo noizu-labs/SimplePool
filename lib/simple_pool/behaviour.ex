@@ -1,168 +1,116 @@
 defmodule Noizu.SimplePool.Behaviour do
+  alias Noizu.SimplePool.OptionSettings
+  alias Noizu.SimplePool.OptionValue
+  alias Noizu.SimplePool.OptionList
+
   require Logger
 
-  @callback nmid_seed() :: {integer, integer}
-  @callback lookup_table() :: atom
-  @callback book_keeping_init() :: {{integer, integer}, integer}
-  @callback generate_nmid(Noizu.SimplePool.Server.State.t) :: {integer, Noizu.SimplePool.Server.State.t}
+  @callback option_settings() :: Map.t
 
-  @features([:auto_increment])
-  @default_features([:auto_increment])
+  @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
+  @default_features([:lazy_load, :s_redirect, :inactivity_check])
   @modules([:worker, :server, :worker_supervisor, :pool_supervisor])
   @default_modules([:worker_supervisor, :pool_supervisor])
-  @methods([:lookup_table, :book_keeping_init, :generate_nmid])
+  @methods([])
 
-  @options(
-    features: %{default: @default_features, available: @features},
-    disable:  %{default: [], available: @features},
-    only:     %{default: @methods, available: @methods},
-    override: %{default: [], available: @methods},
-    default:  %{default: @default_modules, available: @modules},
-    verbose:  %{default: Application.get_env(Noizu.SimplePool, :verbose, false)}
-  )
+  @default_worker_options([])
+  @default_server_options([])
+  @default_worker_supervisor_options([])
+  @default_pool_supervisor_options([])
 
-  def simple_nmid({node, process}, sequence), do: (node + (process * 100) + (sequence * 1000000))
 
-  def prepare_options(options, settings) do
-    List.foldl(
-      Keyword.keys(options),
-      %{},
-      fn(key, acc) ->
-        if Map.has_key?(settings, key) do
-          expanded = prepare_option(key, options, settings[key])
-          Map.put(options, key, expanded)
-        else
-          Logger.warn("Unknown use option #{inspect key} passed to #{__MODULE__}")
-        end
-      end
-    )
+
+  def prepare_options(options) do
+    settings = %OptionSettings{
+      option_settings: %{
+        features: %OptionList{option: :features, default: Application.get_env(Noizu.SimplePool, :default_features, @default_features), valid_members: @features, membership_set: false},
+        only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
+        override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
+        default_modules: %OptionList{option: :default_modules, default: Application.get_env(Noizu.SimplePool, :default_modules, @default_modules), valid_members: @modules, membership_set: true},
+        verbose: %OptionValue{option: :verbose, default: Application.get_env(Noizu.SimplePool, :verbose, false)},
+        worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(Noizu.SimplePool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour)},
+        worker_options: %OptionValue{option: :worker_options, default: Application.get_env(Noizu.SimplePool, :default_worker_options, @default_worker_options)},
+        server_options: %OptionValue{option: :server_options, default: Application.get_env(Noizu.SimplePool, :default_server_options, @default_server_options)},
+        worker_supervisor_options: %OptionValue{option: :worker_supervisor_options, default: Application.get_env(Noizu.SimplePool, :default_worker_supervisor_options, @default_worker_supervisor_options)},
+        pool_supervisor_options: %OptionValue{option: :pool_supervisor_options, default: Application.get_env(Noizu.SimplePool, :default_pool_supervisor_options, @default_pool_supervisor_options)},
+        worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
+      }
+    }
+
+    initial = OptionSettings.expand(settings, options)
+    modifications = Map.take(initial.effective_options, [:worker_options, :server_options, :worker_supervisor_options, :pool_supervisor_options])
+      |> Enum.reduce(%{},
+          fn({k,v},acc) ->
+            v = v
+              |> Keyword.put_new(:verbose, initial.effective_options.verbose)
+              |> Keyword.put_new(:features, initial.effective_options.features)
+              |> Keyword.put_new(:worker_state_entity, initial.effective_options.worker_state_entity)
+            Map.put(acc, k, v)
+          end)
+      |> Map.put(:required, List.foldl(@methods, %{}, fn(x, acc) -> Map.put(acc, x, initial.effective_options.only[x] && !initial.effective_options.override[x]) end))
+
+    %OptionSettings{initial| effective_options: Map.merge(initial.effective_options, modifications)}
   end
 
-  def prepare_option(key, options, %{default: default, available: available}) do
-    arg = Keyword.get(options, key, default)
-    expanded = List.foldl(available, %{}, fn(method, acc) -> Map.put(acc, method, Enum.member?(arg, method)) end)
-    case List.foldl(arg, [], &(if !Enum.member?(available, &1), do: &2 ++ [x], else: &2)) do
-      [] -> :ok
-      l -> Logger.warn("Invalid use parameter passed to #{__MODULE__} for option #{key}. #{inspect l} not in supported list #{inspect available}")
+  def banner(header, msg) do
+    header = header |> String.pad_trailing(20) |> String.pad_trailing(30)
+    """
+    ****** #{header} ******
+    * #{msg}
+    *****************************************
+    """
+  end
+
+  def expand_worker_state_entity(base_module, worker_state_entity) do
+    if worker_state_entity == :auto do
+      Module.concat(base_module, "WorkerStateEntity")
+    else
+      worker_state_entity
     end
-    expanded
-  end
-
-  def prepare_option(key, options, %{default: default}) do
-    Keyword.get(options, key, default)
   end
 
   defmacro __using__(options) do
-    expanded_options = prepare_options(options, @options)
-
-    # Submodule Options
-    worker_options = if (default?.worker) do
-      options
-      |> Keyword.get(:worker_options, @default_options[]) |> Keyword.put(:verbose, global_verbose)
-    else
-
-    end
-
-
-    server_options = Keyword.get(options, :server_options, []) |> Keyword.put(:verbose, global_verbose)
-    worker_supervisor_options = Keyword.get(options, :worker_supervisor_options, []) |> Keyword.put(:verbose, global_verbose)
-    pool_supervisor_options = Keyword.get(options, :pool_supervisor_options, []) |> Keyword.put(:verbose, global_verbose)
-
-    nmid_table = Keyword.get(options, :nmid_table)
-    if nmid_table == nil && require?.generate_nmid do
-       raise "NMID_TABLE must be set to environments NMID Generator Table"
-    end
-
-
-
+    option_settings = prepare_options(options)
+    options = option_settings.effective_options
+    #required = options.required
+    #features = options.features
+    default_modules = options.default_modules
     quote do
-      require Amnesia
-      require Amnesia.Fragment
-      require Amnesia.Helper
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.Behaviour
+      @mod_name("#{__MODULE__}")
+      @worker_state_entity(expand_worker_state_entity(__MODULE__, unquote(options.worker_state_entity)))
 
-      def nmid_seed(), do: {nil, nil}
-
-      if (!unquote(disable_lookup_table)) do
-        @lookup_table Module.concat([__MODULE__, "LookupTable"])
-        def lookup_table() do
-          @lookup_table
-        end
+      def banner(msg) do
+        banner(@mod_name, msg)
       end
 
-      if (!unquote(disable_generate_nmid)) do
-        def generate_nmid(%Noizu.SimplePool.Server.State{nmid_generator: {{node, process}, sequence}} = state) do
-          sequence = sequence + 1
-          nmid = simple_nmid({node, process}, sequence)
-
-          Amnesia.Fragment.transaction do
-            %unquote(nmid_table){
-              handle: {node, process},
-              sequence: sequence
-            } |> unquote(nmid_table).write
-          end
-
-          # TODO - Update Mnesia - # Todo setup master nmid coordinator. Processes just ask it to assign a sequence, and identifier.
-          state = %Noizu.SimplePool.Server.State{state| nmid_generator: {{node, process}, sequence} }
-          {nmid, state}
-        end
+      def option_settings do
+        unquote(Macro.escape(option_settings))
       end
 
-      if (!unquote(disable_book_keeping_init)) do
-        @doc """
-          Setup ETS record keeping table.
-        """
-        def book_keeping_init() do
-          if (unquote(global_verbose) || unquote(module_verbose)) do
-            "************************************************\n" <>
-            "* BOOK_KEEPING: #{__MODULE__}\n" <>
-            "************************************************\n" |> IO.puts()
-          end
-
-          nmid_seed = __MODULE__.nmid_seed()
-          ets_table = __MODULE__.lookup_table()
-
-          # Load sequence from mnesia for nmid generator.
-          entry = Amnesia.Fragment.transaction do
-            unquote(nmid_table).read(nmid_seed)
-          end
-
-          sequence = case entry do
-            %unquote(nmid_table){sequence: s} -> s
-            :nil -> 1
-          end
-
-          # Start Ets Lookup Table for Worker book keeping.
-          :ets.new(ets_table, [:public, :named_table, :set, read_concurrency: true])
-
-          # Return Sequence Information
-          {nmid_seed, sequence}
-        end
-      end
-
-      if (unquote(default_worker)) do
+      if (unquote(default_modules.worker)) do
         defmodule Worker do
-          use Noizu.SimplePool.WorkerBehaviour, unquote(worker_options)
+          use Noizu.SimplePool.WorkerBehaviour, unquote(options.worker_options)
         end
       end
 
-      if (unquote(default_server)) do
+      if (unquote(default_modules.server)) do
         defmodule Server do
-          use Noizu.SimplePool.ServerBehaviour, unquote(server_options)
+          use Noizu.SimplePool.ServerBehaviour, unquote(options.server_options)
           def lazy_load(state), do: state
         end
       end
 
-      if (unquote(default_worker_supervisor)) do
+      if (unquote(default_modules.worker_supervisor)) do
         defmodule WorkerSupervisor do
-          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(worker_supervisor_options)
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
         end
       end
 
-      if (unquote(default_pool_supervisor)) do
+      if (unquote(default_modules.pool_supervisor)) do
         defmodule PoolSupervisor do
-          use Noizu.SimplePool.PoolSupervisorBehaviour, unquote(pool_supervisor_options)
+          use Noizu.SimplePool.PoolSupervisorBehaviour, unquote(options.pool_supervisor_options)
         end
       end
 

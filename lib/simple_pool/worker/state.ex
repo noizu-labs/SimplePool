@@ -1,16 +1,18 @@
 defmodule Noizu.SimplePool.Worker.State do
 alias Noizu.SimplePool.Worker.State
   @type t :: %State{
-    initialized: boolean, # Loading Initializetion should be done using Repos that adhere to a behavior.
+    initialized: boolean,
     entity_ref: tuple,
-    entity: any,
+    inner_state: any,
+    last_activity: any,
     extended: any
   }
 
   defstruct [
     initialized: false,
     entity_ref: nil,
-    entity: nil,
+    inner_state: nil,
+    last_activity: nil,
     extended: nil
   ]
 end
