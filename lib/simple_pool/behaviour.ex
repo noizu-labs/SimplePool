@@ -1,54 +1,79 @@
 defmodule Noizu.SimplePool.Behaviour do
+  require Logger
+
   @callback nmid_seed() :: {integer, integer}
   @callback lookup_table() :: atom
   @callback book_keeping_init() :: {{integer, integer}, integer}
   @callback generate_nmid(Noizu.SimplePool.Server.State.t) :: {integer, Noizu.SimplePool.Server.State.t}
 
-  def map_intersect(list, subset) do
+  @features([:auto_increment])
+  @default_features([:auto_increment])
+  @modules([:worker, :server, :worker_supervisor, :pool_supervisor])
+  @default_modules([:worker_supervisor, :pool_supervisor])
+  @methods([:lookup_table, :book_keeping_init, :generate_nmid])
+
+  @options(
+    features: %{default: @default_features, available: @features},
+    disable:  %{default: [], available: @features},
+    only:     %{default: @methods, available: @methods},
+    override: %{default: [], available: @methods},
+    default:  %{default: @default_modules, available: @modules},
+    verbose:  %{default: Application.get_env(Noizu.SimplePool, :verbose, false)}
+  )
+
+  def simple_nmid({node, process}, sequence), do: (node + (process * 100) + (sequence * 1000000))
+
+  def prepare_options(options, settings) do
     List.foldl(
-      list,
+      Keyword.keys(options),
       %{},
-      fn(entry, acc) ->
-        Map.put(acc, entry, Enum.member?(subset, entry))
+      fn(key, acc) ->
+        if Map.has_key?(settings, key) do
+          expanded = prepare_option(key, options, settings[key])
+          Map.put(options, key, expanded)
+        else
+          Logger.warn("Unknown use option #{inspect key} passed to #{__MODULE__}")
+        end
       end
     )
   end
 
-  def simple_nmid({node, process}, sequence) do
-    # node < 100,  0-99
-    # process < 10000, 100-9999
-    _nmid = (node + (process * 100) + (sequence * 1000000))
+  def prepare_option(key, options, %{default: default, available: available}) do
+    arg = Keyword.get(options, key, default)
+    expanded = List.foldl(available, %{}, fn(method, acc) -> Map.put(acc, method, Enum.member?(arg, method)) end)
+    case List.foldl(arg, [], &(if !Enum.member?(available, &1), do: &2 ++ [x], else: &2)) do
+      [] -> :ok
+      l -> Logger.warn("Invalid use parameter passed to #{__MODULE__} for option #{key}. #{inspect l} not in supported list #{inspect available}")
+    end
+    expanded
+  end
+
+  def prepare_option(key, options, %{default: default}) do
+    Keyword.get(options, key, default)
   end
 
   defmacro __using__(options) do
-    defaults = Keyword.get(options, :defaults, [])
-    default_worker = Enum.member?(defaults, :worker)
-    default_server = Enum.member?(defaults, :server)
-    default_worker_supervisor = Enum.member?(defaults, :worker_supervisor)
-    default_pool_supervisor = Enum.member?(defaults, :pool_supervisor)
+    expanded_options = prepare_options(options, @options)
 
-    # @TODO standardize around override/only logic.
-    disable = Keyword.get(options, :disable, [])
-    disable_lookup_table = Enum.member?(disable, :lookup_table)
-    disable_book_keeping_init = Enum.member?(disable, :book_keeping_init)
-    disable_generate_nmid = Enum.member?(disable, :generate_nmid)
-    global_verbose = Keyword.get(options, :verbose, false)
-    module_verbose = Keyword.get(options, :base_verbose, false)
+    # Submodule Options
+    worker_options = if (default?.worker) do
+      options
+      |> Keyword.get(:worker_options, @default_options[]) |> Keyword.put(:verbose, global_verbose)
+    else
 
-    # @TODO copy/merge any key global options and set in worker/supervisor option set if not overriden.
-    worker_options = Keyword.get(options, :worker_options, [])
-      |> Keyword.put(:verbose, global_verbose)
-    server_options = Keyword.get(options, :server_options, [])
-      |> Keyword.put(:verbose, global_verbose)
-    worker_supervisor_options = Keyword.get(options, :worker_supervisor_options, [])
-      |> Keyword.put(:verbose, global_verbose)
-    pool_supervisor_options = Keyword.get(options, :pool_supervisor_options, [])
-      |> Keyword.put(:verbose, global_verbose)
+    end
+
+
+    server_options = Keyword.get(options, :server_options, []) |> Keyword.put(:verbose, global_verbose)
+    worker_supervisor_options = Keyword.get(options, :worker_supervisor_options, []) |> Keyword.put(:verbose, global_verbose)
+    pool_supervisor_options = Keyword.get(options, :pool_supervisor_options, []) |> Keyword.put(:verbose, global_verbose)
 
     nmid_table = Keyword.get(options, :nmid_table)
-    if nmid_table == nil && !disable_generate_nmid do
+    if nmid_table == nil && require?.generate_nmid do
        raise "NMID_TABLE must be set to environments NMID Generator Table"
     end
+
+
 
     quote do
       require Amnesia
@@ -56,6 +81,8 @@ defmodule Noizu.SimplePool.Behaviour do
       require Amnesia.Helper
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.Behaviour
+
+      def nmid_seed(), do: {nil, nil}
 
       if (!unquote(disable_lookup_table)) do
         @lookup_table Module.concat([__MODULE__, "LookupTable"])
@@ -117,19 +144,13 @@ defmodule Noizu.SimplePool.Behaviour do
       if (unquote(default_worker)) do
         defmodule Worker do
           use Noizu.SimplePool.WorkerBehaviour, unquote(worker_options)
-          def tests() do
-            :ok
-          end
         end
       end
 
       if (unquote(default_server)) do
         defmodule Server do
           use Noizu.SimplePool.ServerBehaviour, unquote(server_options)
-          def lazy_load(state) do
-            IO.puts "#{__MODULE__}.lazy_load Default"
-            state
-          end
+          def lazy_load(state), do: state
         end
       end
 
