@@ -32,14 +32,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     verbose = options.verbose
     worker_lookup_handler = options.worker_lookup_handler
 
-    #-----------------------------------------------------------------------------
-    # Refactoring . . .
-    #-----------------------------------------------------------------------------
-    #asynch_load = Keyword.get(options, :asynch_load, false)
-    #distributed? = Keyword.get(options, :user_distributed_calls, false)
-    #-----------------------------------------------------------------------------
-    # . . . . Refactoring
-    #-----------------------------------------------------------------------------
     quote do
       require Logger
       import unquote(__MODULE__)
@@ -87,373 +79,77 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def terminate(reason, state), do: @server_provider.terminate(state)
       end # end terminate
 
-      #=========================================================================
-      #  Common Convienence Methods
-      #=========================================================================
-      if unquote(required.load) do
-        @doc "Load pool from datastore."
-        def load(), do: GenServer.cast(__MODULE__, {:load})
-      end # end load
-
-      if unquote(required.status) do
-        @doc "Retrieve pool status"
-        def status(), do: GenServer.call(__MODULE__, {:status})
-      end # end status
-
-      if unquote(required.add!) do
-        @doc "Add worker pool keyed by nmid. Worker must know how to load itself, and provide a load method."
-        def add!(identifier), do: GenServer.call(__MODULE__, {:add_worker, identifier})
-      end # end add!
-
-      if unquote(required.remove!) do
-        @doc "Remove worker process."
-        def remove!(identifier), do: GenServer.call(__MODULE__, {:remove_worker, identifier})
-      end # end remove!
-
-      if unquote(required.fetch!) do
-        @doc "Fetch information about worker. Exact information is class dependent."
-        def fetch!(identifier, details \\ :default), do: s_call!(identifier, {:fetch, details})
-      end # end fetch!
-
-      if unquote(required.get_pid) do
-        @doc "return cached pid for process or spawn if dead and return newly created pid."
-        def get_pid(nmid) do
-          nmid = normid(nmid)
-          case alive?(nmid, :worker) do
-            {false, :nil} -> {:error, :not_found}
-            {true, pid} -> {:ok, pid}
-            error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, get_pid"
-          end
-        end
-      end # end get_pid
-
-      if unquote(required.pid_or_spawn!) do
-        @doc "return cached pid for process or spawn if dead and return newly created pid."
-        def pid_or_spawn!(nmid) do
-          nmid = normid(nmid)
-          case alive?(nmid, :worker) do
-            {false, :nil} -> add!(nmid)
-            {true, pid} -> {:ok, pid}
-            error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, pid_or_spawn!"
-          end
-        end
-      end # end pid_or_spawn!
-
-
-
-
-
-
-
-                  # @remove!
-                  if unquote(required.remove!) do
-
-                    @doc """
-                      Remove worker Asynch
-                    """
-                    def remove!(nmid, :asynch) do
-                      GenServer.cast(__MODULE__, {:remove_worker, nmid})
-                    end
-                  end # end remove!
-
-                  # @add!
-                  if unquote(required.add!) do
-
-                    @doc """
-                      Add worker process Asynch
-                    """
-                    def add!(nmid, :asynch) do
-                      GenServer.cast(__MODULE__, {:add_worker, nmid})
-                    end
-
-                    def add!(rnode, nmid, :asynch) do
-                      GenServer.cast({__MODULE__, rnode}, {:add_worker, nmid})
-                    end
-
-                  end # end add!
-
-                  # @fetch!
-                  if unquote(required.fetch!) do
-
-                    @doc """
-                      Fetch worker process Asynch. (Once worker ahs prepared requested data it performs a callback)
-                    """
-                    def fetch!(nmid, details, :asynch, caller \\ :current) do
-                      caller = if caller == :current do
-                        self()
-                      else
-                        caller
-                      end
-
-                      # Todo - Implement as macro
-                      case alive?(nmid, :worker) do
-                        {false, :nil} ->
-                          # Call Server to spawn worker and then fetch results.
-                          GenServer.cast(__MODULE__, {:fetch, nmid, details, caller})
-                        {true, pid} ->
-                          # Call worker directly
-                          s_cast(pid, {:fetch, nmid, details, caller})
-                      end
-                    end
-                  end # end fetch!
-
-                  # @alive?
-                  if unquote(required.alive?) do
-
-                    #-----------------------------------------------------------------------------
-                    # alive/2
-                    #-----------------------------------------------------------------------------
-                    def alive?(:nil, :worker) do
-                      {false, :nil}
-                    end
-
-                    def alive?(nmid, :worker) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
-                      nmid = normid(nmid)
-                      unquote(worker_lookup_handler).get_reg_worker!(@base, nmid)
-                    end
-                  end # end alive?
-
-                  def worker_lookup() do
-                    unquote(worker_lookup_handler)
-                  end
-
-                    #-----------------------------------------------------------------------------
-                    # add/3
-                    #-----------------------------------------------------------------------------
-                  # @add
-                  if unquote(required.add) do
-                    def add(nmid, :worker, sup) do
-                      case alive?(nmid, :worker) do
-                          {:false, :nil} -> start(nmid, :worker, sup)
-                          {:true, pid} -> {:ok, pid}
-                          error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, add"
-                      end
-                    end
-                  end # end add
-
-
-
-      #-----------------------------------------------------------------------------
-      # Refactoring . . .
-      #-----------------------------------------------------------------------------
-      if unquote(required.lookup_identifier) do
-        @doc """
-          lookup identifier to use from input tuple. If you wish to key against tuple keys simply
-          implement a method that returns the passed tuple plus any format validation logic required.
-          @TODO -> use ref, use features to determine if a cached lookup table will be used for mapping from say serials to appengine ids.
-        """
-        def lookup_identifier(nmid) do
-          raise "You must implement lookup_identifier if #{__MODULE__} callers will pass in {tuple, identifiers}."
-        end
-      end
-
-      # @TODO - move into auto_increment feature
-      if unquote(required.next_sequencer_id) do
-        @doc "Generate unique nmid value."
-        def next_sequencer_id(), do: GenServer.call(__MODULE__, {:next_sequencer_id})
-      end # end generate
-
-      if unquote(required.normid) do
-        @doc "Normalize nmid into value used for record keeping."
-        def normid(nmid) when is_integer(nmid), do: nmid
-        def normid(nmid) when is_bitstring(nmid), do: nmid |> String.to_integer
-        def normid(nmid) when is_tuple(nmid) do
-          {:ok, n} = lookup_identifier(nmid)
-          n
-        end
-      end # end normid
-
-      #-----------------------------------------------------------------------------
-      # . . . . Refactoring
-      #-----------------------------------------------------------------------------
-
-              #-----------------------------------------------------------------------------
-              # start/3
-              #-----------------------------------------------------------------------------
-            # @start
-            if unquote(required.start) do
-              def start(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
-                nmid = normid(nmid)
-                childSpec = @worker_supervisor.child(nmid)
-                case Supervisor.start_child(sup, childSpec) do
-                  {:ok, pid} ->
-                    #reg_worker(nmid, pid)
-                    {:ok, pid}
-
-                  {:error, {:already_started, pid}} ->
-                    #reg_worker(nmid, pid)
-                    {:ok, pid}
-                  error ->
-                    #Logger.warn("#{__MODULE__} unable to start #{inspect nmid}")
-                    error
-                end # end case
-              end # end def
-            end # end start
-
-              #-----------------------------------------------------------------------------
-              # start/4
-              #-----------------------------------------------------------------------------
-              # @start
-              if unquote(required.start) do
-              def start(nmid, arguments, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
-                childSpec = @worker_supervisor.child(nmid, arguments)
-                case Supervisor.start_child(sup, childSpec) do
-                  {:ok, pid} ->
-                    {:ok, pid}
-                  {:error, {:already_started, pid}} ->
-                    {:ok, pid}
-                  error ->
-                    IO.puts("#{__MODULE__} unable to start #{inspect nmid}")
-                    error
-                end
-              end
-
-              def start(nmid, arguments, :worker, sup) when is_bitstring(nmid) do
-                start(nmid |> Integer.parse() |> elem(0), arguments, :worker, sup)
-              end
-            end # end start
-
-              #-----------------------------------------------------------------------------
-              # remove/3
-              #-----------------------------------------------------------------------------
-
-              # @remove
-              if unquote(required.remove) do
-              def remove(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
-                Supervisor.terminate_child(sup, nmid)
-                Supervisor.delete_child(sup, nmid)
-                #dereg_worker(nmid)
-              end
-              def remove(nmid, :worker, sup) when is_bitstring(nmid) do
-                remove(nmid |> Integer.parse() |> elem(0), :worker, sup)
-              end
-
-            end # end remove
-
-            # @worker_pid!
-            if unquote(required.worker_pid!) do
-
-
-              @doc """
-                Add worker pool keyed by nmid. Worker must know how to load itself, and provide a load method.
-              """
-              def worker_pid!(nmid) when is_bitstring(nmid) do
-                String.to_integer(nmid)
-                  |> worker_pid!()
-              end
-
-              def worker_pid!(nmid) when is_integer(nmid) or is_tuple(nmid) do
-                case alive?(nmid, :worker) do
-                  {false, :nil} ->
-                    # Call Server to spawn worker and then fetch results.
-                    add!(nmid)
-                  {true, pid} ->
-                    # Call worker directly
-                    {:ok, pid}
-                end
-              end
-            end # end worker_pid!
-
-
-
-              #=========================================================================
-              #=========================================================================
-              # Common Call Handlers for SimpleServer
-              #=========================================================================
-              #=========================================================================
-            # @call_load_complete
-            if unquote(required.call_load_complete) do
-              def handle_call({:load_complete, {outcome, details}}, _from, state) do
-                  state = if outcome == :ok do
-                    %Noizu.SimplePool.Server.State{state| status: :online, status_details: details}
-                  else
-                    %Noizu.SimplePool.Server.State{state| status: :degrade, status_details: details}
-                  end
-                  {:reply, :ok, state}
-              end
-            end # end call_load_complete
-
-            # @call_status
-            if unquote(required.call_status) do
-              def handle_call({:status}, _from, %Noizu.SimplePool.Server.State{status: status} = state) do
-                {:reply, status, state}
-              end
-            end # end call_status
-
-            # @call_generate
-            if unquote(required.call_generate) do
-              def handle_call({:generate, :nmid}, _from, %Noizu.SimplePool.Server.State{nmid_generator: {{node, process}, sequence}} = state) do
-                {nmid, state} = @base.generate_nmid(state)
-                {:reply, nmid, state}
-              end
-            end # end call_generate
-
-            # @call_add_worker
-            if unquote(required.call_add_worker) do
-              def handle_call({:add_worker, nmid}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
-                # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
-                response = add(nmid, :worker, sup)
-                {:reply, response, state}
-              end
-
-              def handle_cast({:add_worker, nmid}, %Noizu.SimplePool.Server.State{pool: sup} = state) do
-                # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
-                spawn fn() -> add(nmid, :worker, sup) end
-                {:noreply, state}
-              end
-            end # end call_add_worker
-
-            # @call_remove_worker
-            if unquote(required.call_remove_worker) do
-              def handle_call({:remove_worker, nmid}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
-                # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
-                response = remove(nmid, :worker, sup)
-                {:reply, response, state}
-              end
-            end # end call_remove_worker
-
-            # @call_fetch
-            if unquote(required.call_fetch) do
-              def handle_call({:fetch, nmid, details}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
-                    {:ok, pid} = add(nmid, :worker, sup)
-                    response = s_call(pid, {:fetch, details})
-                    {:reply, response, state}
-              end
-            end # end call_fetch
 
               #=========================================================================
               #=========================================================================
               # Common Cast Handlers for SimpleServer
               #=========================================================================
               #=========================================================================
+                # @TODO bring in dependency on or merge with scaffolding to expose CallingContext entities.
+                # @TODO convience methods for comunicating with workers.
+                # @TODO auto generate convience methods, fetch worker_entity_provider\s set of methods using reflection. and use macros to genrate.
+                @callback fetch_worker!(identifier :: any, sychronous :: boolean) :: :not_yet_defined # worker pid, success indifcator, worker ref, etc.
 
-            # @cast_load
-            if unquote(required.cast_load) do
 
-              if (!unquote(asynch_load)) do
-                def handle_cast({:load}, state) do
-                  IO.puts "INITIAL LOAD: #{inspect state}"
-                  {:noreply, state}
-                end
-              end
-
-              if (unquote(asynch_load)) do
-                def handle_cast({:load}, %Noizu.SimplePool.Server.State{status: status} = state) do
-                  if status == :uninitialized do
-                    state = %Noizu.SimplePool.Server.State{state| status: :initializing}
-
-                    spawn fn ->
-                      {status, details} = lazy_load(state)
-                      GenServer.call(__MODULE__, {:load_complete, {status, details}})
-                    end
-
-                    {:noreply, state}
-                  else
-                    {:noreply, state}
+                  def worker_lookup() do
+                    unquote(worker_lookup_handler)
                   end
-                end
-              end
-            end # end cast_load
+
+
+
+
+
+                  # todo thes belong back iun server - but can assume ref provided
+                  # @TODO start_child, remove_child to differentiate from  worker_add, worker_remove which contain additional steps to communicate with underlying entity.
+                        def start(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
+                          nmid = normid(nmid)
+                          childSpec = @worker_supervisor.child(nmid)
+                          case Supervisor.start_child(sup, childSpec) do
+                            {:ok, pid} ->
+                              #reg_worker(nmid, pid)
+                              {:ok, pid}
+
+                            {:error, {:already_started, pid}} ->
+                              #reg_worker(nmid, pid)
+                              {:ok, pid}
+                            error ->
+                              #Logger.warn("#{__MODULE__} unable to start #{inspect nmid}")
+                              error
+                          end # end case
+                        end # end def
+
+                        def start(nmid, arguments, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
+                          childSpec = @worker_supervisor.child(nmid, arguments)
+                          case Supervisor.start_child(sup, childSpec) do
+                            {:ok, pid} ->
+                              {:ok, pid}
+                            {:error, {:already_started, pid}} ->
+                              {:ok, pid}
+                            error ->
+                              IO.puts("#{__MODULE__} unable to start #{inspect nmid}")
+                              error
+                          end
+                        end
+
+                        def start(nmid, arguments, :worker, sup) when is_bitstring(nmid) do
+                          start(nmid |> Integer.parse() |> elem(0), arguments, :worker, sup)
+                        end
+
+                        def remove(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
+                          Supervisor.terminate_child(sup, nmid)
+                          Supervisor.delete_child(sup, nmid)
+                          #dereg_worker(nmid)
+                        end
+
+                        def remove(nmid, :worker, sup) when is_bitstring(nmid) do
+                          remove(nmid |> Integer.parse() |> elem(0), :worker, sup)
+                        end
+
+
+
+
+
+
 
             # @s_redirect
             if unquote(MapSet.member?(features, :s_redirect)) do
@@ -497,20 +193,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 end
               end # end handle_call/:s_call!
             end # end s_redirect
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       #=========================================================================
       # s_call -
@@ -704,9 +386,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             error -> error
           end
         end # end_rescue
-
       end # end if feature.crash_protection
-
 
       #@before_compile unquote(__MODULE__)
     end # end quote
