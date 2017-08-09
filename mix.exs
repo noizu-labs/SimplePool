@@ -3,7 +3,7 @@ defmodule Noizu.SimplePool.Mixfile do
 
   def project do
     [app: :noizu_simple_pool,
-     version: "1.1.1",
+     version: "1.2.0",
      elixir: "~> 1.4",
      package: package(),
      deps: deps(),
@@ -28,6 +28,7 @@ defmodule Noizu.SimplePool.Mixfile do
     [
       {:ex_doc, "~> 0.16.2", only: [:dev, :test], optional: true}, # Documentation Provider
       {:markdown, github: "devinus/markdown", only: [:dev], optional: true}, # Markdown processor for ex_doc
+      {:amnesia, git: "https://github.com/meh/amnesia.git", ref: "87d8b4f", optional: true}, # Mnesia Wrapper
     ]
   end # end deps
 

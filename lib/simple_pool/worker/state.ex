@@ -2,7 +2,7 @@ defmodule Noizu.SimplePool.Worker.State do
 alias Noizu.SimplePool.Worker.State
   @type t :: %State{
     initialized: boolean,
-    entity_ref: tuple,
+    worker_ref: tuple,
     inner_state: any,
     last_activity: any,
     extended: any
@@ -10,7 +10,7 @@ alias Noizu.SimplePool.Worker.State
 
   defstruct [
     initialized: false,
-    entity_ref: nil,
+    worker_ref: nil,
     inner_state: nil,
     last_activity: nil,
     extended: nil

@@ -3,18 +3,20 @@ alias Noizu.SimplePool.Server.State
 
   @type t :: %State{
     pool: any,
-    nmid_generator: {{integer, integer}, integer},
+    server: any,
     status_details: any,
-    status: atom,
-    extended: any
+    status: Map.t,
+    extended: any,
+    options: Noizu.SimplePool.OptionSettings.t
   }
 
   defstruct [
     pool: nil,
-    nmid_generator: nil,
+    server: nil,
     status_details: nil,
-    status: nil,
-    extended: nil
+    status: %{loading: :pending, state: :pending},    
+    extended: nil,
+    options: nil
   ]
 
 end

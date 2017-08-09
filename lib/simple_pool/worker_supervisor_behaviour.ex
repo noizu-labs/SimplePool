@@ -10,8 +10,8 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
 
   @methods([:start_link, :child, :init])
 
-  @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
-  @default_features([:lazy_load, :s_redirect, :inactivity_check])
+  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache])
+  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check])
 
   @default_max_seconds(5)
   @default_max_restarts(1000)
@@ -54,6 +54,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       @worker Module.concat([@base, "Worker"])
       use Supervisor
       import unquote(__MODULE__)
+      require Logger
 
       def option_settings do
         unquote(Macro.escape(option_settings))
@@ -64,7 +65,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
     if (unquote(required.start_link)) do
       def start_link do
         if unquote(verbose) do
-          @base.banner("#{__MODULE__}.start_link") |> IO.puts
+          @base.banner("#{__MODULE__}.start_link") |> Logger.info()
         end
         Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}])
       end
@@ -72,12 +73,12 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
 
     # @child
     if (unquote(required.child)) do
-      def child(nmid) do
-        worker(@worker, [nmid], [id: nmid])
+      def child(ref, _context) do
+        worker(@worker, [ref], [id: ref])
       end
 
-      def child(id, params) do
-        worker(@worker, [params], [id: id])
+      def child(ref, params, context) do
+        worker(@worker, [params], [id: ref])
       end
     end # end child
 
@@ -85,7 +86,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
     if (unquote(required.init)) do
       def init(any) do
         if (unquote(verbose)) do
-          Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect any}") |> IO.puts()
+          Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect any}") |> Logger.info()
         end
         supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])
       end

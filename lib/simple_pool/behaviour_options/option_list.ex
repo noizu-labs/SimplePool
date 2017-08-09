@@ -68,10 +68,12 @@ defmodule Noizu.SimplePool.OptionList do
                 final_arg = membership_set(arg, this)
                 %OptionSettings{o| effective_options: Map.put(o.effective_options, this.option, final_arg)}
               {:error, details} ->
-                %OptionSettings{o| output: %{o.output| errors: Map.put(o.output.errors, this.option, details)}}
+                final_arg = membership_set(arg, this)
+                %OptionSettings{o| effective_options: Map.put(o.effective_options, this.option, final_arg), output: %{o.output| errors: Map.put(o.output.errors, this.option, details)}}
             end
           {:error, details} ->
-            %OptionSettings{o| output: %{o.output| errors: Map.put(o.output.errors, this.option, details)}}
+            final_arg = membership_set(arg, this)
+            %OptionSettings{o| effective_options: Map.put(o.effective_options, this.option, final_arg), output: %{o.output| errors: Map.put(o.output.errors, this.option, details)}}
         end
       else
         if (this.required) do

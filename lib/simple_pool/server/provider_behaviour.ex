@@ -1,31 +1,34 @@
 defmodule Noizu.SimplePool.Server.ProviderBehaviour do
 
-#-------------------------------------------------------------------------------
-# GenServer Lifecycle
-#-------------------------------------------------------------------------------
-@callback init(pool_env :: any, settings :: any, sup, optional_arguments) ::  Noizu.SimplePool.Server.State.t
-@callback terminate(reason :: any, state :: Noizu.SimplePool.Server.State.t) :: :ok
+  #-------------------------------------------------------------------------------
+  # GenServer Lifecycle
+  #-------------------------------------------------------------------------------
+  @callback init(module :: Module, sup :: any, options :: Noizu.SimplePool.OptionSettings.t) :: any
+  @callback terminate(reason :: any, state :: Noizu.SimplePool.Server.State.t) :: any
 
-#-------------------------------------------------------------------------------
-# Startup: Lazy Loading/Asynch Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
-#-------------------------------------------------------------------------------
-@callback load(state :: Noizu.SimplePool.Server.State.t) :: :not_yet_defined # something like loaded, loading, ready, etc.
-@callback status(state :: Noizu.SimplePool.Server.State.t) || :not_yet_defined # something like loading, loaded, ready, etc.
+  #-------------------------------------------------------------------------------
+  # Startup: Lazy Loading/Asynch Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
+  #-------------------------------------------------------------------------------
+  @callback status(module :: Module, context :: any) :: any
+  @callback load(module :: Module, settings :: any, context :: any) :: any
 
-#-------------------------------------------------------------------------------
-# Worker Process Management
-# @TODO it is criticial to differentiate from on server process/off server process actions.
-#       because we are passing state to all of these calls failing all else we can do a node() == state.node() comparison.
-#-------------------------------------------------------------------------------
-# (identifier :: any, sychronous :: boolean) :: :not_yet_defined # worker pid, success indifcator, worker ref, etc.
-@callback worker_add!(ref/entity, initial\optional, context\optional)
-@callback worker_remove!(ref/entity, context\optional)
-@callback worker_register!(ref/entity, context\optional)
-@callback worker_deregister!(ref/entity, context\optional)
-@callback worker_migrate!(ref/entity, directions,  context\optional) # where direction qualifies where to load balance to, next available, specific, etc.
-@callback worker_load!(ref/entity, initial\optional)
+  #-------------------------------------------------------------------------------
+  # Worker Process Management
+  #-------------------------------------------------------------------------------
+  #@callback worker_add!(module :: Module, ref :: any, options :: any, context :: any) :: any
+  #@callback worker_remove!(module :: Module, ref :: any, options :: any, context :: any) :: any
+  #@callback worker_migrate!(module :: Module, ref :: any, rebase :: any, options :: any, context :: any) :: any
+  #@callback worker_load!(module :: Module, ref :: any, options :: any, context :: any) :: any
+  #@callback worker_register!(module :: Module, ref :: any, context :: any) :: any
+  #@callback worker_deregister!(module :: Module, ref :: any, context :: any) :: any
+  #@callback worker_clear!(module :: Module, ref :: any, process_node :: any, context :: any) :: any
+  #@callback worker_pid!(module :: Module, ref :: any, options :: any, context :: any) :: any
+  #@callback worker_ref!(module :: Module, identifier :: any, context :: any) :: any
 
-@callback worker_pid((ref/entity), :spawn!)
-@callback worker_ref!(identifier) # conditionally setup ETS table if feature enabled and cache lookup results.
-
+  #-------------------------------------------------------------------------------
+  # Internal Routing
+  #-------------------------------------------------------------------------------
+  @callback internal_call_handler({:i, call :: any, context :: any}, from :: any, state :: Noizu.SimplePool.Server.State.t) :: {:reply, any, Noizu.SimplePool.Server.State.t}
+  @callback internal_cast_handler({:i, call :: any, context :: any}, state :: Noizu.SimplePool.Server.State.t) :: {:noreply, Noizu.SimplePool.Server.State.t}
+  @callback internal_info_handler({:i, call :: any, context :: any}, state :: Noizu.SimplePool.Server.State.t) :: {:noreply, Noizu.SimplePool.Server.State.t}
 end

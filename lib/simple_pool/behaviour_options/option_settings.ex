@@ -20,7 +20,7 @@ defmodule Noizu.SimplePool.OptionSettings do
   def expand(%__MODULE__{} = this, options \\ []) do
     this = %__MODULE__{this| initial_options: options}
     Enum.reduce(this.option_settings, this,
-      fn({option_name, option_definition}, acc) ->
+      fn({_option_name, option_definition}, acc) ->
         OptionSettingProtocol.extract(option_definition, acc)
       end
     )

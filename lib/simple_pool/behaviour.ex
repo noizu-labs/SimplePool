@@ -34,6 +34,7 @@ defmodule Noizu.SimplePool.Behaviour do
         worker_supervisor_options: %OptionValue{option: :worker_supervisor_options, default: Application.get_env(Noizu.SimplePool, :default_worker_supervisor_options, @default_worker_supervisor_options)},
         pool_supervisor_options: %OptionValue{option: :pool_supervisor_options, default: Application.get_env(Noizu.SimplePool, :default_pool_supervisor_options, @default_pool_supervisor_options)},
         worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
+        server_provider: %OptionValue{option: :server_provider, default: Application.get_env(Noizu.SimplePool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)}
       }
     }
 
@@ -45,6 +46,7 @@ defmodule Noizu.SimplePool.Behaviour do
               |> Keyword.put_new(:verbose, initial.effective_options.verbose)
               |> Keyword.put_new(:features, initial.effective_options.features)
               |> Keyword.put_new(:worker_state_entity, initial.effective_options.worker_state_entity)
+              |> Keyword.put_new(:server_provider, initial.effective_options.server_provider)
             Map.put(acc, k, v)
           end)
       |> Map.put(:required, List.foldl(@methods, %{}, fn(x, acc) -> Map.put(acc, x, initial.effective_options.only[x] && !initial.effective_options.override[x]) end))
@@ -53,12 +55,25 @@ defmodule Noizu.SimplePool.Behaviour do
   end
 
   def banner(header, msg) do
-    header = header |> String.pad_trailing(20) |> String.pad_trailing(30)
-    """
-    ****** #{header} ******
-    * #{msg}
-    *****************************************
-    """
+    header_len = String.length(header)
+    len = 120
+
+    sub_len = div(header_len, 2)
+    rem = rem(header_len, 2)
+
+    l_len = 59 - sub_len
+    r_len = 59 - sub_len - rem
+
+    char = "*"
+
+    lines = String.split(msg, "\n", trim: true)
+
+    top = "\n#{String.duplicate(char, l_len)} #{header} #{String.duplicate(char, r_len)}"
+    bottom = String.duplicate(char, len) <> "\n"
+    middle = for line <- lines do
+      "#{char} " <> line <> "\n"
+    end
+    Enum.join([top] ++ middle ++ [bottom], "\n")
   end
 
   def expand_worker_state_entity(base_module, worker_state_entity) do

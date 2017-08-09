@@ -1,28 +1,30 @@
 defmodule Noizu.SimplePool.WorkerLookupBehaviour do
-  @callback update_endpoint!() :: :ok
-  @callback get_reg_worker!(atom, any) :: {boolean, pid|any}
-  @callback dereg_worker!(atom, any) :: :ok | :error
-  @callback reg_worker!(atom, any, pid) :: :ok | {:error, any}
-  @callback clear_process!(atom, any, node_pid :: any) :: :ok | :error
+  @callback update_server!(module :: atom, node :: any, context :: any) :: :ok
+  @callback enable_server!(module :: atom, node :: any, context :: any) :: :ok
+  @callback disable_server!(module :: atom, node :: any, context :: any) :: :ok
+  @callback get_reg_worker!(atom, any, context :: any) :: {boolean, pid|any}
+  @callback dereg_worker!(atom, any, context :: any) :: :ok | :error
+  @callback reg_worker!(atom, any, pid, context :: any) :: :ok | {:error, any}
+  @callback clear_process!(atom, any, node_pid :: any, context :: any) :: :ok | :error
 
   defmodule DefaultImplementation do
-    def update_endpoint!(_mod) do
-      :ok
-    end
+    def update_server!(_mod, _target_node \\ :auto, _context \\ nil), do: :ok
+    def enable_server!(_mod, _target_node \\ :auto, _context \\ nil), do: :ok
+    def disable_server!(_mod, _target_node \\ :auto, _context \\ nil), do: :ok
 
-    def reg_worker!(mod, nmid, pid) do
+    def reg_worker!(mod, nmid, pid, _context \\ nil) do
       :ets.insert(mod.lookup_table(), {nmid, pid})
     end
 
-    def clear_process!(mod, nmid, _pid_node) do
+    def clear_process!(mod, nmid, _pid_node, _context \\ nil) do
       :ets.delete(mod.lookup_table(), nmid)
     end
 
-    def dereg_worker!(mod, nmid) do
+    def dereg_worker!(mod, nmid, _context \\ nil) do
       :ets.delete(mod.lookup_table(), nmid)
     end
 
-    def get_reg_worker!(mod, nmid) do
+    def get_reg_worker!(mod, nmid, _context \\ nil) do
       case :ets.info(mod.lookup_table()) do
         :undefined -> {false, :nil}
         _ ->

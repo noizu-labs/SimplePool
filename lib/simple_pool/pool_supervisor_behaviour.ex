@@ -9,8 +9,8 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
   @methods([:start_link, :start_children, :init])
 
-  @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
-  @default_features([:lazy_load, :s_redirect, :inactivity_check])
+  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache])
+  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check])
 
   @default_max_seconds(5)
   @default_max_restarts(1000)
@@ -52,6 +52,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       @worker_supervisor Module.concat([@base, "WorkerSupervisor"])
       @pool_server Module.concat([@base, "Server"])
       import unquote(__MODULE__)
+      require Logger
 
       def option_settings do
         unquote(Macro.escape(option_settings))
@@ -81,13 +82,12 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       if (unquote(required.start_children)) do
         def start_children(sup) do
           if unquote(verbose) do
-            Noizu.SimplePool.Behaviour .banner("#{__MODULE__} START_CHILDREN",
+            Noizu.SimplePool.Behaviour.banner("#{__MODULE__} START_CHILDREN",
             " Options: #{inspect unquote(Macro.escape(options))}\n"  <>
             " #{__MODULE__}\n"  <>
             " worker_supervisor: #{@worker_supervisor}\n"  <>
-            " worker_server: #{@pool_server}\n"  <>
-            " nmid_seed: #{inspect @base.nmid_seed()}")
-            |> IO.puts()
+            " worker_server: #{@pool_server}\n")
+            |> Logger.info()
           end
 
           case Supervisor.start_child(sup, supervisor(@worker_supervisor, [], [])) do
@@ -109,7 +109,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       if (unquote(required.init)) do
         def init(arg) do
           if unquote(verbose) do
-            Noizu.SimplePool.Behaviour .banner("#{__MODULE__} INIT", "args: #{inspect arg}") |> IO.puts()
+            Noizu.SimplePool.Behaviour .banner("#{__MODULE__} INIT", "args: #{inspect arg}") |> Logger.info()
           end
           supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])
         end
