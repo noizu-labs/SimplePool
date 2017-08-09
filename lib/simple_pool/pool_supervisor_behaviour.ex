@@ -9,8 +9,8 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
   @methods([:start_link, :start_children, :init])
 
-  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check])
+  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding])
+  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding])
 
   @default_max_seconds(5)
   @default_max_restarts(1000)
@@ -62,16 +62,16 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       if (unquote(required.start_link)) do
         def start_link do
           if unquote(verbose) do
-            @base.banner("#{__MODULE__}.start_link") |> IO.puts
+            @base.banner("#{__MODULE__}.start_link") |> Logger.info
           end
 
           case Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}]) do
             {:ok, sup} ->
-              IO.puts "#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}"
+              Logger.info "#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}"
               start_children(sup)
               {:ok, sup}
             {:error, {:already_started, sup}} ->
-              IO.puts "#{__MODULE__}.start_link Supervisor Already Started. Handling unexected state.  #{inspect sup}"
+              Logger.info "#{__MODULE__}.start_link Supervisor Already Started. Handling unexected state.  #{inspect sup}"
               #start_children(sup)
               {:ok, sup}
           end
@@ -94,13 +94,13 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             {:ok, pool_supervisor} ->
               Supervisor.start_child(sup, worker(@pool_server, [pool_supervisor], []))
             error ->
-              IO.puts "#{__MODULE__}.start_children #{inspect @worker_supervisor} Already Started. Handling unexepected state.
+              Logger.info "#{__MODULE__}.start_children #{inspect @worker_supervisor} Already Started. Handling unexepected state.
               #{inspect error}
               "
           end
 
           # Lazy Load Children Load Children
-          GenServer.cast(@pool_server, {:load})
+          @pool_server.load(nil, nil)
         end
       end # end start_children
 

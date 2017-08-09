@@ -6,19 +6,20 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # GenServer Lifecycle
     #---------------------------------------------------------------------------
     def init(server, sup, options \\ nil) do
-      server.enable_server(node())
-      %State{
+      server.enable_server!(node())
+      state = %State{
           pool: sup,
           server: server,
           status_details: :pending,
-          status: %{},
           extended: %{},
           options: options
         }
+      {:ok, state}
     end
 
     def terminate(_reason, %State{} = state) do
-      state.server.disable_server(node())
+      state.server.base().banner("Terminate #{inspect state, pretty: true}")
+      state.server.disable_server!(node())
       :ok
     end
 
@@ -85,7 +86,8 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       else
         case state.server.worker_sup_start(ref, state.pool, context) do
           {:ok, pid} -> GenServer.cast(pid, {:s, {:load, options}, context})
-          _ -> {:error, ref}
+            {:reply, {:ok, pid}, state}
+          error -> {:reply, error, state}
         end
       end
     end
@@ -107,9 +109,15 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
         state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid)}
         {:reply, {:ok, :loading}, state}
       else
-        :ok = load_workers_synch(options, context, state)
-        state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
-        {:reply, {:ok, :loaded}, state}
+        if Enum.member?(state.options.effective_options.features, :lazy_load) do
+          # nothing to do,
+          state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
+          {:reply, {:ok, :loaded}, state}
+        else
+          :ok = load_workers_synch(options, context, state)
+          state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
+          {:reply, {:ok, :loaded}, state}
+        end
       end
     end
 

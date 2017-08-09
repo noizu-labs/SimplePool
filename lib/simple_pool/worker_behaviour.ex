@@ -4,8 +4,8 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   alias Noizu.SimplePool.OptionList
 
   @methods([:start_link, :init, :terminate])
-  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check])
+  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding])
+  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding])
 
   @default_check_interval_ms(1000 * 60 * 2)
   @default_kill_interval_ms(1000 * 60 * 10)
@@ -102,8 +102,8 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
 
       # @s_redirect
       if unquote(MapSet.member?(features, :s_redirect)) || unquote(MapSet.member?(features, :s_redirect_handle)) do
+        def handle_call({_type, {@server, _ref, _timeout}, call}, from, state), do: handle_call(call, from, state)
         def handle_cast({_type, {@server, _ref}, call}, state), do: handle_cast(call, state)
-        def handle_call({_type, {@server, _ref}, call}, from, state), do: handle_call(call, from, state)
 
         def handle_cast({:s_cast, {call_server, ref}, {:s, _inner, context} = call}, state) do
           call_server.worker_clear!(ref, {self(), node()}, context)

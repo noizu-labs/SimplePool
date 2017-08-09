@@ -2,6 +2,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   alias Noizu.SimplePool.OptionSettings
   alias Noizu.SimplePool.OptionValue
   alias Noizu.SimplePool.OptionList
+  require Logger
   # @TODO auto generate convience methods, fetch worker_entity_provider\s set of methods using reflection. and use macros to genrate.
 
   # @TODO
@@ -19,8 +20,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
 
   @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!])
-  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check])
+  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding])
+  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding])
 
   def prepare_options(options) do
     settings = %OptionSettings{
@@ -51,7 +52,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     case Map.keys(option_settings.output.errors) do
       [] -> :ok
       l when is_list(l) ->
-        IO.puts "
+         Logger.error "
     ---------------------- Errors In Pool Settings  ----------------------------
     #{inspect option_settings, pretty: true, limit: :infinity}
     ----------------------------------------------------------------------------
@@ -97,7 +98,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           if unquote(verbose) do
             @base.banner("INIT #{__MODULE__} (#{inspect sup})") |> Logger.info()
           end
-          @server_provider.init(__MODULE__, sup)
+          s = @server_provider.init(__MODULE__, sup, option_settings())
+          @base.banner("#{inspect s}") |> Logger.info
+          s
         end
       end # end init
 
@@ -105,17 +108,24 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def terminate(reason, state), do: @server_provider.terminate(reason, state)
       end # end terminate
 
-      def disable_server(elixir_node) do
+      def enable_server!(elixir_node) do
+        @worker_lookup_handler.enable_server!(@base, elixir_node)
+      end
+
+      def disable_server!(elixir_node) do
         @worker_lookup_handler.disable_server!(@base, elixir_node)
       end
 
 
       def worker_sup_start(ref, sup, context) do
+        @base.banner("worker_sup_start #{inspect ref}")
         childSpec = @worker_supervisor.child(ref, context)
         case Supervisor.start_child(sup, childSpec) do
           {:ok, pid} -> {:ok, pid}
           {:error, {:already_started, pid}} -> {:ok, pid}
-          error -> error
+          error ->
+            Logger.error "~~ERROR: #{inspect error}"
+            error
         end # end case
       end # endstart/3
 
@@ -193,7 +203,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       #-------------------------------------------------------------------------------
       # Internal Forwarding
       #-------------------------------------------------------------------------------
-      def handle_call({:i, call, context}, from, state), do: @server_provider.internal_call_handler(call, context, state, from)
+      def handle_call({:i, call, context}, from, state), do: @server_provider.internal_call_handler(call, context, from, state)
       def handle_cast({:i, call, context}, state), do: @server_provider.internal_cast_handler(call, context, state)
       def handle_info({:i, call, context}, state), do: @server_provider.internal_info_handler(call, context, state)
 
