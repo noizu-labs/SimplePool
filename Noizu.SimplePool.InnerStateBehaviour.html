@@ -8,7 +8,7 @@
     <title>Noizu.SimplePool.InnerStateBehaviour – noizu_simple_pool v1.2.0</title>
     <link rel="stylesheet" href="dist/app-268c9dc719.css" />
     
-    <script src="dist/sidebar_items-b719aacba3.js"></script>
+    <script src="dist/sidebar_items-08485ffc6e.js"></script>
   </head>
   <body data-type="modules">
     <script>try { if(localStorage.getItem('night-mode')) document.body.className += ' night-mode'; } catch (e) { }</script>
@@ -95,13 +95,13 @@
     </h2>
     <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:call_forwarding/3">call_forwarding(type, call, state)</a>
+    <a href="#c:call_forwarding/3">call_forwarding(call, context, state)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:call_forwarding/4">call_forwarding(type, call, from, state)</a>
+    <a href="#c:call_forwarding/4">call_forwarding(call, context, from, state)</a>
   </div>
   
 </div>
@@ -131,7 +131,7 @@
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:shutdown/2">shutdown(context, state)</a>
+    <a href="#c:shutdown/4">shutdown(state, options, context, from)</a>
   </div>
   
 </div>
@@ -168,7 +168,7 @@
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">call_forwarding(type, call, state)</span>
+    <span class="signature">call_forwarding(call, context, state)</span>
     
       <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker/inner_state_behaviour.ex#L7" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
@@ -179,7 +179,7 @@
     
       <div class="specs">
         
-          <pre>call_forwarding(type :: :cast | :info, call :: any, state :: any) :: any</pre>
+          <pre>call_forwarding(call :: any, context :: any, state :: any) :: any</pre>
         
       </div>
     
@@ -195,7 +195,7 @@
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">call_forwarding(type, call, from, state)</span>
+    <span class="signature">call_forwarding(call, context, from, state)</span>
     
       <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker/inner_state_behaviour.ex#L8" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
@@ -206,7 +206,7 @@
     
       <div class="specs">
         
-          <pre>call_forwarding(type :: :call, call :: any, from :: any, state :: any) :: any</pre>
+          <pre>call_forwarding(call :: any, context :: any, from :: any, state :: any) :: any</pre>
         
       </div>
     
@@ -224,7 +224,7 @@
     </a>
     <span class="signature">fetch(options, context, state)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker/inner_state_behaviour.ex#L10" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker/inner_state_behaviour.ex#L9" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -323,14 +323,14 @@
     
   </section>
 </div>
-<div class="detail" id="c:shutdown/2">
+<div class="detail" id="c:shutdown/4">
   
   <div class="detail-header">
-    <a href="#c:shutdown/2" class="detail-link" title="Link to this callback">
+    <a href="#c:shutdown/4" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">shutdown(context, state)</span>
+    <span class="signature">shutdown(state, options, context, from)</span>
     
       <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker/inner_state_behaviour.ex#L3" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
@@ -341,9 +341,9 @@
     
       <div class="specs">
         
-          <pre>shutdown(context :: any, state :: any) ::
-  {:ok, state :: any} |
-  {:wait, state :: any}</pre>
+          <pre>shutdown(state :: <a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a>, options :: any, context :: any, from :: any) ::
+  {:ok, <a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a>} |
+  {:wait, <a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a>}</pre>
         
       </div>
     
