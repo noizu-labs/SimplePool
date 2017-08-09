@@ -5,10 +5,10 @@
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="ExDoc v0.16.2">
-    <title>Noizu.SimplePool.WorkerBehaviour – noizu_simple_pool v0.1.0</title>
+    <title>Noizu.SimplePool.WorkerBehaviour – noizu_simple_pool v1.2.0</title>
     <link rel="stylesheet" href="dist/app-268c9dc719.css" />
     
-    <script src="dist/sidebar_items-4d291ca969.js"></script>
+    <script src="dist/sidebar_items-b719aacba3.js"></script>
   </head>
   <body data-type="modules">
     <script>try { if(localStorage.getItem('night-mode')) document.body.className += ' night-mode'; } catch (e) { }</script>
@@ -27,7 +27,7 @@
         noizu_simple_pool
       </h1>
       <h2 class="sidebar-projectVersion">
-        v0.1.0
+        v1.2.0
       </h2>
     </div>
     
@@ -48,6 +48,8 @@
     
 
     
+      <li><a id="protocols-list" href="#full-list">Protocols</a></li>
+    
 
     
   </ul>
@@ -61,7 +63,7 @@
 
 
       <h1>
-        <small class="visible-xs">noizu_simple_pool v0.1.0</small>
+        <small class="visible-xs">noizu_simple_pool v1.2.0</small>
         Noizu.SimplePool.WorkerBehaviour <small>behaviour</small>
         
           <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L1" title="View Source" class="view-source" rel="help">
@@ -85,6 +87,19 @@
           
 
           
+  <div class="summary-functions summary">
+    <h2>
+      <a href="#functions">Functions</a>
+    </h2>
+    <div class="summary-row">
+  <div class="summary-signature">
+    <a href="#prepare_options/1">prepare_options(options)</a>
+  </div>
+  
+</div>
+
+  </div>
+
 
           
   <div class="summary-callbacks summary">
@@ -93,49 +108,7 @@
     </h2>
     <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:fetch/2">fetch(any, arg1)</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:handle_call/3">handle_call({}, any, %)</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:handle_cast/2">handle_cast({}, any)</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:init/1">init(any)</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:initial_state/1">initial_state(any)</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:initialize/1">initialize(arg0)</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:load/1">load(arg0)</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:start_link/1">start_link(any)</a>
+    <a href="#c:option_settings/0">option_settings()</a>
   </div>
   
 </div>
@@ -149,6 +122,38 @@
       
 
       
+        <section id="functions" class="details-list">
+          <h1 class="section-heading">
+            <a class="hover-link" href="#functions">
+              <span class="icon-link" aria-hidden="true"></span>
+              <span class="sr-only">Link to this section</span>
+            </a>
+            Functions
+          </h1>
+          <div class="detail" id="prepare_options/1">
+  
+  <div class="detail-header">
+    <a href="#prepare_options/1" class="detail-link" title="Link to this function">
+      <span class="icon-link" aria-hidden="true"></span>
+      <span class="sr-only">Link to this function</span>
+    </a>
+    <span class="signature">prepare_options(options)</span>
+    
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L15" class="view-source" rel="help" title="View Source">
+       <span class="icon-code" aria-hidden="true"></span>
+       <span class="sr-only">View Source</span>
+     </a>
+    
+    
+    
+  </div>
+  <section class="docstring">
+    
+  </section>
+</div>
+
+        </section>
+      
 
       
         <section id="callbacks" class="details-list">
@@ -159,16 +164,16 @@
             </a>
             Callbacks
           </h1>
-          <div class="detail" id="c:fetch/2">
+          <div class="detail" id="c:option_settings/0">
   
   <div class="detail-header">
-    <a href="#c:fetch/2" class="detail-link" title="Link to this callback">
+    <a href="#c:option_settings/0" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">fetch(any, arg1)</span>
+    <span class="signature">option_settings()</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L6" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L13" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -177,198 +182,7 @@
     
       <div class="specs">
         
-          <pre>fetch(any, <a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a>) :: {any, <a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a>}</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:handle_call/3">
-  
-  <div class="detail-header">
-    <a href="#c:handle_call/3" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">handle_call({}, any, %)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L12" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>handle_call({:fetch, any}, any, %Noizu.SimplePool.Worker.State{entity: term, entity_ref: term, extended: term, initialized: true}) :: any</pre>
-        
-          <pre>handle_call(any, any, %Noizu.SimplePool.Worker.State{entity: term, entity_ref: term, extended: term, initialized: false}) :: any</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:handle_cast/2">
-  
-  <div class="detail-header">
-    <a href="#c:handle_cast/2" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">handle_cast({}, any)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L14" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>handle_cast({:load}, any) :: any</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:init/1">
-  
-  <div class="detail-header">
-    <a href="#c:init/1" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">init(any)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L11" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>init(any) :: any</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:initial_state/1">
-  
-  <div class="detail-header">
-    <a href="#c:initial_state/1" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">initial_state(any)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L4" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>initial_state(any) :: <a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a></pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:initialize/1">
-  
-  <div class="detail-header">
-    <a href="#c:initialize/1" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">initialize(arg0)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L5" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>initialize(<a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a>) :: <a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a></pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:load/1">
-  
-  <div class="detail-header">
-    <a href="#c:load/1" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">load(arg0)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L7" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>load(<a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a>) :: {any, <a href="Noizu.SimplePool.Worker.State.html#t:t/0">Noizu.SimplePool.Worker.State.t</a>}</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:start_link/1">
-  
-  <div class="detail-header">
-    <a href="#c:start_link/1" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">start_link(any)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/worker_behaviour.ex#L10" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>start_link(any) :: any</pre>
+          <pre>option_settings() :: <a href="Noizu.SimplePool.OptionSettings.html#t:t/0">Noizu.SimplePool.OptionSettings.t</a></pre>
         
       </div>
     

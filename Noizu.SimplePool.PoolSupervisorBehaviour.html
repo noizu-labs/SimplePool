@@ -5,10 +5,10 @@
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="ExDoc v0.16.2">
-    <title>Noizu.SimplePool.PoolSupervisorBehaviour – noizu_simple_pool v0.1.0</title>
+    <title>Noizu.SimplePool.PoolSupervisorBehaviour – noizu_simple_pool v1.2.0</title>
     <link rel="stylesheet" href="dist/app-268c9dc719.css" />
     
-    <script src="dist/sidebar_items-4d291ca969.js"></script>
+    <script src="dist/sidebar_items-b719aacba3.js"></script>
   </head>
   <body data-type="modules">
     <script>try { if(localStorage.getItem('night-mode')) document.body.className += ' night-mode'; } catch (e) { }</script>
@@ -27,7 +27,7 @@
         noizu_simple_pool
       </h1>
       <h2 class="sidebar-projectVersion">
-        v0.1.0
+        v1.2.0
       </h2>
     </div>
     
@@ -48,6 +48,8 @@
     
 
     
+      <li><a id="protocols-list" href="#full-list">Protocols</a></li>
+    
 
     
   </ul>
@@ -61,7 +63,7 @@
 
 
       <h1>
-        <small class="visible-xs">noizu_simple_pool v0.1.0</small>
+        <small class="visible-xs">noizu_simple_pool v1.2.0</small>
         Noizu.SimplePool.PoolSupervisorBehaviour <small>behaviour</small>
         
           <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/pool_supervisor_behaviour.ex#L1" title="View Source" class="view-source" rel="help">
@@ -85,6 +87,19 @@
           
 
           
+  <div class="summary-functions summary">
+    <h2>
+      <a href="#functions">Functions</a>
+    </h2>
+    <div class="summary-row">
+  <div class="summary-signature">
+    <a href="#prepare_options/1">prepare_options(options)</a>
+  </div>
+  
+</div>
+
+  </div>
+
 
           
   <div class="summary-callbacks summary">
@@ -93,13 +108,13 @@
     </h2>
     <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:start_children/1">start_children(any)</a>
+    <a href="#c:option_settings/0">option_settings()</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:start_init/1">start_init(any)</a>
+    <a href="#c:start_children/1">start_children(any)</a>
   </div>
   
 </div>
@@ -119,6 +134,38 @@
       
 
       
+        <section id="functions" class="details-list">
+          <h1 class="section-heading">
+            <a class="hover-link" href="#functions">
+              <span class="icon-link" aria-hidden="true"></span>
+              <span class="sr-only">Link to this section</span>
+            </a>
+            Functions
+          </h1>
+          <div class="detail" id="prepare_options/1">
+  
+  <div class="detail-header">
+    <a href="#prepare_options/1" class="detail-link" title="Link to this function">
+      <span class="icon-link" aria-hidden="true"></span>
+      <span class="sr-only">Link to this function</span>
+    </a>
+    <span class="signature">prepare_options(options)</span>
+    
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/pool_supervisor_behaviour.ex#L19" class="view-source" rel="help" title="View Source">
+       <span class="icon-code" aria-hidden="true"></span>
+       <span class="sr-only">View Source</span>
+     </a>
+    
+    
+    
+  </div>
+  <section class="docstring">
+    
+  </section>
+</div>
+
+        </section>
+      
 
       
         <section id="callbacks" class="details-list">
@@ -129,7 +176,34 @@
             </a>
             Callbacks
           </h1>
-          <div class="detail" id="c:start_children/1">
+          <div class="detail" id="c:option_settings/0">
+  
+  <div class="detail-header">
+    <a href="#c:option_settings/0" class="detail-link" title="Link to this callback">
+      <span class="icon-link" aria-hidden="true"></span>
+      <span class="sr-only">Link to this callback</span>
+    </a>
+    <span class="signature">option_settings()</span>
+    
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/pool_supervisor_behaviour.ex#L6" class="view-source" rel="help" title="View Source">
+       <span class="icon-code" aria-hidden="true"></span>
+       <span class="sr-only">View Source</span>
+     </a>
+    
+    
+    
+      <div class="specs">
+        
+          <pre>option_settings() :: <a href="https://hexdocs.pm/elixir/Map.html#t:t/0">Map.t</a></pre>
+        
+      </div>
+    
+  </div>
+  <section class="docstring">
+    
+  </section>
+</div>
+<div class="detail" id="c:start_children/1">
   
   <div class="detail-header">
     <a href="#c:start_children/1" class="detail-link" title="Link to this callback">
@@ -138,7 +212,7 @@
     </a>
     <span class="signature">start_children(any)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/pool_supervisor_behaviour.ex#L3" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/pool_supervisor_behaviour.ex#L8" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -156,33 +230,6 @@
     
   </section>
 </div>
-<div class="detail" id="c:start_init/1">
-  
-  <div class="detail-header">
-    <a href="#c:start_init/1" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">start_init(any)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/pool_supervisor_behaviour.ex#L4" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>start_init(any) :: any</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
 <div class="detail" id="c:start_link/0">
   
   <div class="detail-header">
@@ -192,7 +239,7 @@
     </a>
     <span class="signature">start_link()</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/pool_supervisor_behaviour.ex#L2" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/pool_supervisor_behaviour.ex#L7" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>

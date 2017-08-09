@@ -5,7 +5,7 @@
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="ExDoc v0.16.2">
-    <title>Noizu.SimplePool.WorkerLookupBehaviour – noizu_simple_pool v1.2.0</title>
+    <title>Noizu.SimplePool.Server.ProviderBehaviour – noizu_simple_pool v1.2.0</title>
     <link rel="stylesheet" href="dist/app-268c9dc719.css" />
     
     <script src="dist/sidebar_items-b719aacba3.js"></script>
@@ -64,9 +64,9 @@
 
       <h1>
         <small class="visible-xs">noizu_simple_pool v1.2.0</small>
-        Noizu.SimplePool.WorkerLookupBehaviour <small>behaviour</small>
+        Noizu.SimplePool.Server.ProviderBehaviour <small>behaviour</small>
         
-          <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L1" title="View Source" class="view-source" rel="help">
+          <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/provider_behaviour.ex#L1" title="View Source" class="view-source" rel="help">
             <span class="icon-code" aria-hidden="true"></span>
             <span class="sr-only">View Source</span>
           </a>
@@ -95,43 +95,43 @@
     </h2>
     <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:clear_process!/4">clear_process!(atom, any, node_pid, context)</a>
+    <a href="#c:init/3">init(module, sup, options)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:dereg_worker!/3">dereg_worker!(atom, any, context)</a>
+    <a href="#c:internal_call_handler/3">internal_call_handler({}, from, state)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:disable_server!/3">disable_server!(module, node, context)</a>
+    <a href="#c:internal_cast_handler/2">internal_cast_handler({}, state)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:enable_server!/3">enable_server!(module, node, context)</a>
+    <a href="#c:internal_info_handler/2">internal_info_handler({}, state)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:get_reg_worker!/3">get_reg_worker!(atom, any, context)</a>
+    <a href="#c:load/3">load(module, settings, context)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:reg_worker!/4">reg_worker!(atom, any, pid, context)</a>
+    <a href="#c:status/2">status(module, context)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:update_server!/3">update_server!(module, node, context)</a>
+    <a href="#c:terminate/2">terminate(reason, state)</a>
   </div>
   
 </div>
@@ -155,16 +155,16 @@
             </a>
             Callbacks
           </h1>
-          <div class="detail" id="c:clear_process!/4">
+          <div class="detail" id="c:init/3">
   
   <div class="detail-header">
-    <a href="#c:clear_process!/4" class="detail-link" title="Link to this callback">
+    <a href="#c:init/3" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">clear_process!(atom, any, node_pid, context)</span>
+    <span class="signature">init(module, sup, options)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L8" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/provider_behaviour.ex#L6" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -173,9 +173,7 @@
     
       <div class="specs">
         
-          <pre>clear_process!(atom, any, node_pid :: any, context :: any) ::
-  :ok |
-  :error</pre>
+          <pre>init(module :: Module, sup :: any, options :: <a href="Noizu.SimplePool.OptionSettings.html#t:t/0">Noizu.SimplePool.OptionSettings.t</a>) :: any</pre>
         
       </div>
     
@@ -184,16 +182,16 @@
     
   </section>
 </div>
-<div class="detail" id="c:dereg_worker!/3">
+<div class="detail" id="c:internal_call_handler/3">
   
   <div class="detail-header">
-    <a href="#c:dereg_worker!/3" class="detail-link" title="Link to this callback">
+    <a href="#c:internal_call_handler/3" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">dereg_worker!(atom, any, context)</span>
+    <span class="signature">internal_call_handler({}, from, state)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L6" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/provider_behaviour.ex#L31" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -202,7 +200,7 @@
     
       <div class="specs">
         
-          <pre>dereg_worker!(atom, any, context :: any) :: :ok | :error</pre>
+          <pre>internal_call_handler({:i, call :: any, context :: any}, from :: any, state :: <a href="Noizu.SimplePool.Server.State.html#t:t/0">Noizu.SimplePool.Server.State.t</a>) :: {:reply, any, <a href="Noizu.SimplePool.Server.State.html#t:t/0">Noizu.SimplePool.Server.State.t</a>}</pre>
         
       </div>
     
@@ -211,16 +209,16 @@
     
   </section>
 </div>
-<div class="detail" id="c:disable_server!/3">
+<div class="detail" id="c:internal_cast_handler/2">
   
   <div class="detail-header">
-    <a href="#c:disable_server!/3" class="detail-link" title="Link to this callback">
+    <a href="#c:internal_cast_handler/2" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">disable_server!(module, node, context)</span>
+    <span class="signature">internal_cast_handler({}, state)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L4" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/provider_behaviour.ex#L32" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -229,7 +227,7 @@
     
       <div class="specs">
         
-          <pre>disable_server!(module :: atom, node :: any, context :: any) :: :ok</pre>
+          <pre>internal_cast_handler({:i, call :: any, context :: any}, state :: <a href="Noizu.SimplePool.Server.State.html#t:t/0">Noizu.SimplePool.Server.State.t</a>) :: {:noreply, <a href="Noizu.SimplePool.Server.State.html#t:t/0">Noizu.SimplePool.Server.State.t</a>}</pre>
         
       </div>
     
@@ -238,16 +236,16 @@
     
   </section>
 </div>
-<div class="detail" id="c:enable_server!/3">
+<div class="detail" id="c:internal_info_handler/2">
   
   <div class="detail-header">
-    <a href="#c:enable_server!/3" class="detail-link" title="Link to this callback">
+    <a href="#c:internal_info_handler/2" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">enable_server!(module, node, context)</span>
+    <span class="signature">internal_info_handler({}, state)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L3" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/provider_behaviour.ex#L33" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -256,7 +254,7 @@
     
       <div class="specs">
         
-          <pre>enable_server!(module :: atom, node :: any, context :: any) :: :ok</pre>
+          <pre>internal_info_handler({:i, call :: any, context :: any}, state :: <a href="Noizu.SimplePool.Server.State.html#t:t/0">Noizu.SimplePool.Server.State.t</a>) :: {:noreply, <a href="Noizu.SimplePool.Server.State.html#t:t/0">Noizu.SimplePool.Server.State.t</a>}</pre>
         
       </div>
     
@@ -265,16 +263,16 @@
     
   </section>
 </div>
-<div class="detail" id="c:get_reg_worker!/3">
+<div class="detail" id="c:load/3">
   
   <div class="detail-header">
-    <a href="#c:get_reg_worker!/3" class="detail-link" title="Link to this callback">
+    <a href="#c:load/3" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">get_reg_worker!(atom, any, context)</span>
+    <span class="signature">load(module, settings, context)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L5" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/provider_behaviour.ex#L13" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -283,7 +281,7 @@
     
       <div class="specs">
         
-          <pre>get_reg_worker!(atom, any, context :: any) :: {boolean, pid | any}</pre>
+          <pre>load(module :: Module, settings :: any, context :: any) :: any</pre>
         
       </div>
     
@@ -292,16 +290,16 @@
     
   </section>
 </div>
-<div class="detail" id="c:reg_worker!/4">
+<div class="detail" id="c:status/2">
   
   <div class="detail-header">
-    <a href="#c:reg_worker!/4" class="detail-link" title="Link to this callback">
+    <a href="#c:status/2" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">reg_worker!(atom, any, pid, context)</span>
+    <span class="signature">status(module, context)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L7" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/provider_behaviour.ex#L12" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -310,9 +308,7 @@
     
       <div class="specs">
         
-          <pre>reg_worker!(atom, any, pid, context :: any) ::
-  :ok |
-  {:error, any}</pre>
+          <pre>status(module :: Module, context :: any) :: any</pre>
         
       </div>
     
@@ -321,16 +317,16 @@
     
   </section>
 </div>
-<div class="detail" id="c:update_server!/3">
+<div class="detail" id="c:terminate/2">
   
   <div class="detail-header">
-    <a href="#c:update_server!/3" class="detail-link" title="Link to this callback">
+    <a href="#c:terminate/2" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">update_server!(module, node, context)</span>
+    <span class="signature">terminate(reason, state)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L2" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/provider_behaviour.ex#L7" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -339,7 +335,7 @@
     
       <div class="specs">
         
-          <pre>update_server!(module :: atom, node :: any, context :: any) :: :ok</pre>
+          <pre>terminate(reason :: any, state :: <a href="Noizu.SimplePool.Server.State.html#t:t/0">Noizu.SimplePool.Server.State.t</a>) :: any</pre>
         
       </div>
     

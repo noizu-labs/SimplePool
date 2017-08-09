@@ -5,10 +5,10 @@
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="ExDoc v0.16.2">
-    <title>Noizu.SimplePool.Behaviour – noizu_simple_pool v0.1.0</title>
+    <title>Noizu.SimplePool.Behaviour – noizu_simple_pool v1.2.0</title>
     <link rel="stylesheet" href="dist/app-268c9dc719.css" />
     
-    <script src="dist/sidebar_items-4d291ca969.js"></script>
+    <script src="dist/sidebar_items-b719aacba3.js"></script>
   </head>
   <body data-type="modules">
     <script>try { if(localStorage.getItem('night-mode')) document.body.className += ' night-mode'; } catch (e) { }</script>
@@ -27,7 +27,7 @@
         noizu_simple_pool
       </h1>
       <h2 class="sidebar-projectVersion">
-        v0.1.0
+        v1.2.0
       </h2>
     </div>
     
@@ -48,6 +48,8 @@
     
 
     
+      <li><a id="protocols-list" href="#full-list">Protocols</a></li>
+    
 
     
   </ul>
@@ -61,7 +63,7 @@
 
 
       <h1>
-        <small class="visible-xs">noizu_simple_pool v0.1.0</small>
+        <small class="visible-xs">noizu_simple_pool v1.2.0</small>
         Noizu.SimplePool.Behaviour <small>behaviour</small>
         
           <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L1" title="View Source" class="view-source" rel="help">
@@ -91,13 +93,19 @@
     </h2>
     <div class="summary-row">
   <div class="summary-signature">
-    <a href="#map_intersect/2">map_intersect(list, subset)</a>
+    <a href="#banner/2">banner(header, msg)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#simple_nmid/2">simple_nmid(arg, sequence)</a>
+    <a href="#expand_worker_state_entity/2">expand_worker_state_entity(base_module, worker_state_entity)</a>
+  </div>
+  
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="#prepare_options/1">prepare_options(options)</a>
   </div>
   
 </div>
@@ -112,25 +120,7 @@
     </h2>
     <div class="summary-row">
   <div class="summary-signature">
-    <a href="#c:book_keeping_init/0">book_keeping_init()</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:generate_nmid/1">generate_nmid(arg0)</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:lookup_table/0">lookup_table()</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:nmid_seed/0">nmid_seed()</a>
+    <a href="#c:option_settings/0">option_settings()</a>
   </div>
   
 </div>
@@ -152,16 +142,16 @@
             </a>
             Functions
           </h1>
-          <div class="detail" id="map_intersect/2">
+          <div class="detail" id="banner/2">
   
   <div class="detail-header">
-    <a href="#map_intersect/2" class="detail-link" title="Link to this function">
+    <a href="#banner/2" class="detail-link" title="Link to this function">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this function</span>
     </a>
-    <span class="signature">map_intersect(list, subset)</span>
+    <span class="signature">banner(header, msg)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L7" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L57" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -173,16 +163,37 @@
     
   </section>
 </div>
-<div class="detail" id="simple_nmid/2">
+<div class="detail" id="expand_worker_state_entity/2">
   
   <div class="detail-header">
-    <a href="#simple_nmid/2" class="detail-link" title="Link to this function">
+    <a href="#expand_worker_state_entity/2" class="detail-link" title="Link to this function">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this function</span>
     </a>
-    <span class="signature">simple_nmid(arg, sequence)</span>
+    <span class="signature">expand_worker_state_entity(base_module, worker_state_entity)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L17" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L79" class="view-source" rel="help" title="View Source">
+       <span class="icon-code" aria-hidden="true"></span>
+       <span class="sr-only">View Source</span>
+     </a>
+    
+    
+    
+  </div>
+  <section class="docstring">
+    
+  </section>
+</div>
+<div class="detail" id="prepare_options/1">
+  
+  <div class="detail-header">
+    <a href="#prepare_options/1" class="detail-link" title="Link to this function">
+      <span class="icon-link" aria-hidden="true"></span>
+      <span class="sr-only">Link to this function</span>
+    </a>
+    <span class="signature">prepare_options(options)</span>
+    
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L23" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -207,16 +218,16 @@
             </a>
             Callbacks
           </h1>
-          <div class="detail" id="c:book_keeping_init/0">
+          <div class="detail" id="c:option_settings/0">
   
   <div class="detail-header">
-    <a href="#c:book_keeping_init/0" class="detail-link" title="Link to this callback">
+    <a href="#c:option_settings/0" class="detail-link" title="Link to this callback">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this callback</span>
     </a>
-    <span class="signature">book_keeping_init()</span>
+    <span class="signature">option_settings()</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L4" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L8" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -225,88 +236,7 @@
     
       <div class="specs">
         
-          <pre>book_keeping_init() :: {{integer, integer}, integer}</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:generate_nmid/1">
-  
-  <div class="detail-header">
-    <a href="#c:generate_nmid/1" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">generate_nmid(arg0)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L5" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>generate_nmid(<a href="Noizu.SimplePool.Server.State.html#t:t/0">Noizu.SimplePool.Server.State.t</a>) :: {integer, <a href="Noizu.SimplePool.Server.State.html#t:t/0">Noizu.SimplePool.Server.State.t</a>}</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:lookup_table/0">
-  
-  <div class="detail-header">
-    <a href="#c:lookup_table/0" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">lookup_table()</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L3" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>lookup_table() :: atom</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:nmid_seed/0">
-  
-  <div class="detail-header">
-    <a href="#c:nmid_seed/0" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">nmid_seed()</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour.ex#L2" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>nmid_seed() :: {integer, integer}</pre>
+          <pre>option_settings() :: <a href="https://hexdocs.pm/elixir/Map.html#t:t/0">Map.t</a></pre>
         
       </div>
     

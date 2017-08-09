@@ -5,12 +5,18 @@ fonts/icomoon.eot
 fonts/icomoon.svg
 fonts/icomoon.ttf
 fonts/icomoon.woff
-dist/sidebar_items-4d291ca969.js
+dist/sidebar_items-b719aacba3.js
 api-reference.html
 readme.html
 404.html
 Noizu.SimplePool.Behaviour.html
+Noizu.SimplePool.InnerStateBehaviour.html
+Noizu.SimplePool.OptionList.html
+Noizu.SimplePool.OptionSettings.html
+Noizu.SimplePool.OptionValue.html
 Noizu.SimplePool.PoolSupervisorBehaviour.html
+Noizu.SimplePool.Server.ProviderBehaviour.html
+Noizu.SimplePool.Server.ProviderBehaviour.Default.html
 Noizu.SimplePool.Server.State.html
 Noizu.SimplePool.ServerBehaviour.html
 Noizu.SimplePool.Worker.State.html
@@ -18,4 +24,5 @@ Noizu.SimplePool.WorkerBehaviour.html
 Noizu.SimplePool.WorkerLookupBehaviour.html
 Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation.html
 Noizu.SimplePool.WorkerSupervisorBehaviour.html
+Noizu.OSP.html
 index.html

@@ -5,7 +5,7 @@
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="ExDoc v0.16.2">
-    <title>Noizu.SimplePool.ServerBehaviour – noizu_simple_pool v1.2.0</title>
+    <title>Noizu.SimplePool.OptionSettings – noizu_simple_pool v1.2.0</title>
     <link rel="stylesheet" href="dist/app-268c9dc719.css" />
     
     <script src="dist/sidebar_items-b719aacba3.js"></script>
@@ -64,9 +64,9 @@
 
       <h1>
         <small class="visible-xs">noizu_simple_pool v1.2.0</small>
-        Noizu.SimplePool.ServerBehaviour <small>behaviour</small>
+        Noizu.SimplePool.OptionSettings
         
-          <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server_behaviour.ex#L1" title="View Source" class="view-source" rel="help">
+          <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour_options/option_settings.ex#L2" title="View Source" class="view-source" rel="help">
             <span class="icon-code" aria-hidden="true"></span>
             <span class="sr-only">View Source</span>
           </a>
@@ -85,6 +85,19 @@
             Summary
           </h1>
           
+  <div class="summary-types summary">
+    <h2>
+      <a href="#types">Types</a>
+    </h2>
+    <div class="summary-row">
+  <div class="summary-signature">
+    <a href="#t:t/0">t()</a>
+  </div>
+  
+</div>
+
+  </div>
+
 
           
   <div class="summary-functions summary">
@@ -93,7 +106,7 @@
     </h2>
     <div class="summary-row">
   <div class="summary-signature">
-    <a href="#prepare_options/1">prepare_options(options)</a>
+    <a href="#expand/2">expand(this, options \\ [])</a>
   </div>
   
 </div>
@@ -102,29 +115,50 @@
 
 
           
-  <div class="summary-callbacks summary">
-    <h2>
-      <a href="#callbacks">Callbacks</a>
-    </h2>
-    <div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:option_settings/0">option_settings()</a>
-  </div>
-  
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="#c:start_link/1">start_link(any)</a>
-  </div>
-  
-</div>
-
-  </div>
-
 
         </section>
       
 
+      
+        <section id="types" class="details-list">
+          <h1 class="section-heading">
+            <a class="hover-link" href="#types">
+              <span class="icon-link" aria-hidden="true"></span>
+              <span class="sr-only">Link to this section</span>
+            </a>
+            Types
+          </h1>
+          <div class="types-list">
+            <div class="detail" id="t:t/0">
+  
+  <div class="detail-header">
+    <a href="#t:t/0" class="detail-link" title="Link to this type">
+      <span class="icon-link" aria-hidden="true"></span>
+      <span class="sr-only">Link to this type</span>
+    </a>
+    <span class="signature">t()</span>
+    
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour_options/option_settings.ex#L4" class="view-source" rel="help" title="View Source">
+       <span class="icon-code" aria-hidden="true"></span>
+       <span class="sr-only">View Source</span>
+     </a>
+    
+    
+    
+      <div class="specs">
+        
+          <pre>t() :: %Noizu.SimplePool.OptionSettings{effective_options: <a href="https://hexdocs.pm/elixir/Map.html#t:t/0">Map.t</a>, initial_options: <a href="https://hexdocs.pm/elixir/Map.html#t:t/0">Map.t</a>, module: atom, option_settings: <a href="https://hexdocs.pm/elixir/Map.html#t:t/0">Map.t</a>, output: %{warnings: <a href="https://hexdocs.pm/elixir/Map.html#t:t/0">Map.t</a>, errors: <a href="https://hexdocs.pm/elixir/Map.html#t:t/0">Map.t</a>}}</pre>
+        
+      </div>
+    
+  </div>
+  <section class="docstring">
+    
+  </section>
+</div>
+
+          </div>
+        </section>
       
 
       
@@ -136,16 +170,18 @@
             </a>
             Functions
           </h1>
-          <div class="detail" id="prepare_options/1">
+          <div class="detail" id="expand/2">
+  
+    <span id="expand/1"></span>
   
   <div class="detail-header">
-    <a href="#prepare_options/1" class="detail-link" title="Link to this function">
+    <a href="#expand/2" class="detail-link" title="Link to this function">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this function</span>
     </a>
-    <span class="signature">prepare_options(options)</span>
+    <span class="signature">expand(this, options \\ [])</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server_behaviour.ex#L25" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/behaviour_options/option_settings.ex#L20" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -161,71 +197,6 @@
         </section>
       
 
-      
-        <section id="callbacks" class="details-list">
-          <h1 class="section-heading">
-            <a class="hover-link" href="#callbacks">
-              <span class="icon-link" aria-hidden="true"></span>
-              <span class="sr-only">Link to this section</span>
-            </a>
-            Callbacks
-          </h1>
-          <div class="detail" id="c:option_settings/0">
-  
-  <div class="detail-header">
-    <a href="#c:option_settings/0" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">option_settings()</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server_behaviour.ex#L14" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>option_settings() :: <a href="https://hexdocs.pm/elixir/Map.html#t:t/0">Map.t</a></pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-<div class="detail" id="c:start_link/1">
-  
-  <div class="detail-header">
-    <a href="#c:start_link/1" class="detail-link" title="Link to this callback">
-      <span class="icon-link" aria-hidden="true"></span>
-      <span class="sr-only">Link to this callback</span>
-    </a>
-    <span class="signature">start_link(any)</span>
-    
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server_behaviour.ex#L15" class="view-source" rel="help" title="View Source">
-       <span class="icon-code" aria-hidden="true"></span>
-       <span class="sr-only">View Source</span>
-     </a>
-    
-    
-    
-      <div class="specs">
-        
-          <pre>start_link(any) :: any</pre>
-        
-      </div>
-    
-  </div>
-  <section class="docstring">
-    
-  </section>
-</div>
-
-        </section>
       
           <footer class="footer">
         <p>

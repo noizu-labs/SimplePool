@@ -5,10 +5,10 @@
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="ExDoc v0.16.2">
-    <title>Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation – noizu_simple_pool v0.1.0</title>
+    <title>Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation – noizu_simple_pool v1.2.0</title>
     <link rel="stylesheet" href="dist/app-268c9dc719.css" />
     
-    <script src="dist/sidebar_items-4d291ca969.js"></script>
+    <script src="dist/sidebar_items-b719aacba3.js"></script>
   </head>
   <body data-type="modules">
     <script>try { if(localStorage.getItem('night-mode')) document.body.className += ' night-mode'; } catch (e) { }</script>
@@ -27,7 +27,7 @@
         noizu_simple_pool
       </h1>
       <h2 class="sidebar-projectVersion">
-        v0.1.0
+        v1.2.0
       </h2>
     </div>
     
@@ -48,6 +48,8 @@
     
 
     
+      <li><a id="protocols-list" href="#full-list">Protocols</a></li>
+    
 
     
   </ul>
@@ -61,10 +63,10 @@
 
 
       <h1>
-        <small class="visible-xs">noizu_simple_pool v0.1.0</small>
+        <small class="visible-xs">noizu_simple_pool v1.2.0</small>
         Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation
         
-          <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L7" title="View Source" class="view-source" rel="help">
+          <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L10" title="View Source" class="view-source" rel="help">
             <span class="icon-code" aria-hidden="true"></span>
             <span class="sr-only">View Source</span>
           </a>
@@ -91,25 +93,43 @@
     </h2>
     <div class="summary-row">
   <div class="summary-signature">
-    <a href="#dereg_worker!/2">dereg_worker!(mod, nmid)</a>
+    <a href="#clear_process!/4">clear_process!(mod, nmid, pid_node, context \\ nil)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#get_reg_worker!/2">get_reg_worker!(mod, nmid)</a>
+    <a href="#dereg_worker!/3">dereg_worker!(mod, nmid, context \\ nil)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#reg_worker!/3">reg_worker!(mod, nmid, pid)</a>
+    <a href="#disable_server!/3">disable_server!(mod, target_node \\ :auto, context \\ nil)</a>
   </div>
   
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="#update_endpoint!/1">update_endpoint!(mod)</a>
+    <a href="#enable_server!/3">enable_server!(mod, target_node \\ :auto, context \\ nil)</a>
+  </div>
+  
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="#get_reg_worker!/3">get_reg_worker!(mod, nmid, context \\ nil)</a>
+  </div>
+  
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="#reg_worker!/4">reg_worker!(mod, nmid, pid, context \\ nil)</a>
+  </div>
+  
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="#update_server!/3">update_server!(mod, target_node \\ :auto, context \\ nil)</a>
   </div>
   
 </div>
@@ -133,16 +153,18 @@
             </a>
             Functions
           </h1>
-          <div class="detail" id="dereg_worker!/2">
+          <div class="detail" id="clear_process!/4">
+  
+    <span id="clear_process!/3"></span>
   
   <div class="detail-header">
-    <a href="#dereg_worker!/2" class="detail-link" title="Link to this function">
+    <a href="#clear_process!/4" class="detail-link" title="Link to this function">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this function</span>
     </a>
-    <span class="signature">dereg_worker!(mod, nmid)</span>
+    <span class="signature">clear_process!(mod, nmid, pid_node, context \\ nil)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L16" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L19" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -154,16 +176,18 @@
     
   </section>
 </div>
-<div class="detail" id="get_reg_worker!/2">
+<div class="detail" id="dereg_worker!/3">
+  
+    <span id="dereg_worker!/2"></span>
   
   <div class="detail-header">
-    <a href="#get_reg_worker!/2" class="detail-link" title="Link to this function">
+    <a href="#dereg_worker!/3" class="detail-link" title="Link to this function">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this function</span>
     </a>
-    <span class="signature">get_reg_worker!(mod, nmid)</span>
+    <span class="signature">dereg_worker!(mod, nmid, context \\ nil)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L20" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L23" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
@@ -175,14 +199,43 @@
     
   </section>
 </div>
-<div class="detail" id="reg_worker!/3">
+<div class="detail" id="disable_server!/3">
+  
+    <span id="disable_server!/1"></span>
+  
+    <span id="disable_server!/2"></span>
   
   <div class="detail-header">
-    <a href="#reg_worker!/3" class="detail-link" title="Link to this function">
+    <a href="#disable_server!/3" class="detail-link" title="Link to this function">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this function</span>
     </a>
-    <span class="signature">reg_worker!(mod, nmid, pid)</span>
+    <span class="signature">disable_server!(mod, target_node \\ :auto, context \\ nil)</span>
+    
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L13" class="view-source" rel="help" title="View Source">
+       <span class="icon-code" aria-hidden="true"></span>
+       <span class="sr-only">View Source</span>
+     </a>
+    
+    
+    
+  </div>
+  <section class="docstring">
+    
+  </section>
+</div>
+<div class="detail" id="enable_server!/3">
+  
+    <span id="enable_server!/1"></span>
+  
+    <span id="enable_server!/2"></span>
+  
+  <div class="detail-header">
+    <a href="#enable_server!/3" class="detail-link" title="Link to this function">
+      <span class="icon-link" aria-hidden="true"></span>
+      <span class="sr-only">Link to this function</span>
+    </a>
+    <span class="signature">enable_server!(mod, target_node \\ :auto, context \\ nil)</span>
     
       <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L12" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
@@ -196,16 +249,66 @@
     
   </section>
 </div>
-<div class="detail" id="update_endpoint!/1">
+<div class="detail" id="get_reg_worker!/3">
+  
+    <span id="get_reg_worker!/2"></span>
   
   <div class="detail-header">
-    <a href="#update_endpoint!/1" class="detail-link" title="Link to this function">
+    <a href="#get_reg_worker!/3" class="detail-link" title="Link to this function">
       <span class="icon-link" aria-hidden="true"></span>
       <span class="sr-only">Link to this function</span>
     </a>
-    <span class="signature">update_endpoint!(mod)</span>
+    <span class="signature">get_reg_worker!(mod, nmid, context \\ nil)</span>
     
-      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L8" class="view-source" rel="help" title="View Source">
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L27" class="view-source" rel="help" title="View Source">
+       <span class="icon-code" aria-hidden="true"></span>
+       <span class="sr-only">View Source</span>
+     </a>
+    
+    
+    
+  </div>
+  <section class="docstring">
+    
+  </section>
+</div>
+<div class="detail" id="reg_worker!/4">
+  
+    <span id="reg_worker!/3"></span>
+  
+  <div class="detail-header">
+    <a href="#reg_worker!/4" class="detail-link" title="Link to this function">
+      <span class="icon-link" aria-hidden="true"></span>
+      <span class="sr-only">Link to this function</span>
+    </a>
+    <span class="signature">reg_worker!(mod, nmid, pid, context \\ nil)</span>
+    
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L15" class="view-source" rel="help" title="View Source">
+       <span class="icon-code" aria-hidden="true"></span>
+       <span class="sr-only">View Source</span>
+     </a>
+    
+    
+    
+  </div>
+  <section class="docstring">
+    
+  </section>
+</div>
+<div class="detail" id="update_server!/3">
+  
+    <span id="update_server!/1"></span>
+  
+    <span id="update_server!/2"></span>
+  
+  <div class="detail-header">
+    <a href="#update_server!/3" class="detail-link" title="Link to this function">
+      <span class="icon-link" aria-hidden="true"></span>
+      <span class="sr-only">Link to this function</span>
+    </a>
+    <span class="signature">update_server!(mod, target_node \\ :auto, context \\ nil)</span>
+    
+      <a href="https://github.com/noizu/SimplePool/blob/master/lib/simple_pool/server/worker_lookup_behaviour.ex#L11" class="view-source" rel="help" title="View Source">
        <span class="icon-code" aria-hidden="true"></span>
        <span class="sr-only">View Source</span>
      </a>
