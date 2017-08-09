@@ -51,7 +51,9 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     # Internal Routing - internal_cast_handler
     #---------------------------------------------------------------------------
-    def internal_cast_handler({:worker_remove!, ref, options}, context, %State{} = state), do: worker_remove!(ref, options, context, state)
+    def internal_cast_handler({:worker_remove!, ref, options}, context, %State{} = state) do
+       worker_remove!(ref, options, context, state)
+    end
     def internal_cast_handler(call, context, %State{} = state) do
       if context do
         Logger.error("#{Map.get(context, :token, :token_not_found)}: #{state.server} unsupported cast(#{inspect call})")
@@ -95,8 +97,9 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     # worker_remove!
     #------------------------------------------------
-    def worker_remove!(ref, _options, context, state) do
+    def worker_remove!(ref, options, context, state) do
       state.server.worker_sup_remove(ref, state.pool, context)
+      {:noreply, state}
     end
 
     #------------------------------------------------

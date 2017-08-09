@@ -9,8 +9,8 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
   @methods([:start_link, :start_children, :init])
 
-  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding])
+  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop])
+  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop])
 
   @default_max_seconds(5)
   @default_max_restarts(1000)

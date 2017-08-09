@@ -20,8 +20,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
 
   @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!])
-  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding])
+  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop])
+  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop])
 
   def prepare_options(options) do
     settings = %OptionSettings{
@@ -64,6 +64,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       require Logger
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.ServerBehaviour
+      use GenServer
       @base(Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat)
 
       @worker(Module.concat([@base, "Worker"]))
@@ -98,9 +99,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           if unquote(verbose) do
             @base.banner("INIT #{__MODULE__} (#{inspect sup})") |> Logger.info()
           end
-          s = @server_provider.init(__MODULE__, sup, option_settings())
-          @base.banner("#{inspect s}") |> Logger.info
-          s
+          @server_provider.init(__MODULE__, sup, option_settings())
         end
       end # end init
 
@@ -118,18 +117,19 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
 
       def worker_sup_start(ref, sup, context) do
-        @base.banner("worker_sup_start #{inspect ref}")
         childSpec = @worker_supervisor.child(ref, context)
         case Supervisor.start_child(sup, childSpec) do
           {:ok, pid} -> {:ok, pid}
           {:error, {:already_started, pid}} -> {:ok, pid}
-          error ->
-            Logger.error "~~ERROR: #{inspect error}"
-            error
+          {:error, :already_present} -> Supervisor.restart_child(sup, ref)
+          error -> error
         end # end case
       end # endstart/3
 
-      def worker_sup_remove(ref, sup, _context) do
+      def worker_sup_remove(ref, sup, context) do
+        if unquote(MapSet.member?(features, :graceful_stop)) do
+          s_call(ref, {:shutdown, [force: true]}, context, 30_000)
+        end
         Supervisor.terminate_child(sup, ref)
         Supervisor.delete_child(sup, ref)
       end # end remove/3
@@ -199,7 +199,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end
         end
       end
-
       #-------------------------------------------------------------------------------
       # Internal Forwarding
       #-------------------------------------------------------------------------------

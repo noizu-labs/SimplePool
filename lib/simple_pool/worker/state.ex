@@ -13,6 +13,6 @@ alias Noizu.SimplePool.Worker.State
     worker_ref: nil,
     inner_state: nil,
     last_activity: nil,
-    extended: nil
+    extended: %{}
   ]
 end
