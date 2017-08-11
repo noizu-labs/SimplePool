@@ -7,9 +7,9 @@ defmodule Noizu.SimplePool.Behaviour do
 
   @callback option_settings() :: Map.t
 
-  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop])
-  
+  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
+  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
+
   @modules([:worker, :server, :worker_supervisor, :pool_supervisor])
   @default_modules([:worker_supervisor, :pool_supervisor])
   @methods([])

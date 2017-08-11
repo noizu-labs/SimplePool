@@ -107,16 +107,19 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     def load_workers(options, context, state) do
       if Enum.member?(state.options.effective_options.features, :asynch_load) do
+        state.server.base().banner("Load Workers Asynch")
         pid = spawn(fn -> load_workers_asynch(options, context, state) end)
         status = %{state.status| loading: :in_progress, state: :initialization}
         state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid)}
         {:reply, {:ok, :loading}, state}
       else
         if Enum.member?(state.options.effective_options.features, :lazy_load) do
+          state.server.base().banner("Lazy Load Workers")
           # nothing to do,
           state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}
         else
+          state.server.base().banner("Load Workers")
           :ok = load_workers_synch(options, context, state)
           state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}

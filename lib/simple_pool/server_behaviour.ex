@@ -20,8 +20,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
 
   @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!])
-  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop])
+  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
+  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
   def prepare_options(options) do
     settings = %OptionSettings{
@@ -232,7 +232,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       #-------------------------------------------------------------------------------
       #
       #-------------------------------------------------------------------------------
-      def fetch(identifier, options \\ :default, context \\ nil), do: s_call(identifier, {:fetch, options}, context)
+      def fetch(identifier, options \\ :default, context \\ nil), do: s_call!(identifier, {:fetch, options}, context)
 
       #-------------------------------------------------------------------------
       # s_redirect
