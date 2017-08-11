@@ -23,6 +23,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
+  @default_timeout 2_000
+  @default_shutdown_timeout 5_000
   def prepare_options(options) do
     settings = %OptionSettings{
       option_settings: %{
@@ -31,6 +33,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
         verbose: %OptionValue{option: :verbose, default: Application.get_env(Noizu.SimplePool, :verbose, false)},
         worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
+        default_timeout: %OptionValue{option: :default_timeout, default:  Application.get_env(Noizu.SimplePool, :default_timeout, @default_timeout)},
+        shutdown_timeout: %OptionValue{option: :shutdown_timeout, default: Application.get_env(Noizu.SimplePool, :default_shutdown_timeout, @default_shutdown_timeout)},
         server_driver: %OptionValue{option: :server_driver, default: Application.get_env(Noizu.SimplePool, :default_server_driver, Noizu.SimplePool.ServerDriver.Default)},
         worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(Noizu.SimplePool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation)},
         server_provider: %OptionValue{option: :server_provider, default: Application.get_env(Noizu.SimplePool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)}
@@ -48,7 +52,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     required = options.required
     verbose = options.verbose
     worker_lookup_handler = options.worker_lookup_handler
-
+    default_timeout = options.default_timeout
+    shutdown_timeout = options.shutdown_timeout
     case Map.keys(option_settings.output.errors) do
       [] -> :ok
       l when is_list(l) ->
@@ -78,6 +83,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @worker_lookup_handler(unquote(worker_lookup_handler))
       @module_and_lookup_handler({__MODULE__, @worker_lookup_handler})
 
+      @timeout(unquote(default_timeout))
+      @shutdown_timeout(unquote(shutdown_timeout))
+
       def worker_state_entity, do: @worker_state_entity
       def option_settings, do: unquote(Macro.escape(option_settings))
 
@@ -88,7 +96,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.start_link) do
         def start_link(sup) do
           if unquote(verbose) do
-            @base.banner("START_LINK #{__MODULE__} (#{inspect sup})") |> Logger.info()
+            @base.banner("START_LINK #{__MODULE__} (#{inspect sup})@#{inspect self()}") |> Logger.info()
           end
           GenServer.start_link(__MODULE__, sup, name: __MODULE__)
         end
@@ -97,7 +105,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(required.init)) do
         def init(sup) do
           if unquote(verbose) do
-            @base.banner("INIT #{__MODULE__} (#{inspect sup})") |> Logger.info()
+            @base.banner("INIT #{__MODULE__} (#{inspect sup}@#{inspect self()})") |> Logger.info()
           end
           @server_provider.init(__MODULE__, sup, option_settings())
         end
@@ -120,15 +128,17 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         childSpec = @worker_supervisor.child(ref, context)
         case Supervisor.start_child(sup, childSpec) do
           {:ok, pid} -> {:ok, pid}
-          {:error, {:already_started, pid}} -> {:ok, pid}
-          {:error, :already_present} -> Supervisor.restart_child(sup, ref)
+          {:error, {:already_started, pid}} ->
+              {:ok, pid}
+          {:error, :already_present} ->
+              Supervisor.restart_child(sup, ref)
           error -> error
         end # end case
       end # endstart/3
 
       def worker_sup_remove(ref, sup, context) do
         if unquote(MapSet.member?(features, :graceful_stop)) do
-          s_call(ref, {:shutdown, [force: true]}, context, 30_000)
+          s_call(ref, {:shutdown, [force: true]}, context, @shutdown_timeout)
         end
         Supervisor.terminate_child(sup, ref)
         Supervisor.delete_child(sup, ref)
@@ -194,7 +204,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               else
                 {:error, :not_registered}
               end
-            {true, pid} -> {:ok, pid}
+            {true, pid} ->
+              {:ok, pid}
             {:error, error} -> {:error, error}
           end
         end
@@ -211,16 +222,16 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @TODO add support for directing calls to specific nodes for load balancing purposes.
         @TODO add support for s_redirect
       """
-      def self_call(call, context \\ nil, timeout \\ 15_000) do
+      def self_call(call, context \\ nil, timeout \\ @timeout) do
         extended_call = {:s, call, context}
         GenServer.call(__MODULE__, extended_call, timeout)
       end
-      def self_cast(call, context \\ nil, timeout \\ 15_000) do
+      def self_cast(call, context \\ nil, timeout \\ @timeout) do
         extended_call = {:s, call, context}
         GenServer.call(__MODULE__, extended_call, timeout)
       end
 
-      def internal_call(call, context \\ nil, timeout \\ 15_000) do
+      def internal_call(call, context \\ nil, timeout \\ @timeout) do
         extended_call = {:i, call, context}
         GenServer.call(__MODULE__, extended_call, timeout)
       end
@@ -267,7 +278,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       #-------------------------------------------------------------------------
       # s_call unsafe implementations
       #-------------------------------------------------------------------------
-      def s_call_unsafe(ref, spawn, extended_call, context, timeout \\ 15_000) do
+      def s_call_unsafe(ref, spawn, extended_call, context, timeout \\ @timeout) do
         case worker_pid!(ref, spawn, context) do
           {:ok, pid} ->
             case GenServer.call(pid, extended_call, timeout) do
@@ -278,7 +289,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 end
               v -> v
             end
-          error -> error
+          error ->
+            error
         end # end case
       end #end s_call_unsafe
 
@@ -293,7 +305,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
-        def s_call!(identifier, call, context \\ nil, timeout \\ 15_000) do
+        def s_call!(identifier, call, context \\ nil, timeout \\ @timeout) do
           case  worker_ref!(identifier, context) do
             {:error, details} -> {:error, details}
             ref ->
@@ -303,7 +315,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               catch
                 :exit, e ->
                   try do
-                    Logger.warn @base.banner("#{__MODULE__} - dead worker (#{inspect ref})")
+                    Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
                     worker_deregister!(ref, context)
                     s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
                   catch
@@ -327,7 +339,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               catch
                 :exit, e ->
                   try do
-                    Logger.warn @base.banner("#{__MODULE__} - dead worker (#{inspect ref})")
+                    Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
                     worker_deregister!(ref, context)
                     s_cast_unsafe(ref, [spawn: true], extended_call, context)
                   catch
@@ -341,7 +353,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
-        def s_call(identifier, call, context \\ nil, timeout \\ 15_000) do
+        def s_call(identifier, call, context \\ nil, timeout \\ @timeout) do
           case  worker_ref!(identifier, context) do
             {:error, details} -> {:error, details}
             ref ->
@@ -351,7 +363,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               catch
                 :exit, e ->
                   try do
-                    Logger.warn @base.banner("#{__MODULE__} - dead worker (#{inspect ref})")
+                    Logger.warn @base.banner("#{__MODULE__}.s_call - dead worker (#{inspect ref})")
                     worker_deregister!(ref, context)
                     s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
                   catch
@@ -375,7 +387,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               catch
                 :exit, e ->
                   try do
-                    Logger.warn @base.banner("#{__MODULE__} - dead worker (#{inspect ref})")
+                    Logger.warn @base.banner("#{__MODULE__}.s_cast - dead worker (#{inspect ref})")
                     worker_deregister!(ref, context)
                     s_cast_unsafe(ref, [spawn: false], extended_call, context)
                   catch
@@ -392,7 +404,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
-        def s_call!(identifier, call, context \\ nil, timeout \\ 15_000) do
+        def s_call!(identifier, call, context \\ nil, timeout \\ @timeout) do
           case  worker_ref!(identifier, context) do
             {:error, details} -> {:error, details}
             ref ->
@@ -416,7 +428,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
-        def s_call(identifier, call, context \\ nil, timeout \\ 15_000) do
+        def s_call(identifier, call, context \\ nil, timeout \\ @timeout) do
           case  worker_ref!(identifier, context) do
             {:error, details} -> {:error, details}
             ref ->

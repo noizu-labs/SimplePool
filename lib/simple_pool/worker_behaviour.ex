@@ -59,6 +59,13 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           end
           GenServer.start_link(__MODULE__, ref)
         end
+
+        def start_link(a,b) do
+          Logger.error "#{inspect {a, b}}"
+        end
+        def start_link(a,b,c) do
+          Logger.error "#{inspect {a, b, c}}"
+        end
       end # end start_link
 
       # @terminate
