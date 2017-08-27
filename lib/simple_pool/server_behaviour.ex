@@ -19,7 +19,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   # TODO callbacks
 
 
-  @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!])
+  @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!, :get_direct_link!, :link_forward!])
   @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
@@ -71,7 +71,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @behaviour Noizu.SimplePool.ServerBehaviour
       use GenServer
       @base(Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat)
-
       @worker(Module.concat([@base, "Worker"]))
       @worker_supervisor(Module.concat([@base, "WorkerSupervisor"]))
       @server(__MODULE__)
@@ -85,6 +84,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       @timeout(unquote(default_timeout))
       @shutdown_timeout(unquote(shutdown_timeout))
+
+      alias Noizu.SimplePool.Worker.Link
 
       def worker_state_entity, do: @worker_state_entity
       def option_settings, do: unquote(Macro.escape(option_settings))
@@ -122,7 +123,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       def disable_server!(elixir_node) do
         @worker_lookup_handler.disable_server!(@base, elixir_node)
       end
-
 
       def worker_sup_start(ref, sup, context) do
         childSpec = @worker_supervisor.child(ref, context)
@@ -210,6 +210,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end
         end
       end
+
       #-------------------------------------------------------------------------------
       # Internal Forwarding
       #-------------------------------------------------------------------------------
@@ -240,11 +241,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         GenServer.cast(__MODULE__, extended_call)
       end
 
-      #-------------------------------------------------------------------------------
-      #
-      #-------------------------------------------------------------------------------
-      def fetch(identifier, options \\ :default, context \\ nil), do: s_call!(identifier, {:fetch, options}, context)
-
       #-------------------------------------------------------------------------
       # s_redirect
       #-------------------------------------------------------------------------
@@ -274,6 +270,30 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           {:reply, :s_retry, state}
         end # end handle_call/:s_call!
       end # if feature.s_redirect
+
+      #-------------------------------------------------------------------------
+      # fetch
+      #-------------------------------------------------------------------------
+      def fetch(identifier, options \\ :default, context \\ nil), do: s_call!(identifier, {:fetch, options}, context)
+
+      #-------------------------------------------------------------------------
+      # get_direct_link!
+      #-------------------------------------------------------------------------
+      def get_direct_link!(ref, context) do
+        case  worker_ref!(ref, context) do
+          {:error, details} ->
+            %Link{ref: ref, handler: __MODULE__, handle: nil, state: {:error, details}}
+          ref ->
+            case worker_pid!(ref, [spawn: true], context) do
+              {:ok, pid} ->
+                %Link{ref: ref, handler: __MODULE__, handle: pid, state: :valid}
+              {:error, details} ->
+                %Link{ref: ref, handler: __MODULE__, handle: nil, state: {:error, details}}
+              error ->
+                %Link{ref: ref, handler: __MODULE__, handle: nil, state: {:error, error}}
+            end
+        end
+      end
 
       #-------------------------------------------------------------------------
       # s_call unsafe implementations
@@ -398,8 +418,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end # end case worker_ref!
         end # end s_cast!
 
-      else # no crash_protection
 
+      else # no crash_protection
 
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
@@ -449,6 +469,58 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end # end case worker_ref!
         end # end s_cast!
       end # end if feature.crash_protection
+
+
+
+      if unquote(required.link_forward!) do
+        @doc """
+          Crash Protection always enabled, for now.
+        """
+        def link_forward!(%Link{handler: __MODULE__} = link, call, context \\ nil) do
+          extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_cast, {__MODULE__, link.ref}, {:s, call, context}}, else: {:s, call, context}
+          try do
+            if link.handle do
+              GenServer.cast(link.handle, extended_call)
+              {:ok, link}
+            else
+              case worker_pid!(link.ref, [spawn: true], context) do
+                {:ok, pid} ->
+                  GenServer.cast(pid, extended_call)
+                  {:ok, %Link{handle: pid, state: :valid}}
+                {:error, details} ->
+                  worker_deregister!(link.ref, context)
+                  case worker_pid!(link.ref, [spawn: true], context) do
+                    {:ok, pid} ->
+                      GenServer.cast(pid, extended_call)
+                      {:ok, %Link{handle: pid, state: :valid}}
+                    {:error, details} ->
+                      {:error, %Link{handle: nil, state: {:error, details}}}
+                  end # end case inner worker_pid!
+              end # end case worker_pid!
+            end # end if else
+          catch
+            :exit, e ->
+              try do
+                Logger.warn @base.banner("#{__MODULE__}.s_forward - dead worker (#{inspect link})")
+                worker_deregister!(link.ref, context)
+                case worker_pid!(link.ref, [spawn: true], context) do
+                  {:ok, pid} ->
+                    GenServer.cast(pid, extended_call)
+                    {:ok, %Link{handle: pid, state: :valid}}
+                  {:error, details} ->
+                    {:error, %Link{handle: nil, state: {:error, details}}}
+                end
+              catch
+                :exit, e ->
+                  {:error, %Link{handle: nil, state: {:error, {:exit, e}}}}
+              end # end inner try
+          end # end try
+        end # end link_forward!
+      end # end if required link_forward!
+
+
     end # end quote
   end #end __using__
+
+
 end

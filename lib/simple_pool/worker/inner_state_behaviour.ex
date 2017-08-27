@@ -15,9 +15,8 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   alias Noizu.SimplePool.OptionValue
   alias Noizu.SimplePool.OptionList
 
-
   @required_methods([:call_forwarding, :load])
-  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook])
+  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!])
 
   @methods(@required_methods ++ @provided_methods)
   @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
@@ -26,6 +25,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   def prepare_options(options) do
     settings = %OptionSettings{
       option_settings: %{
+        pool: %OptionValue{option: :pool, required: true},
         features: %OptionList{option: :features, default: Application.get_env(Noizu.SimplePool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @provided_methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
@@ -42,10 +42,24 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
     options = option_settings.effective_options
     required = options.required
     features = MapSet.new(options.features)
+    pool = options.pool
 
     quote do
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.InnerStateBehaviour
+      @base = unquote(Macro.expand(pool, __CALLER__))
+      @worker(Module.concat([@base, "Worker"]))
+      @worker_supervisor(Module.concat([@base, "WorkerSupervisor"]))
+      @server(Module.concat([@base, "Server"]))
+      @pool_supervisor(Module.concat([@base, "PoolSupervisor"]))
+      @simple_pool_group({@base, @worker, @worker_supervisor, @server, @pool_supervisor})
+      alias Noizu.SimplePool.Worker.Link
+
+      if (unquote(required.get_direct_link!)) do
+        def get_direct_link!(ref, context) do
+          @server.get_direct_link!(ref, context)
+        end
+      end
 
       if (unquote(required.fetch)) do
         def fetch(%__MODULE__{} = this, _options, context), do: {:reply, this, this}
