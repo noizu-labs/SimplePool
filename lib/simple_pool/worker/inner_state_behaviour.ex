@@ -47,12 +47,13 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
     quote do
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.InnerStateBehaviour
-      @base = unquote(Macro.expand(pool, __CALLER__))
+      @base(unquote(Macro.expand(pool, __CALLER__)))
       @worker(Module.concat([@base, "Worker"]))
       @worker_supervisor(Module.concat([@base, "WorkerSupervisor"]))
       @server(Module.concat([@base, "Server"]))
       @pool_supervisor(Module.concat([@base, "PoolSupervisor"]))
       @simple_pool_group({@base, @worker, @worker_supervisor, @server, @pool_supervisor})
+
       alias Noizu.SimplePool.Worker.Link
 
       if (unquote(required.get_direct_link!)) do

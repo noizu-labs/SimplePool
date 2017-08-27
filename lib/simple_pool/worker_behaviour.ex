@@ -193,6 +193,37 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         end # end handle_info/:activity_check
       end # end activity_check feature section
 
+
+      #-------------------------------------------------------------------------
+      # Load handler, placed before lazy load to avoid resending load commands
+      #-------------------------------------------------------------------------
+      if unquote(MapSet.member?(features, :call_forwarding)) do
+        def handle_cast({:s, {:load, options}, context}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+          case @worker_state_entity.load(state.worker_ref, options, context) do
+            nil -> {:noreply, state}
+            inner_state ->
+              if unquote(MapSet.member?(features, :inactivity_check)) do
+                {:noreply, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+              else
+                {:noreply, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}}
+              end
+          end
+        end
+
+        def handle_call({:s, {:load, options}, context}, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+          case @worker_state_entity.load(state.worker_ref, options, context) do
+            nil -> {:reply, :not_found, state}
+            inner_state ->
+              if unquote(MapSet.member?(features, :inactivity_check)) do
+                {:reply, inner_state, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+              else
+                {:reply, inner_state, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}}
+              end
+          end
+        end
+
+
+
       #-------------------------------------------------------------------------
       # Lazy Load Handling Feature Section
       #-------------------------------------------------------------------------
@@ -241,30 +272,6 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       #-------------------------------------------------------------------------
       # Call Forwarding Feature Section
       #-------------------------------------------------------------------------
-      if unquote(MapSet.member?(features, :call_forwarding)) do
-        def handle_cast({:s, {:load, options}, context}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
-          case @worker_state_entity.load(state.worker_ref, options, context) do
-            nil -> {:noreply, state}
-            inner_state ->
-              if unquote(MapSet.member?(features, :inactivity_check)) do
-                {:noreply, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
-              else
-                {:noreply, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}}
-              end
-          end
-        end
-
-        def handle_call({:s, {:load, options}, context}, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
-          case @worker_state_entity.load(state.worker_ref, options, context) do
-            nil -> {:reply, :not_found, state}
-            inner_state ->
-              if unquote(MapSet.member?(features, :inactivity_check)) do
-                {:reply, inner_state, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
-              else
-                {:reply, inner_state, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}}
-              end
-          end
-        end
 
         def handle_info({:s, inner_call, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
           {reply, inner_state} =  @worker_state_entity.call_forwarding(inner_call, context, inner_state)

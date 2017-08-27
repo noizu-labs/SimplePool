@@ -486,15 +486,15 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               case worker_pid!(link.ref, [spawn: true], context) do
                 {:ok, pid} ->
                   GenServer.cast(pid, extended_call)
-                  {:ok, %Link{handle: pid, state: :valid}}
+                  {:ok, %Link{link| handle: pid, state: :valid}}
                 {:error, details} ->
                   worker_deregister!(link.ref, context)
                   case worker_pid!(link.ref, [spawn: true], context) do
                     {:ok, pid} ->
                       GenServer.cast(pid, extended_call)
-                      {:ok, %Link{handle: pid, state: :valid}}
+                      {:ok, %Link{link| handle: pid, state: :valid}}
                     {:error, details} ->
-                      {:error, %Link{handle: nil, state: {:error, details}}}
+                      {:error, %Link{link| handle: nil, state: {:error, details}}}
                   end # end case inner worker_pid!
               end # end case worker_pid!
             end # end if else
@@ -506,13 +506,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 case worker_pid!(link.ref, [spawn: true], context) do
                   {:ok, pid} ->
                     GenServer.cast(pid, extended_call)
-                    {:ok, %Link{handle: pid, state: :valid}}
+                    {:ok, %Link{link| handle: pid, state: :valid}}
                   {:error, details} ->
-                    {:error, %Link{handle: nil, state: {:error, details}}}
+                    {:error, %Link{link| handle: nil, state: {:error, details}}}
                 end
               catch
                 :exit, e ->
-                  {:error, %Link{handle: nil, state: {:error, {:exit, e}}}}
+                  {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
               end # end inner try
           end # end try
         end # end link_forward!
