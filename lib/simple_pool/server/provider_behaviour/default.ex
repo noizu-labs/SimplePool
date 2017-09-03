@@ -127,7 +127,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       end
     end
 
-    def load_complete(_context, state) do
+    def load_complete(_source, _context, state) do
       status = %{state.status| loading: :complete, state: :ready}
       state = %State{state| status: status, extended: Map.put(state.extended, :load_process, nil)}
       {:noreply, state}
@@ -138,10 +138,10 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     def load_workers_asynch(options, context, state) do
       Amnesia.Fragment.transaction do
-        load_workers_asynch(state.server.worker_state_entity().worker_refs(), options, context, state)
+        load_workers_asynch(state.server.worker_state_entity().worker_refs(options, context, state), options, context, state)
       end
     end
-    def load_workers_asynch(nil, _options, context, state), do: state.server.load_complete({self(), node()}, context)
+    def load_workers_asynch(nil, _options, context, state), do: state.server.load_complete({self(), node()}, context, state)
     def load_workers_asynch(sel, options, context, state) do
       values = Amnesia.Selection.values(sel)
       for value <- values do

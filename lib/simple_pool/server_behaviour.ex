@@ -19,7 +19,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   # TODO callbacks
 
 
-  @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!, :get_direct_link!, :link_forward!])
+  @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref])
   @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
@@ -159,6 +159,15 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.load) do
         def load(options \\ nil, context \\ nil), do: @server_provider.load(__MODULE__, options, context)
       end
+
+      if unquote(required.load_complete) do
+        def load_complete(process, context, state), do: @server_provider.load_complete(process, context, state)
+      end
+
+      if unquote(required.ref) do
+        def ref(identifier), do: @worker_state_entity.ref(identifier)
+      end
+
 
       #-------------------------------------------------------------------------------
       # Worker Process Management

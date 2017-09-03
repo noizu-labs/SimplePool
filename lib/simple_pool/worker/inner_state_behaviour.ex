@@ -10,13 +10,14 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
 
   @callback terminate_hook(reason :: any,  Noizu.SimplePool.Worker.State.t) :: {:ok, Noizu.SimplePool.Worker.State.t}
   @callback shutdown(Noizu.SimplePool.Worker.State.t, options :: any, context :: any, from :: any) :: {:ok | :wait, Noizu.SimplePool.Worker.State.t}
+  @callback worker_refs(any, any, any) :: any | nil
 
   alias Noizu.SimplePool.OptionSettings
   alias Noizu.SimplePool.OptionValue
   alias Noizu.SimplePool.OptionList
 
   @required_methods([:call_forwarding, :load])
-  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!])
+  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs])
 
   @methods(@required_methods ++ @provided_methods)
   @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
@@ -57,9 +58,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       alias Noizu.SimplePool.Worker.Link
 
       if (unquote(required.get_direct_link!)) do
-        def get_direct_link!(ref, context) do
-          @server.get_direct_link!(ref, context)
-        end
+        def get_direct_link!(ref, context), do: @server.get_direct_link!(ref, context)
       end
 
       if (unquote(required.fetch)) do
@@ -88,15 +87,15 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.shutdown)) do
-        def shutdown(%Noizu.SimplePool.Worker.State{} = state, _options \\ [], context \\ nil, _from \\ nil) do
-          {:ok, state}
-        end
+        def shutdown(%Noizu.SimplePool.Worker.State{} = state, _options \\ [], context \\ nil, _from \\ nil), do: {:ok, state}
       end
 
       if (unquote(required.terminate_hook)) do
-        def terminate_hook(reason, state) do
-          {:ok, state}
-        end
+        def terminate_hook(reason, state), do: {:ok, state}
+      end
+
+      if (unquote(required.worker_refs)) do
+        def worker_refs(_options, _context, _state), do: nil
       end
 
     end # end quote
