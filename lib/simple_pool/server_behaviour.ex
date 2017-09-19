@@ -107,7 +107,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           "* START_LINK #{__MODULE__} (#{inspect {sup, nmid_generator}})\n" <>
           "************************************************\n" |> IO.puts()
         end
-        GenServer.start_link(__MODULE__, {sup, nmid_generator}, name: __MODULE__)
+        GenServer.start_link(__MODULE__, {@worker_supervisor, nmid_generator}, name: __MODULE__)
       end
     end # end start_link
 
@@ -130,7 +130,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         {{node, process}, sequence} = @base.book_keeping_init()
         unquote(worker_lookup_handler).update_endpoint!(@base)
         init_hook(%Noizu.SimplePool.Server.State{
-          pool: sup,
+          pool: @worker_supervisor,
           nmid_generator: {{node, process}, sequence},
           status_details: nil,
           status: :uninitialized
@@ -430,7 +430,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(only.add) && !unquote(override.add)) do
         def add(nmid, :worker, sup) do
           case alive?(nmid, :worker) do
-              {:false, :nil} -> start(nmid, :worker, sup)
+              {:false, :nil} -> start(nmid, :worker, @worker_supervisor)
               {:true, pid} -> {:ok, pid}
               error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, add"
           end
@@ -446,7 +446,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def start(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
           nmid = normid(nmid)
           childSpec = @worker_supervisor.child(nmid)
-          case Supervisor.start_child(sup, childSpec) do
+          case Supervisor.start_child(@worker_supervisor, childSpec) do
             {:ok, pid} ->
               #reg_worker(nmid, pid)
               {:ok, pid}
@@ -468,7 +468,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         if (unquote(only.start) && !unquote(override.start)) do
         def start(nmid, arguments, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
           childSpec = @worker_supervisor.child(nmid, arguments)
-          case Supervisor.start_child(sup, childSpec) do
+          case Supervisor.start_child(@worker_supervisor, childSpec) do
             {:ok, pid} ->
               {:ok, pid}
             {:error, {:already_started, pid}} ->
@@ -480,7 +480,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
 
         def start(nmid, arguments, :worker, sup) when is_bitstring(nmid) do
-          start(nmid |> Integer.parse() |> elem(0), arguments, :worker, sup)
+          start(nmid |> Integer.parse() |> elem(0), arguments, :worker, @worker_supervisor)
         end
       end # end start
 
@@ -491,12 +491,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         # @remove
         if (unquote(only.remove) && !unquote(override.remove)) do
         def remove(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
-          Supervisor.terminate_child(sup, nmid)
-          Supervisor.delete_child(sup, nmid)
+          Supervisor.terminate_child(@worker_supervisor, nmid)
+          Supervisor.delete_child(@worker_supervisor, nmid)
           #dereg_worker(nmid)
         end
         def remove(nmid, :worker, sup) when is_bitstring(nmid) do
-          remove(nmid |> Integer.parse() |> elem(0), :worker, sup)
+          remove(nmid |> Integer.parse() |> elem(0), :worker, @worker_supervisor)
         end
 
       end # end remove
@@ -563,13 +563,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(only.call_add_worker) && !unquote(override.call_add_worker)) do
         def handle_call({:add_worker, nmid}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
           # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
-          response = add(nmid, :worker, sup)
+          response = add(nmid, :worker, @worker_supervisor)
           {:reply, response, state}
         end
 
         def handle_cast({:add_worker, nmid}, %Noizu.SimplePool.Server.State{pool: sup} = state) do
           # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
-          spawn fn() -> add(nmid, :worker, sup) end
+          spawn fn() -> add(nmid, :worker, @worker_supervisor) end
           {:noreply, state}
         end
       end # end call_add_worker
@@ -578,7 +578,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(only.call_remove_worker) && !unquote(override.call_remove_worker)) do
         def handle_call({:remove_worker, nmid}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
           # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
-          response = remove(nmid, :worker, sup)
+          response = remove(nmid, :worker, @worker_supervisor)
           {:reply, response, state}
         end
       end # end call_remove_worker
@@ -586,7 +586,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # @call_fetch
       if (unquote(only.call_fetch) && !unquote(override.call_fetch)) do
         def handle_call({:fetch, nmid, details}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
-              {:ok, pid} = add(nmid, :worker, sup)
+              {:ok, pid} = add(nmid, :worker, @worker_supervisor)
               response = s_call(pid, {:fetch, details})
               {:reply, response, state}
         end
