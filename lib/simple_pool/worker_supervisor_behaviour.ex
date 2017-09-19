@@ -64,6 +64,22 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
     end # end init
 
 
+    def handle_call(uncaught, _from, state) do
+      Logger.warn("Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}")
+      {:noreply, state}
+    end
+
+    def handle_cast(uncaught, state) do
+      Logger.warn("Uncaught handle_cast to #{__MODULE__} . . . #{inspect uncaught}")
+      {:noreply, state}
+    end
+
+    def handle_info(uncaught, state) do
+      Logger.warn("Uncaught handle_info to #{__MODULE__} . . . #{inspect uncaught}")
+      {:noreply, state}
+    end
+
+
     end # end quote
   end #end __using__
 
