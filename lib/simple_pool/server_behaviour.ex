@@ -203,7 +203,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         worker = normid(worker)
         try do
           case get_pid(worker) do
-            {:ok, pid} -> IO.inspect  GenServer.cast(pid, call)
+            {:ok, pid} -> GenServer.cast(pid, call)
             _ -> :error
           end
         catch
