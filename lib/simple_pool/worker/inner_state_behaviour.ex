@@ -74,8 +74,8 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.crash!)) do
-        def crash!(%__MODULE__{} = this, _options, context) do
-           raise "#{__MODULE__} - Crash Forced: #{inspect context}"
+        def crash!(%__MODULE__{} = this, options, context) do
+           raise "#{__MODULE__} - Crash Forced: #{inspect context}, #{inspect options}"
         end
       end
 
@@ -147,8 +147,6 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       #-----------------------------------------------------------------------------
       def call_forwarding(:kill!, context, %__MODULE__{} = this), do: kill!(this, context)
       def call_forwarding({:crash!, options}, context, %__MODULE__{} = this), do: crash!(this, options, context)
-      def call_forwarding(call, context, %__MODULE__{} = this), do: call_forwarding_catchall(call, context, this)
-
       def call_forwarding(call, context, %__MODULE__{} = this) do
         if context do
           Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
