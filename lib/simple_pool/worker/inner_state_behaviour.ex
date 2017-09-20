@@ -83,37 +83,9 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
         def health_check!(%__MODULE__{} = this, _options, context), do: {:reply, %{pending: true}, this}
       end
 
-      #-----------------------------------------------------------------------------
-      # call_forwarding - call
-      #-----------------------------------------------------------------------------      
-      def call_forwarding(:ping!, context, _from, %__MODULE__{} = this), do: ping!(this, context)
-      def call_forwarding({:health_check!, options}, context, _from, %__MODULE__{} = this), do: health_check!(this, options, context)
-      def call_forwarding({:fetch, options}, context, _from, %__MODULE__{} = this), do: fetch(this, options, context)
-
-      #-----------------------------------------------------------------------------
-      # call_forwarding - cast|info
-      #-----------------------------------------------------------------------------
-      def call_forwarding(:kill!, context, %__MODULE__{} = this), do: kill!(this, context)
-      def call_forwarding({:crash!, options}, context, %__MODULE__{} = this), do: crash!(this, options, context)
-      def call_forwarding(call, context, %__MODULE__{} = this), do: call_forwarding_catchall(call, context, this)
 
       if (unquote(required.call_forwarding_catchall)) do
-        def call_forwarding(call, context, _from, %__MODULE__{} = this) do
-          if context do
-            Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
-          else
-            Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
-          end
-          {:reply, :unsupported_call, this}
-        end
-        def call_forwarding(call, context, %__MODULE__{} = this) do
-          if context do
-            Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
-          else
-            Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
-          end
-          {:noreply, this}
-        end
+
         # Default Call Forwarding Catch All
         # @Deprecated
         def call_forwarding_catchall(call, context, _from, %__MODULE__{} = this) do
@@ -148,8 +120,43 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
 
-
-
+      @before_compile unquote(__MODULE__)
     end # end quote
-  end # end using
+  end #end defmacro __using__(options)
+
+  defmacro __before_compile__(_env) do
+    quote do
+
+
+      #-----------------------------------------------------------------------------
+      # call_forwarding - call
+      #-----------------------------------------------------------------------------
+      def call_forwarding(:ping!, context, _from, %__MODULE__{} = this), do: ping!(this, context)
+      def call_forwarding({:health_check!, options}, context, _from, %__MODULE__{} = this), do: health_check!(this, options, context)
+      def call_forwarding({:fetch, options}, context, _from, %__MODULE__{} = this), do: fetch(this, options, context)
+      def call_forwarding(call, context, _from, %__MODULE__{} = this) do
+        if context do
+          Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+        else
+          Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+        end
+        {:reply, :unsupported_call, this}
+      end
+      #-----------------------------------------------------------------------------
+      # call_forwarding - cast|info
+      #-----------------------------------------------------------------------------
+      def call_forwarding(:kill!, context, %__MODULE__{} = this), do: kill!(this, context)
+      def call_forwarding({:crash!, options}, context, %__MODULE__{} = this), do: crash!(this, options, context)
+      def call_forwarding(call, context, %__MODULE__{} = this), do: call_forwarding_catchall(call, context, this)
+
+      def call_forwarding(call, context, %__MODULE__{} = this) do
+        if context do
+          Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+        else
+          Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+        end
+        {:noreply, this}
+      end
+    end # end quote
+  end # end defmacro __before_compile__(_env)
 end # end module

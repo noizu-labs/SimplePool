@@ -274,29 +274,54 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       #-------------------------------------------------------------------------
 
         def handle_info({:s, inner_call, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
-          {reply, inner_state} =  @worker_state_entity.call_forwarding(inner_call, context, inner_state)
-          if unquote(MapSet.member?(features, :inactivity_check)) do
-            {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
-          else
-            {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+          case @worker_state_entity.call_forwarding(inner_call, context, inner_state) do
+            {:stop, reason, inner_state} ->
+              if unquote(MapSet.member?(features, :inactivity_check)) do
+                {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+              else
+                {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+              end
+            {reply, inner_state} ->
+              if unquote(MapSet.member?(features, :inactivity_check)) do
+                {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+              else
+                {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+              end
           end
         end
 
         def handle_cast({:s, inner_call, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
-          {reply, inner_state} =  @worker_state_entity.call_forwarding(inner_call, context, inner_state)
-          if unquote(MapSet.member?(features, :inactivity_check)) do
-            {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
-          else
-            {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+          case @worker_state_entity.call_forwarding(inner_call, context, inner_state) do
+            {:stop, reason, inner_state} ->
+              if unquote(MapSet.member?(features, :inactivity_check)) do
+                {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+              else
+                {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+              end
+            {reply, inner_state} ->
+              if unquote(MapSet.member?(features, :inactivity_check)) do
+                {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+              else
+                {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+              end
           end
         end
 
         def handle_call({:s, inner_call, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
-          {reply, response, inner_state} =  @worker_state_entity.call_forwarding(inner_call, context, from, inner_state)
-          if unquote(MapSet.member?(features, :inactivity_check)) do
-            {reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
-          else
-            {reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+
+          case @worker_state_entity.call_forwarding(inner_call, context, from, inner_state) do
+            {:stop, reason, response, inner_state} ->
+              if unquote(MapSet.member?(features, :inactivity_check)) do
+                {:stop, reason, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+              else
+                {:stop, reason, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+              end
+            {reply, response, inner_state} ->
+              if unquote(MapSet.member?(features, :inactivity_check)) do
+                {reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+              else
+                {reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+              end
           end
         end
       end # end call forwarding feature section
