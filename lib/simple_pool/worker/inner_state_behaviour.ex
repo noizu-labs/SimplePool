@@ -17,7 +17,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   alias Noizu.SimplePool.OptionList
 
   @required_methods([:call_forwarding, :load])
-  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs])
+  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!])
 
   @methods(@required_methods ++ @provided_methods)
   @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
@@ -65,8 +65,57 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
         def fetch(%__MODULE__{} = this, _options, context), do: {:reply, this, this}
       end
 
+      if (unquote(required.ping!)) do
+        def ping!(%__MODULE__{} = this, context), do: {:reply, :pong, this}
+      end
+
+      if (unquote(required.kill!)) do
+        def kill!(%__MODULE__{} = this, context), do: {:stop, {:user_requested, context}, this}
+      end
+
+      if (unquote(required.crash!)) do
+        def crash!(%__MODULE__{} = this, _options, context) do
+           raise "#{__MODULE__} - Crash Forced: #{inspect context}"
+        end
+      end
+
+      if (unquote(required.health_check!)) do
+        def health_check!(%__MODULE__{} = this, _options, context), do: {:reply, %{pending: true}, this}
+      end
+
+      #-----------------------------------------------------------------------------
+      # call_forwarding - call
+      #-----------------------------------------------------------------------------      
+      def call_forwarding(:ping!, context, _from, %__MODULE__{} = this), do: ping!(this, context)
+      def call_forwarding({:health_check!, options}, context, _from, %__MODULE__{} = this), do: health_check!(this, options, context)
+      def call_forwarding({:fetch, options}, context, _from, %__MODULE__{} = this), do: fetch(this, options, context)
+
+      #-----------------------------------------------------------------------------
+      # call_forwarding - cast|info
+      #-----------------------------------------------------------------------------
+      def call_forwarding(:kill!, context, %__MODULE__{} = this), do: kill!(this, context)
+      def call_forwarding({:crash!, options}, context, %__MODULE__{} = this), do: crash!(this, options, context)
+      def call_forwarding(call, context, %__MODULE__{} = this), do: call_forwarding_catchall(call, context, this)
+
       if (unquote(required.call_forwarding_catchall)) do
+        def call_forwarding(call, context, _from, %__MODULE__{} = this) do
+          if context do
+            Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+          else
+            Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+          end
+          {:reply, :unsupported_call, this}
+        end
+        def call_forwarding(call, context, %__MODULE__{} = this) do
+          if context do
+            Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+          else
+            Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+          end
+          {:noreply, this}
+        end
         # Default Call Forwarding Catch All
+        # @Deprecated
         def call_forwarding_catchall(call, context, _from, %__MODULE__{} = this) do
           if context do
             Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
@@ -97,6 +146,9 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       if (unquote(required.worker_refs)) do
         def worker_refs(_options, _context, _state), do: nil
       end
+
+
+
 
     end # end quote
   end # end using

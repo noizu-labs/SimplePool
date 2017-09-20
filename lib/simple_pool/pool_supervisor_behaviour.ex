@@ -92,7 +92,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
           case Supervisor.start_child(sup, supervisor(@worker_supervisor, [], [])) do
             {:ok, pool_supervisor} ->
-              Supervisor.start_child(sup, worker(@pool_server, [pool_supervisor], []))
+              Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor], []))
             error ->
               Logger.info "#{__MODULE__}.start_children #{inspect @worker_supervisor} Already Started. Handling unexepected state.
               #{inspect error}

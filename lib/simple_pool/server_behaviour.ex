@@ -19,7 +19,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   # TODO callbacks
 
 
-  @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref])
+  @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!, :crash!, :health_check!])
   @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
@@ -99,7 +99,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           if unquote(verbose) do
             @base.banner("START_LINK #{__MODULE__} (#{inspect sup})@#{inspect self()}") |> Logger.info()
           end
-          GenServer.start_link(__MODULE__, sup, name: __MODULE__)
+          GenServer.start_link(__MODULE__, @worker_supervisor, name: __MODULE__)
         end
       end # end start_link
 
@@ -108,7 +108,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           if unquote(verbose) do
             @base.banner("INIT #{__MODULE__} (#{inspect sup}@#{inspect self()})") |> Logger.info()
           end
-          @server_provider.init(__MODULE__, sup, option_settings())
+          @server_provider.init(__MODULE__, @worker_supervisor, option_settings())
         end
       end # end init
 
@@ -126,12 +126,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       def worker_sup_start(ref, sup, context) do
         childSpec = @worker_supervisor.child(ref, context)
-        case Supervisor.start_child(sup, childSpec) do
+        case Supervisor.start_child(@worker_supervisor, childSpec) do
           {:ok, pid} -> {:ok, pid}
           {:error, {:already_started, pid}} ->
               {:ok, pid}
           {:error, :already_present} ->
-              Supervisor.restart_child(sup, ref)
+              Supervisor.restart_child(@worker_supervisor, ref)
           error -> error
         end # end case
       end # endstart/3
@@ -140,8 +140,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         if unquote(MapSet.member?(features, :graceful_stop)) do
           s_call(ref, {:shutdown, [force: true]}, context, @shutdown_timeout)
         end
-        Supervisor.terminate_child(sup, ref)
-        Supervisor.delete_child(sup, ref)
+        Supervisor.terminate_child(@worker_supervisor, ref)
+        Supervisor.delete_child(@worker_supervisor, ref)
       end # end remove/3
 
       #=========================================================================
@@ -283,7 +283,25 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       #-------------------------------------------------------------------------
       # fetch
       #-------------------------------------------------------------------------
+
       def fetch(identifier, options \\ :default, context \\ nil), do: s_call!(identifier, {:fetch, options}, context)
+
+
+      if unquote(required.ping!) do
+        def ping!(identifier, context \\ nil), do: s_call!(identifier, :ping!, context)
+      end
+
+      if unquote(required.kill!) do
+        def kill!(identifier, context \\ nil), do: s_cast!(identifier, :kill!, context)
+      end
+
+      if unquote(required.crash!) do
+        def crash!(identifier,  options \\ :default, context \\ nil), do: s_cast!(identifier, {:crash!, options}, context)
+      end
+
+      if unquote(required.health_check!) do
+        def health_check!(identifier,  options \\ :default, context \\ nil), do: s_call!(identifier, {:health_check!, options}, context)
+      end
 
       #-------------------------------------------------------------------------
       # get_direct_link!
