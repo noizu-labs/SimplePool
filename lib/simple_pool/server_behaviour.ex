@@ -72,6 +72,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     :call_remove_worker,
     :call_fetch,
     :cast_load,
+    :add_distributed,
+    :start_distributed,
   ]
 
   defmacro __using__(options) do
@@ -437,11 +439,84 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end # end add
 
+      # @add
+      if (unquote(only.add_distributed) && !unquote(override.add_distributed)) do
+        def add_distributed(candidates, nmid, :worker, sup) do
+
+          case alive?(nmid, :worker) do
+              {:false, :nil} -> start_distributed(candidates, nmid, :worker, @worker_supervisor)
+              {:true, pid} -> {:ok, pid}
+              error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, add"
+          end
+
+        end
+      end # end add
 
         #-----------------------------------------------------------------------------
         # start/3
         #-----------------------------------------------------------------------------
       # @start
+      if (unquote(only.start_distributed) && !unquote(override.start_distributed)) do
+        def start_distributed(candidates, nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
+          nmid = normid(nmid)
+          {proceed, response} = List.foldl(candidates, {true, :error},
+            fn(x, {proceed, response}) ->
+              if proceed do
+                if Node.ping(x) == :pong do
+                  caller_pid = self()
+                  spawn_pid = Node.spawn(x,
+                    fn() ->
+                        childSpec = @worker_supervisor.child(nmid)
+                        init = Supervisor.start_child(@worker_supervisor, childSpec)
+                        send caller_pid, {:init, init}
+                    end
+                  )
+
+                  receive do
+                    {:init, init} ->
+                      case init do
+                        {:ok, pid} ->
+                          #reg_worker(nmid, pid)
+                          {false, {:ok, pid}}
+                        {:error, {:already_started, pid}} ->
+                          #reg_worker(nmid, pid)
+                          {false, {:ok, pid}}
+                        error ->
+                          Logger.error "
+                          *********************************************************
+                          * #{__MODULE__} #{inspect nmid}  Start Distributed Failed Start: #{inspect error}
+                          *********************************************************
+                          "
+                          {proceed, error}
+                      end
+                    error ->
+                      Logger.error "
+                      *********************************************************
+                      * #{__MODULE__} #{inspect nmid}  Start Distributed Unexpected Receive: #{inspect error}
+                      *********************************************************
+                      "
+                      {proceed, error}
+                  after
+                    30 ->
+                      Logger.error "
+                      *********************************************************
+                      * #{__MODULE__} #{inspect nmid} Start Distributed: Timeout
+                      *********************************************************
+                      "
+                      {proceed, :timeout}
+                  end
+                else
+                  {proceed, response}
+                end
+              else
+                {proceed, response}
+              end
+            end
+          )
+          response
+        end
+      end
+
       if (unquote(only.start) && !unquote(override.start)) do
         def start(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
           nmid = normid(nmid)

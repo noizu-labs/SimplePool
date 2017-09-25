@@ -22,7 +22,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       :terminate_hook,
       :call_uninitialized,
       :call_fetch,
-      :call_load
+      :call_load,      
     ]
 
   defmacro __using__(options) do
