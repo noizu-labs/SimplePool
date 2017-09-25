@@ -72,6 +72,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     :call_remove_worker,
     :call_fetch,
     :cast_load,
+    :add_distributed!,
+    :call_add_worker_distributed,
     :add_distributed,
     :start_distributed,
   ]
@@ -268,6 +270,16 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end # end add!
 
+      # @add_distributed!
+      if (unquote(only.add_distributed!) && !unquote(override.add_distributed!)) do
+        @doc """
+          Add worker pool keyed by nmid. Worker must know how to load itself, and provide a load method.
+        """
+        def add_distributed!(nmid, candidates) do
+          GenServer.call(__MODULE__, {:add_worker_distributed, nmid, candidates})
+        end
+      end # end add!
+
       # @remove!
       if (unquote(only.remove!) && !unquote(override.remove!)) do
         @doc """
@@ -441,10 +453,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       # @add
       if (unquote(only.add_distributed) && !unquote(override.add_distributed)) do
-        def add_distributed(candidates, nmid, :worker, sup) do
+        def add_distributed(nmid, candidates, :worker, sup) do
 
           case alive?(nmid, :worker) do
-              {:false, :nil} -> start_distributed(candidates, nmid, :worker, @worker_supervisor)
+              {:false, :nil} -> start_distributed(nmid, candidates, :worker, @worker_supervisor)
               {:true, pid} -> {:ok, pid}
               error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, add"
           end
@@ -457,7 +469,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         #-----------------------------------------------------------------------------
       # @start
       if (unquote(only.start_distributed) && !unquote(override.start_distributed)) do
-        def start_distributed(candidates, nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
+        def start_distributed(nmid, candidates, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
           nmid = normid(nmid)
           {proceed, response} = List.foldl(candidates, {true, :error},
             fn(x, {proceed, response}) ->
@@ -645,6 +657,22 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def handle_cast({:add_worker, nmid}, %Noizu.SimplePool.Server.State{pool: sup} = state) do
           # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
           spawn fn() -> add(nmid, :worker, @worker_supervisor) end
+          {:noreply, state}
+        end
+      end # end call_add_worker
+
+
+      # @call_add_worker
+      if (unquote(only.call_add_worker_distributed) && !unquote(override.call_add_worker_distributed)) do
+        def handle_call({:add_worker_distributed, nmid, candidates}, _from, %Noizu.SimplePool.Server.State{pool: sup} = state) do
+          # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
+          response = add_distributed(nmid, candidates, :worker, @worker_supervisor)
+          {:reply, response, state}
+        end
+
+        def handle_cast({:add_worker_distributed, nmid, candidates}, %Noizu.SimplePool.Server.State{pool: sup} = state) do
+          # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
+          spawn fn() -> add_distributed(nmid, candidates, :worker, @worker_supervisor) end
           {:noreply, state}
         end
       end # end call_add_worker
