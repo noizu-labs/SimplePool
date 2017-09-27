@@ -72,10 +72,14 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     :call_remove_worker,
     :call_fetch,
     :cast_load,
+    :migrate!,
     :add_distributed!,
     :call_add_worker_distributed,
     :add_distributed,
     :start_distributed,
+    :handle_call_start,
+    :handle_call_begin_migrate_worker,
+    :push_migrate
   ]
 
   defmacro __using__(options) do
@@ -109,7 +113,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         if (unquote(global_verbose) || unquote(module_verbose)) do
           "************************************************\n" <>
           "* START_LINK #{__MODULE__} (#{inspect {sup, nmid_generator}})\n" <>
-          "************************************************\n" |> IO.puts()
+          "************************************************\n" |> Logger.info
         end
         GenServer.start_link(__MODULE__, {@worker_supervisor, nmid_generator}, name: __MODULE__)
       end
@@ -129,7 +133,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         if (unquote(global_verbose) || unquote(module_verbose)) do
           "************************************************\n" <>
           "* INIT #{__MODULE__} (#{inspect {sup, {node, process}}})\n" <>
-          "************************************************\n" |> IO.puts()
+          "************************************************\n" |> Logger.info
         end
         {{node, process}, sequence} = @base.book_keeping_init()
         unquote(worker_lookup_handler).update_endpoint!(@base)
@@ -378,7 +382,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       # @add!
       if (unquote(only.add!) && !unquote(override.add!)) do
-
         @doc """
           Add worker process Asynch
         """
@@ -389,8 +392,40 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def add!(rnode, nmid, :asynch) do
           GenServer.cast({__MODULE__, rnode}, {:add_worker, nmid})
         end
-
       end # end add!
+
+      # @migrate!
+      if (unquote(only.migrate!) && !unquote(override.migrate!)) do
+        def migrate!(nmid, rnode, :asynch) do
+          if Node.ping(rnode) == :pong do
+            case alive?(nmid, :worker) do
+              {false, :nil} ->
+                # Call Server to spawn worker and then fetch results.
+                push_migrate(nmid, rnode, :asynch)
+              {true, pid} ->
+                # Call worker directly
+                GenServer.cast(pid, {:begin_migrate_worker, nmid, rnode})
+            end
+          else
+            {:error, {:node, :unreachable}}
+          end
+        end
+
+        def migrate!(nmid, rnode) do
+          if Node.ping(rnode) == :pong do
+            case alive?(nmid, :worker) do
+              {false, :nil} ->
+                # Call Server to spawn worker and then fetch results.
+                push_migrate(nmid, rnode)
+              {true, pid} ->
+                # Call worker directly
+                GenServer.call(pid, {:begin_migrate_worker, nmid, rnode})
+            end
+          else
+            {:error, {:node, :unreachable}}
+          end
+        end
+      end # end migrate!
 
       # @fetch!
       if (unquote(only.fetch!) && !unquote(override.fetch!)) do
@@ -427,7 +462,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           {false, :nil}
         end
 
-        def alive?(nmid, :worker) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
+        def alive?(nmid, :worker) do
           nmid = normid(nmid)
           unquote(worker_lookup_handler).get_reg_worker!(@base, nmid)
         end
@@ -454,82 +489,115 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # @add
       if (unquote(only.add_distributed) && !unquote(override.add_distributed)) do
         def add_distributed(nmid, candidates, :worker, sup) do
-
           case alive?(nmid, :worker) do
               {:false, :nil} -> start_distributed(nmid, candidates, :worker, @worker_supervisor)
               {:true, pid} -> {:ok, pid}
               error -> Logger.error "#{__MODULE__}.alive?(#{inspect nmid}) returned #{inspect error}, add"
           end
-
         end
       end # end add
 
         #-----------------------------------------------------------------------------
-        # start/3
+        # start_distributed/5
         #-----------------------------------------------------------------------------
-      # @start
       if (unquote(only.start_distributed) && !unquote(override.start_distributed)) do
-        def start_distributed(nmid, candidates, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
+        def start_distributed(nmid, candidates, :worker, sup) do
           nmid = normid(nmid)
-          {proceed, response} = List.foldl(candidates, {true, :error},
+          current = node()
+          {proceed, response} = List.foldl(candidates, {true, {:error, :no_valid_node}},
             fn(x, {proceed, response}) ->
               if proceed do
-                if Node.ping(x) == :pong do
-                  caller_pid = self()
-                  spawn_pid = Node.spawn(x,
-                    fn() ->
-                        childSpec = @worker_supervisor.child(nmid)
-                        init = Supervisor.start_child(@worker_supervisor, childSpec)
-                        send caller_pid, {:init, init}
-                    end
-                  )
 
-                  receive do
-                    {:init, init} ->
-                      case init do
-                        {:ok, pid} ->
-                          #reg_worker(nmid, pid)
-                          {false, {:ok, pid}}
-                        {:error, {:already_started, pid}} ->
-                          #reg_worker(nmid, pid)
-                          {false, {:ok, pid}}
-                        error ->
-                          Logger.error "
-                          *********************************************************
-                          * #{__MODULE__} #{inspect nmid}  Start Distributed Failed Start: #{inspect error}
-                          *********************************************************
-                          "
-                          {proceed, error}
-                      end
+                if Node.ping(x) == :pong do
+                  init = if (x == current) do
+                    childSpec = @worker_supervisor.child(nmid)
+                    Supervisor.start_child(@worker_supervisor, childSpec)
+                  else
+                    GenServer.call({__MODULE__, x}, {:start, nmid})
+                  end
+
+                  case init do
+                    {:ok, pid} ->
+                      #reg_worker(nmid, pid)
+                      {false, {:ok, pid}}
+                    {:error, {:already_started, pid}} ->
+                      #reg_worker(nmid, pid)
+                      {false, {:ok, pid}}
                     error ->
                       Logger.error "
                       *********************************************************
-                      * #{__MODULE__} #{inspect nmid}  Start Distributed Unexpected Receive: #{inspect error}
+                      * #{__MODULE__} #{inspect nmid}  Start Distributed Failed Start: #{inspect error}
                       *********************************************************
                       "
                       {proceed, error}
-                  after
-                    30 ->
-                      Logger.error "
-                      *********************************************************
-                      * #{__MODULE__} #{inspect nmid} Start Distributed: Timeout
-                      *********************************************************
-                      "
-                      {proceed, :timeout}
                   end
-                else
+                else  # else == :pong
                   {proceed, response}
-                end
-              else
+                end # end if else ping
+
+
+              else # else if processed
                 {proceed, response}
-              end
-            end
+              end # end if else processed
+            end # end List.foldl cn
           )
-          response
         end
       end
 
+      #-----------------------------------------------------------------------------
+      # handle_call_start
+      #-----------------------------------------------------------------------------
+      if (unquote(only.handle_call_start) && !unquote(override.handle_call_start)) do
+        def handle_call({:start, identifier}, _from, state) do
+          {:reply, start(identifier, :worker, @worker_supervisor), state}
+        end
+
+        def handle_cast({:start, identifier}, state) do
+          start(identifier, :worker, @worker_supervisor)
+          {:noreply, state}
+        end
+      end
+
+      #-----------------------------------------------------------------------------
+      # push_migrate
+      #-----------------------------------------------------------------------------
+      if (unquote(only.push_migrate) && !unquote(override.push_migrate)) do
+        def push_migrate(transfer, rnode) do
+          if Node.ping(rnode) == :pong do
+            GenServer.call({__MODULE__, rnode}, {:start, transfer})
+          else
+            {:error, {:node, :unreachable}}
+          end
+        end
+
+        def push_migrate(transfer, rnode, :asynch) do
+          if Node.ping(rnode) == :pong do
+            GenServer.cast({__MODULE__, rnode}, {:start, transfer})
+          else
+            {:error, {:node, :unreachable}}
+          end
+        end
+      end
+
+      #-----------------------------------------------------------------------------
+      # start/4, start/3
+      #-----------------------------------------------------------------------------
       if (unquote(only.start) && !unquote(override.start)) do
+        def start({:migrate, nmid, _state} = transfer, :worker, sup) do
+          childSpec = @worker_supervisor.child(nmid, transfer)
+          case Supervisor.start_child(@worker_supervisor, childSpec) do
+            {:ok, pid} ->
+              #reg_worker(nmid, pid)
+              {:ok, pid}
+            {:error, {:already_started, pid}} ->
+              #reg_worker(nmid, pid)
+              {:ok, pid}
+            error ->
+              #Logger.warn("#{__MODULE__} unable to start #{inspect nmid}")
+              error
+          end # end case
+        end # end def
+
         def start(nmid, :worker, sup) when is_number(nmid) or is_tuple(nmid) or is_bitstring(nmid) do
           nmid = normid(nmid)
           childSpec = @worker_supervisor.child(nmid)
@@ -546,13 +614,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               error
           end # end case
         end # end def
-      end # end start
 
-        #-----------------------------------------------------------------------------
-        # start/4
-        #-----------------------------------------------------------------------------
-        # @start
-        if (unquote(only.start) && !unquote(override.start)) do
         def start(nmid, arguments, :worker, sup) when is_number(nmid) or is_tuple(nmid) do
           childSpec = @worker_supervisor.child(nmid, arguments)
           case Supervisor.start_child(@worker_supervisor, childSpec) do
@@ -561,7 +623,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             {:error, {:already_started, pid}} ->
               {:ok, pid}
             error ->
-              IO.puts("#{__MODULE__} unable to start #{inspect nmid}")
+              Logger.warn("#{__MODULE__} unable to start #{inspect nmid}\n(#{inspect error})")
               error
           end
         end
@@ -706,7 +768,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
         if (!unquote(asynch_load)) do
           def handle_cast({:load}, state) do
-            IO.puts "INITIAL LOAD: #{inspect state}"
+            Logger.info "INITIAL LOAD: #{inspect state}"
             {:noreply, state}
           end
         end
