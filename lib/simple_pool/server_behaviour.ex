@@ -149,7 +149,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     # @terminate
     if (unquote(only.terminate) && !unquote(override.terminate)) do
       def terminate(reason, state) do
-        :ok
+        reason
       end
     end # end terminate
 
@@ -593,7 +593,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               #reg_worker(nmid, pid)
               {:ok, pid}
             error ->
-              #Logger.warn("#{__MODULE__} unable to start #{inspect nmid}")
+              Logger.warn("#{__MODULE__} unable to start #{inspect nmid}")
               error
           end # end case
         end # end def
@@ -745,6 +745,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
           response = remove(nmid, :worker, @worker_supervisor)
           {:reply, response, state}
+        end
+
+        def handle_cast({:remove_worker, nmid}, %Noizu.SimplePool.Server.State{pool: sup} = state) do
+          # Check if existing entry exists. If so confirm it is live and return {:exists, pid} or respawn
+          remove(nmid, :worker, @worker_supervisor)
+          {:noreply, state}
         end
       end # end call_remove_worker
 

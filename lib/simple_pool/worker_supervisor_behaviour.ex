@@ -27,6 +27,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       @test_attribute :sentinel
       use Supervisor
       import unquote(__MODULE__)
+      require Logger
 
     # @start_link
     if (unquote(only.start_link) && !unquote(override.start_link)) do
@@ -57,7 +58,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
         if (unquote(global_verbose) || unquote(module_verbose)) do
           "************************************************\n" <>
           "* INIT #{__MODULE__} (#{inspect any })\n" <>
-          "************************************************\n" |> IO.puts()
+          "************************************************\n" |> Logger.info
         end
         supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])
       end

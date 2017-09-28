@@ -40,6 +40,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       @behaviour Noizu.SimplePool.WorkerBehaviour
       @base Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat
       @server Module.concat([@base, "Server"])
+      @worker_supervisor Module.concat([@base, "WorkerSupervisor"])
 
       # @start_link
       if (unquote(only.start_link) && !unquote(override.start_link)) do
@@ -56,21 +57,29 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       # @terminate
       if (unquote(only.terminate) && !unquote(override.terminate)) do
         def terminate(reason, state) do
-          if (unquote(global_verbose) || unquote(module_verbose)) do
-            "************************************************\n" <>
+          if (true || unquote(global_verbose) || unquote(module_verbose)) do
+            "\n************************************************\n" <>
             "* TERMINATE #{__MODULE__} (#{inspect state.entity_ref })\n" <>
-            "* Reason: #{inspect reason}" <>
+            "* Reason: #{inspect reason}\n" <>
             "************************************************\n" |> Logger.warn
           end
-          @server.worker_lookup().dereg_worker!(@base, state.entity_ref)
           terminate_hook(reason, state)
         end
       end # end start_link
 
+      def default_terminate_hook(reason, state) do
+        case reason do
+          {:shutdown, {:migrate, nmid, _, :to, _}} -> reason
+          _ ->
+          @server.worker_lookup().dereg_worker!(@base, state.entity_ref)
+          reason
+        end
+      end
+
       # @terminate
       if (unquote(only.terminate_hook) && !unquote(override.terminate_hook)) do
         def terminate_hook(reason, state) do
-          {:normal, state}
+          default_terminate_hook(reason, state)
         end
       end # end start_link
 
@@ -95,7 +104,9 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
                 case begin_migrate_hook(rnode, nmid, state) do
                   {:proceed, {forward_node, new_state, forward_identifier}} ->
                     response = @server.push_migrate(forward_identifier, forward_node)
-                    {:stop,  {:shutdown,  {:process, :migrate}}, response, new_state}
+                    #{:stop,  {:shutdown, {:migrate, nmid, node(), :to, rnode}}, :skip, new_state}
+                    @server.remove!(nmid, :asynch)
+                    {:reply, response, new_state}
                   {:proceed2, {forward_node, new_state, forward_identifier}} ->
                     response = @server.push_migrate(forward_identifier, forward_node)
                     {:reply, response, new_state}
@@ -117,7 +128,9 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
                 case begin_migrate_hook(rnode, nmid, state) do
                   {:proceed, {forward_node, new_state, forward_identifier}} ->
                     @server.push_migrate(forward_identifier, forward_node, :asynch)
-                    {:stop, {:shutdown, {:process, :migrate}}, new_state}
+                    #{:stop, {:shutdown, {:migrate, nmid, node(), :to, rnode}}, new_state}
+                    @server.remove!(nmid, :asynch)
+                    {:noreply, new_state}
                   {:proceed2, {forward_node, new_state, forward_identifier}} ->
                     @server.push_migrate(forward_identifier, forward_node, :asynch)
                     {:noreply, new_state}
@@ -136,8 +149,9 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       # @init
       if (unquote(only.init) && !unquote(override.init)) do
         def init({:migrate, nmid, %Noizu.SimplePool.Worker.State{} = initial_state}) do
-          if (unquote(global_verbose) || unquote(module_verbose)) do
-            "************************************************\n" <>
+          if (true || unquote(global_verbose) || unquote(module_verbose)) do
+            "\n***[migrate]************************************\n" <>
+            "* pid: #{inspect self}, node: #{inspect node()}\n" <>
             "* MIGRATE #{__MODULE__} (#{inspect nmid })\n" <>
             "************************************************\n" |> Logger.info
           end
@@ -146,8 +160,9 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         end
 
         def init(nmid) do
-          if (unquote(global_verbose) || unquote(module_verbose)) do
-            "************************************************\n" <>
+          if (true || unquote(global_verbose) || unquote(module_verbose)) do
+            "\n***[init]**************************************\n" <>
+            "* pid: #{inspect self}, node: #{inspect node()}\n" <>
             "* INIT #{__MODULE__} (#{inspect nmid })\n" <>
             "************************************************\n" |> Logger.info
           end
