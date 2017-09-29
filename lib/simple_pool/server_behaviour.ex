@@ -270,7 +270,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           Add worker pool keyed by nmid. Worker must know how to load itself, and provide a load method.
         """
         def add!(nmid) do
-          GenServer.call(__MODULE__, {:add_worker, nmid})
+          GenServer.call(__MODULE__, {:add_worker, nmid}, 60_000)
         end
       end # end add!
 
@@ -280,7 +280,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           Add worker pool keyed by nmid. Worker must know how to load itself, and provide a load method.
         """
         def add_distributed!(nmid, candidates) do
-          GenServer.call(__MODULE__, {:add_worker_distributed, nmid, candidates})
+          GenServer.call(__MODULE__, {:add_worker_distributed, nmid, candidates}, 60_000)
         end
       end # end add!
 
@@ -290,7 +290,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           Remove worker process.
         """
         def remove!(nmid) do
-          GenServer.call(__MODULE__, {:remove_worker, nmid})
+          GenServer.call(__MODULE__, {:remove_worker, nmid}, 60_000)
         end
       end # end remove!
 
