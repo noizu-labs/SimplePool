@@ -19,7 +19,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   # TODO callbacks
 
 
-  @methods([:start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!, :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!, :crash!, :health_check!])
+  @methods([
+      :start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
+      :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_terminate!,
+      :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!,
+      :crash!, :health_check!
+  ])
   @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
@@ -97,7 +102,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.start_link) do
         def start_link(sup) do
           if unquote(verbose) do
-            @base.banner("START_LINK #{__MODULE__} (#{inspect sup})@#{inspect self()}") |> Logger.info()
+            @base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}") |> Logger.info()
           end
           GenServer.start_link(__MODULE__, @worker_supervisor, name: __MODULE__)
         end
@@ -106,7 +111,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(required.init)) do
         def init(sup) do
           if unquote(verbose) do
-            @base.banner("INIT #{__MODULE__} (#{inspect sup}@#{inspect self()})") |> Logger.info()
+            @base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})") |> Logger.info()
           end
           @server_provider.init(__MODULE__, @worker_supervisor, option_settings())
         end
@@ -124,6 +129,29 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @worker_lookup_handler.disable_server!(@base, elixir_node)
       end
 
+      def worker_sup_start(ref, transfer_state, sup, context) do
+        childSpec = @worker_supervisor.child(ref, transfer_state, context)
+        case Supervisor.start_child(@worker_supervisor, childSpec) do
+          {:ok, pid} -> {:ok, pid}
+          {:error, {:already_started, pid}} ->
+              timeout = @timeout
+              call = {:transfer_state, transfer_state}
+              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
+              GenServer.cast(pid, extended_call)
+              Logger.warn("#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{node()}@#{pid}")
+              {:ok, pid}
+          {:error, :already_present} ->
+            # We may no longer simply restart child as it may have been initilized
+            # With transfer_state and must be restarted with the correct context.
+            Supervisor.delete_child(@worker_supervisor, ref)
+            case Supervisor.start_child(@worker_supervisor, childSpec) do
+              {:ok, pid} -> {:ok, pid}
+              error -> error
+            end
+          error -> error
+        end # end case
+      end # endstart/3
+
       def worker_sup_start(ref, sup, context) do
         childSpec = @worker_supervisor.child(ref, context)
         case Supervisor.start_child(@worker_supervisor, childSpec) do
@@ -131,10 +159,22 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           {:error, {:already_started, pid}} ->
               {:ok, pid}
           {:error, :already_present} ->
-              Supervisor.restart_child(@worker_supervisor, ref)
+            # We may no longer simply restart child as it may have been initilized
+            # With transfer_state and must be restarted with the correct context.
+            Supervisor.delete_child(@worker_supervisor, ref)
+            case Supervisor.start_child(@worker_supervisor, childSpec) do
+              {:ok, pid} -> {:ok, pid}
+              error -> error
+            end
           error -> error
         end # end case
       end # endstart/3
+
+
+      def worker_sup_terminate(ref, sup, context) do
+        Supervisor.terminate_child(@worker_supervisor, ref)
+        Supervisor.delete_child(@worker_supervisor, ref)
+      end # end remove/3
 
       def worker_sup_remove(ref, sup, context) do
         if unquote(MapSet.member?(features, :graceful_stop)) do
@@ -173,15 +213,75 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # Worker Process Management
       #-------------------------------------------------------------------------------
       if unquote(required.worker_add!) do
-        def worker_add!(ref, options \\ nil, context \\ nil), do: internal_call({:worker_add!, ref, options}, context)
+        def worker_add!(ref, options \\ nil, context \\ nil) do
+          if options[:distributed] do
+            nodes = if options[:node] do
+              [options[:node]]
+            else
+              options[:nodes] || @worker_lookup_handler.get_distributed_nodes!(@base, ref, context)
+            end
+
+            {_proceed, response} = Enum.reduce(
+              nodes,
+              {true, {:error, :unexpected}},
+              fn(node, {proceed, response} = acc) ->
+                if proceed do
+                  if Node.ping(node) == :pong do
+                    case remote_call(node, {:worker_add!, ref, options}, context) do
+                      {:ok, pid} -> {false, {:ok, pid}}
+                      e -> {proceed, e}
+                    end
+                  else
+                    acc
+                  end
+                else
+                  acc
+                end
+              end
+            )
+            response
+          else
+            internal_call({:worker_add!, ref, options}, context)
+          end
+         end
       end
 
       if unquote(required.worker_remove!) do
         def worker_remove!(ref, options \\ nil, context \\ nil), do: internal_cast({:worker_remove!, ref, options}, context)
       end
 
+      if unquote(required.worker_terminate!) do
+        def worker_terminate!(ref, options \\ nil, context \\ nil), do: internal_cast({:worker_terminate!, ref, options}, context)
+      end
+
+      if unquote(required.worker_start_transfer!) do
+        def worker_start_transfer!(ref, rebase, transfer_state, options \\ nil, context \\ nil) do
+          if options[:asynch] do
+            remote_call(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context, options[:timeout] || 60_000)
+          else
+            remote_cast(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context)
+          end
+        end
+      end
+
       if unquote(required.worker_migrate!) do
-        def worker_migrate!(ref, rebase, options \\ nil, context \\ nil), do: {:error, :future_work}
+        def worker_migrate!(ref, rebase, options \\ nil, context \\ nil) do
+          ref = worker_ref!(ref)
+          case worker_pid!(ref, nil, context) do
+            {:ok, pid} ->
+              if options[:asynch] do
+                s_cast!(ref, {:migrate!, ref, rebase, options}, context)
+              else
+                s_call!(ref, {:migrate!, ref, rebase, options}, context, options[:timeout] || 60_000)
+              end
+            o ->
+              if options[:asynch] do
+                remote_cast(rebase, {:worker_add!, ref, options}, context)
+              else
+                remote_call(rebase, {:worker_add!, ref, options}, context, options[:timeout] || 60_000)
+              end
+          end
+        end
       end
 
       if unquote(required.worker_load!) do
@@ -205,7 +305,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.worker_pid!) do
-        def worker_pid!(ref, options \\ [], context \\ nil) do
+        def worker_pid!(ref, options \\ %{}, context \\ nil) do
           case @worker_lookup_handler.get_reg_worker!(@base, ref) do
             {false, :nil} ->
               if options[:spawn] do
@@ -248,6 +348,24 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       def internal_cast(call, context \\ nil) do
         extended_call = {:i, call, context}
         GenServer.cast(__MODULE__, extended_call)
+      end
+
+      def remote_call(remote_node, call, context \\ nil, timeout \\ @timeout) do
+        extended_call = {:i, call, context}
+        if remote_node == node() do
+          GenServer.call(__MODULE__, extended_call, timeout)
+        else
+          GenServer.call({__MODULE__, remote_node}, extended_call, timeout)
+        end
+      end
+
+      def remote_cast(remote_node, call, context \\ nil) do
+        extended_call = {:i, call, context}
+        if remote_node == node() do
+          GenServer.cast(__MODULE__, extended_call)
+        else
+          GenServer.cast({__MODULE__, remote_node}, extended_call)
+        end
       end
 
       #-------------------------------------------------------------------------
@@ -361,14 +479,20 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
               catch
                 :exit, e ->
-                  try do
-                    Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
-                    worker_deregister!(ref, context)
-                    s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
-                  catch
-                    :exit, e ->
+                  case e do
+                    {:timeout, c} ->
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
                       {:error, {:exit, e}}
-                  end # end inner try
+                    _  ->
+                      try do
+                        Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
+                        worker_deregister!(ref, context)
+                        s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                      catch
+                        :exit, e ->
+                          {:error, {:exit, e}}
+                      end # end inner try
+                  end
               end # end try
           end
         end # end s_call!
@@ -385,14 +509,21 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 s_cast_unsafe(ref, [spawn: true], extended_call, context)
               catch
                 :exit, e ->
-                  try do
-                    Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
-                    worker_deregister!(ref, context)
-                    s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                  catch
-                    :exit, e ->
+                  case e do
+                    {:timeout, c} ->
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
                       {:error, {:exit, e}}
-                  end # end inner try
+                    _  ->
+                      try do
+                        Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
+                        worker_deregister!(ref, context)
+                        s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                      catch
+                        :exit, e ->
+                          {:error, {:exit, e}}
+                      end # end inner try
+                  end
+
               end # end try
           end # end case worker_ref!
         end # end s_cast!
@@ -409,14 +540,20 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
               catch
                 :exit, e ->
-                  try do
-                    Logger.warn @base.banner("#{__MODULE__}.s_call - dead worker (#{inspect ref})")
-                    worker_deregister!(ref, context)
-                    s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
-                  catch
-                    :exit, e ->
+                  case e do
+                    {:timeout, c} ->
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
                       {:error, {:exit, e}}
-                  end # end inner try
+                    _  ->
+                      try do
+                        Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
+                        worker_deregister!(ref, context)
+                        s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                      catch
+                        :exit, e ->
+                          {:error, {:exit, e}}
+                      end # end inner try
+                  end
               end # end try
           end # end case
         end # end s_call!
@@ -433,14 +570,20 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 s_cast_unsafe(ref, [spawn: false], extended_call, context)
               catch
                 :exit, e ->
-                  try do
-                    Logger.warn @base.banner("#{__MODULE__}.s_cast - dead worker (#{inspect ref})")
-                    worker_deregister!(ref, context)
-                    s_cast_unsafe(ref, [spawn: false], extended_call, context)
-                  catch
-                    :exit, e ->
+                  case e do
+                    {:timeout, c} ->
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
                       {:error, {:exit, e}}
-                  end # end inner try
+                    _  ->
+                      try do
+                        Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
+                        worker_deregister!(ref, context)
+                        s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                      catch
+                        :exit, e ->
+                          {:error, {:exit, e}}
+                      end # end inner try
+                  end
               end # end try
           end # end case worker_ref!
         end # end s_cast!
@@ -545,9 +688,27 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end # end link_forward!
       end # end if required link_forward!
 
-
+      @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__
 
+  defmacro __before_compile__(_env) do
+    quote do
+      def handle_call(uncaught, _from, state) do
+        Logger.warn("Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}")
+        {:noreply, state}
+      end
+
+      def handle_cast(uncaught, state) do
+        Logger.warn("Uncaught handle_cast to #{__MODULE__} . . . #{inspect uncaught}")
+        {:noreply, state}
+      end
+
+      def handle_info(uncaught, state) do
+        Logger.warn("Uncaught handle_info to #{__MODULE__} . . . #{inspect uncaught}")
+        {:noreply, state}
+      end
+    end # end quote
+  end # end __before_compile__
 
 end

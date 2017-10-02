@@ -17,7 +17,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   alias Noizu.SimplePool.OptionList
 
   @required_methods([:call_forwarding, :load])
-  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!])
+  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!, :migrate_shutdown, :on_migrate])
 
   @methods(@required_methods ++ @provided_methods)
   @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
@@ -37,6 +37,15 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
     %OptionSettings{initial| effective_options: Map.merge(initial.effective_options, modifications)}
   end
 
+  def default_terminate_hook(server, reason, state) do
+    case reason do
+      {:shutdown, {:migrate, _ref, _, :to, _}} ->
+        reason
+      _ ->
+        server.worker_deregister!(state.worker_ref)
+        reason
+    end
+  end
 
   defmacro __using__(options) do
     option_settings = prepare_options(options)
@@ -108,17 +117,28 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.shutdown)) do
-        def shutdown(%Noizu.SimplePool.Worker.State{} = state, _options \\ [], context \\ nil, _from \\ nil), do: {:ok, state}
+        def shutdown(%Noizu.SimplePool.Worker.State{} = state, _options \\ nil, _context \\ nil, _from \\ nil), do: {:ok, state}
+      end
+
+      if (unquote(required.migrate_shutdown)) do
+        def migrate_shutdown(%Noizu.SimplePool.Worker.State{} = state, _context \\ nil), do: {:ok, state}
+      end
+
+      if (unquote(required.on_migrate)) do
+        def on_migrate(%Noizu.SimplePool.Worker.State{} = state, _options \\ nil, _context \\ nil), do: {:ok, state}
       end
 
       if (unquote(required.terminate_hook)) do
-        def terminate_hook(reason, state), do: {:ok, state}
+        def terminate_hook(reason, state), do: default_terminate_hook(@server, reason, state)
       end
 
       if (unquote(required.worker_refs)) do
         def worker_refs(_options, _context, _state), do: nil
       end
 
+      if (unquote(required.transfer)) do
+        def transfer(ref, transfer_state, _context \\ nil), do: {true, transfer_state}
+      end
 
       @before_compile unquote(__MODULE__)
     end # end quote

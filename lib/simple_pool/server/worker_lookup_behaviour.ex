@@ -6,11 +6,18 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
   @callback dereg_worker!(atom, any, context :: any) :: :ok | :error
   @callback reg_worker!(atom, any, pid, context :: any) :: :ok | {:error, any}
   @callback clear_process!(atom, any, node_pid :: any, context :: any) :: :ok | :error
+  @callback get_distributed_nodes!(atom, any, context :: any) :: list | nil | {:error, term}
 
   defmodule DefaultImplementation do
     def update_server!(_mod, _target_node \\ :auto, _context \\ nil), do: :ok
     def enable_server!(_mod, _target_node \\ :auto, _context \\ nil), do: :ok
     def disable_server!(_mod, _target_node \\ :auto, _context \\ nil), do: :ok
+
+
+    def get_distributed_nodes!(mod, nmid, _context \\ nil) do
+      # Must be implemented by api user.
+      [node()]
+    end
 
     def reg_worker!(mod, nmid, pid, _context \\ nil) do
       :ets.insert(mod.lookup_table(), {nmid, pid})

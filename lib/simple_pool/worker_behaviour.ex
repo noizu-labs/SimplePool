@@ -53,18 +53,18 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
 
       # @start_link
       if (unquote(required.start_link)) do
-        def start_link(ref) do
+        def start_link(args) do
           if (unquote(verbose)) do
-            @base.banner("START_LINK #{__MODULE__} (#{inspect ref})") |> Logger.info()
+            @base.banner("START_LINK #{__MODULE__} (#{inspect args})") |> Logger.info()
           end
-          GenServer.start_link(__MODULE__, ref)
+          GenServer.start_link(__MODULE__, args)
         end
 
         def start_link(a,b) do
-          Logger.error "#{inspect {a, b}}"
+          Logger.error "start_link/2? #{inspect {a, b}}"
         end
         def start_link(a,b,c) do
-          Logger.error "#{inspect {a, b, c}}"
+          Logger.error "start_link/3? #{inspect {a, b, c}}"
         end
       end # end start_link
 
@@ -74,8 +74,6 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           if (unquote(verbose)) do
             @base.banner("TERMINATE #{__MODULE__} (#{inspect state.worker_ref}") |> Logger.info()
           end
-          # @TODO perform dereg in server method.
-          @server.worker_deregister!(state.worker_ref)
           state = clear_inactivity_check(state)
           @worker_state_entity.terminate_hook(reason, state)
         end
@@ -105,6 +103,23 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             {:ok, state}
           else
             {:ok, %Noizu.SimplePool.Worker.State{initialized: initialized, worker_ref: ref, inner_state: inner_state}}
+          end
+        end
+
+        def init(ref, {:transfer, %Noizu.SimplePool.Worker.State{} = initial_state}) do
+          if (unquote(verbose)) do
+            @base.banner("INIT.transfer #{__MODULE__} (#{inspect ref }") |> Logger.info()
+          end
+          @server.worker_register!(ref, {self(), node()})
+
+          {initialized, inner_state} = @worker_state_entity.transfer(ref, initial_state.inner_state)
+
+          if unquote(MapSet.member?(features, :inactivity_check)) do
+            state = %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state, last_activity: :os.system_time(:seconds)}
+            state = schedule_inactivity_check(nil, state)
+            {:ok, state}
+          else
+            {:ok, %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state}}
           end
         end
       end # end init
@@ -140,8 +155,57 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       #-------------------------------------------------------------------------
       # Inactivity Check Handling Feature Section
       #-------------------------------------------------------------------------
-      if unquote(MapSet.member?(features, :inactivity_check)) do
+      if unquote(MapSet.member?(features, :migrate_shutdown)) do
+        def schedule_migrate_shutdown(context, state) do
+          {:ok, mt_ref} = :timer.send_after(@migrate_shutdown_interval_ms, self(), {:i, {:migrate_shutdown, state.worker_ref}, context})
+          %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :mt_ref, mt_ref)}
+        end
 
+        def clear_migrate_shutdown(state) do
+          case Map.get(state.extended, :mt_ref) do
+            nil -> state
+            mt_ref ->
+              :timer.cancel(mt_ref)
+              %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :mt_ref, nil)}
+          end
+        end
+
+        def handle_info({:i, {:migrate_shutdown, ref}, context}, %Noizu.SimplePool.Worker.State{migrating: true} = state) do
+          if ref == state.worker_ref do
+            state = clear_migrate_shutdown(state)
+            state = if unquote(MapSet.member?(features, :inactivity_check)) do
+              clear_inactivity_check(state)
+            else
+              state
+            end
+
+            if state.initialized do
+              case @worker_state_entity.migrate_shutdown(state, context) do
+                {:ok, state} ->
+                  @server.worker_terminate!(ref, nil, context)
+                  {:noreply, state}
+                {:wait, state} ->
+                  state = schedule_migrate_shutdown(context, state)
+                  {:noreply, state}
+              end
+            else
+              @server.worker_terminate!(ref, nil, context)
+              {:noreply, state}
+            end
+          end
+          {:noreply, state}
+        end # end handle_info/:activity_check
+
+        def handle_info({:i, {:migrate_shutdown, ref}, context}, %Noizu.SimplePool.Worker.State{migrating: false} = state) do
+          Logger.error("#{__MODULE__}.migrate_shutdown called when not in migrating state")
+          {:noreply, state}
+        end # end handle_info/:activity_check
+      end # end activity_check feature section
+
+      #-------------------------------------------------------------------------
+      # Inactivity Check Handling Feature Section
+      #-------------------------------------------------------------------------
+      if unquote(MapSet.member?(features, :inactivity_check)) do
         def schedule_inactivity_check(context, state) do
           {:ok, t_ref} = :timer.send_after(@check_interval_ms, self(), {:i, {:activity_check, state.worker_ref}, context})
           %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :t_ref, t_ref)}
@@ -197,32 +261,74 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       #-------------------------------------------------------------------------
       # Load handler, placed before lazy load to avoid resending load commands
       #-------------------------------------------------------------------------
-      if unquote(MapSet.member?(features, :call_forwarding)) do
-        def handle_cast({:s, {:load, options}, context}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
-          case @worker_state_entity.load(state.worker_ref, options, context) do
-            nil -> {:noreply, state}
-            inner_state ->
-              if unquote(MapSet.member?(features, :inactivity_check)) do
-                {:noreply, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
-              else
-                {:noreply, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}}
-              end
-          end
+
+      def handle_cast({:s, {:load, options}, context}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+        case @worker_state_entity.load(state.worker_ref, options, context) do
+          nil -> {:noreply, state}
+          inner_state ->
+            if unquote(MapSet.member?(features, :inactivity_check)) do
+              {:noreply, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+            else
+              {:noreply, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}}
+            end
         end
+      end
 
-        def handle_call({:s, {:load, options}, context}, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
-          case @worker_state_entity.load(state.worker_ref, options, context) do
-            nil -> {:reply, :not_found, state}
-            inner_state ->
-              if unquote(MapSet.member?(features, :inactivity_check)) do
-                {:reply, inner_state, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
-              else
-                {:reply, inner_state, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}}
-              end
-          end
+      def handle_call({:s, {:load, options}, context}, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+        case @worker_state_entity.load(state.worker_ref, options, context) do
+          nil -> {:reply, :not_found, state}
+          inner_state ->
+            if unquote(MapSet.member?(features, :inactivity_check)) do
+              {:reply, inner_state, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+            else
+              {:reply, inner_state, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}}
+            end
         end
+      end
 
+      def handle_cast({:s, {:migrate!, ref, rebase, options}, context}, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
+        if (rebase == node() && ref == state.worker_ref) do
+          {:noreply, state}
+        else
+          # TODO support for delay/halt hooks.
+          {:ok, state} = @worker_state_entity.on_migrate(rebase, state, context)
+          @server.worker_start_transfer!(ref, rebase, state, options, context)
 
+          state = %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :migrate_start, DateTime.utc_now()), migrating: true}
+          state = if unquote(MapSet.member?(features, :migrate_shutdown)) do
+            schedule_migrate_shutdown(context, state)
+          else
+            spawn fn() ->
+                :thread.sleep(500)
+                @server.worker_terminate!(ref, nil, context)
+              end
+            state
+          end
+          {:noreply, state}
+        end
+      end
+
+      def handle_call({:s, {:migrate!, ref, rebase, options}, context}, from, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
+        if (rebase == node() && ref == state.worker_ref) do
+          {:reply, {:ok, self()}, state}
+        else
+          # TODO support for delay/halt hooks.
+          {:ok, state} = @worker_state_entity.on_migrate(rebase, state, context)
+          response = @server.worker_start_transfer!(ref, rebase, state, options, context)
+
+          state = %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :migrate_start, DateTime.utc_now()), migrating: true}
+          state = if unquote(MapSet.member?(features, :migrate_shutdown)) do
+            schedule_migrate_shutdown(context, state)
+          else
+            spawn fn() ->
+                :thread.sleep(500)
+                @server.worker_terminate!(ref, nil, context)
+              end
+            state
+          end
+          {:reply, response, state}
+        end
+      end
 
       #-------------------------------------------------------------------------
       # Lazy Load Handling Feature Section
@@ -254,8 +360,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
               handle_info(call, state)
           end
         end # end handle_info
-      end
-
+      end # end lazy_load feature block
 
       # Capture shutdown with full state  to allow for timer clearing, etc.
       def handle_call({:s, {:shutdown, options} = _inner_call, context} = _call, from, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: _inner_state} = state) do
@@ -272,6 +377,11 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       #-------------------------------------------------------------------------
       # Call Forwarding Feature Section
       #-------------------------------------------------------------------------
+
+
+      if unquote(MapSet.member?(features, :call_forwarding)) do
+
+
 
         def handle_info({:s, inner_call, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
           case @worker_state_entity.call_forwarding(inner_call, context, inner_state) do
@@ -308,7 +418,6 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         end
 
         def handle_call({:s, inner_call, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
-
           case @worker_state_entity.call_forwarding(inner_call, context, from, inner_state) do
             {:stop, reason, response, inner_state} ->
               if unquote(MapSet.member?(features, :inactivity_check)) do
@@ -325,7 +434,26 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           end
         end
       end # end call forwarding feature section
+      @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__
 
+  defmacro __before_compile__(_env) do
+    quote do
+      def handle_call(uncaught, _from, state) do
+        Logger.warn("Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}")
+        {:noreply, state}
+      end
+
+      def handle_cast(uncaught, state) do
+        Logger.warn("Uncaught handle_cast to #{__MODULE__} . . . #{inspect uncaught}")
+        {:noreply, state}
+      end
+
+      def handle_info(uncaught, state) do
+        Logger.warn("Uncaught handle_info to #{__MODULE__} . . . #{inspect uncaught}")
+        {:noreply, state}
+      end
+    end # end quote
+  end # end __before_compile__
 end
