@@ -338,7 +338,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
       def internal_cast(call, context \\ nil) do
         extended_call = {:i, call, context}
-        IO.puts " CALLING CAST #{inspect extended_call}"
         GenServer.cast(__MODULE__, extended_call)
       end
 
