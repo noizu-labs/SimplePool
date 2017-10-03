@@ -21,7 +21,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
   @methods([
       :start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
-      :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_remove!, :worker_terminate!,
+      :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_start_transfer!, :worker_remove!, :worker_terminate!,
       :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!,
       :crash!, :health_check!
   ])
@@ -481,7 +481,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
                       {:error, {:exit, e}}
                     _  ->
                       try do
@@ -511,7 +511,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
                       {:error, {:exit, e}}
                     _  ->
                       try do
@@ -542,7 +542,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
                       {:error, {:exit, e}}
                     _  ->
                       try do
@@ -572,7 +572,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
                       {:error, {:exit, e}}
                     _  ->
                       try do
