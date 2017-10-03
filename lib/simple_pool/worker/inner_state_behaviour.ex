@@ -47,6 +47,11 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
     end
   end
 
+  def as_cast({:reply, _reply, state}), do: {:noreply, state}
+  def as_cast({:noreply, state}), do: {:noreply, state}
+  def as_cast({:stop, reason, _reply, state}), do: {:stop, reason, state}
+  def as_cast({:stop, reason, state}), do: {:stop, reason, state}
+
   defmacro __using__(options) do
     option_settings = prepare_options(options)
     options = option_settings.effective_options
@@ -99,18 +104,18 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
         # @Deprecated
         def call_forwarding_catchall(call, context, _from, %__MODULE__{} = this) do
           if context do
-            Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+            Logger.warn("[#{context.token}] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
           else
-            Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+            Logger.warn("[NO_TOKEN] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
           end
           {:reply, :unsupported_call, this}
         end
 
         def call_forwarding_catchall(call, context, %__MODULE__{} = this) do
           if context do
-            Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+            Logger.warn("[#{context.token}] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
           else
-            Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+            Logger.warn("[NO_TOKEN] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
           end
           {:noreply, this}
         end
@@ -146,11 +151,13 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
 
   defmacro __before_compile__(_env) do
     quote do
-
-
       #-----------------------------------------------------------------------------
       # call_forwarding - call
       #-----------------------------------------------------------------------------
+
+      def call_forwarding({:load, options}, context, _from, %__MODULE__{} = this) do
+        {:reply, :loaded, load(this, options, context)}
+      end
       def call_forwarding(:ping!, context, _from, %__MODULE__{} = this), do: ping!(this, context)
       def call_forwarding({:health_check!, options}, context, _from, %__MODULE__{} = this), do: health_check!(this, options, context)
       def call_forwarding({:fetch, options}, context, _from, %__MODULE__{} = this), do: fetch(this, options, context)
@@ -165,6 +172,9 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       #-----------------------------------------------------------------------------
       # call_forwarding - cast|info
       #-----------------------------------------------------------------------------
+      def call_forwarding({:load, options}, context, %__MODULE__{} = this) do
+        {:noreply, load(this, options, context)}
+      end
       def call_forwarding(:kill!, context, %__MODULE__{} = this), do: kill!(this, context)
       def call_forwarding({:crash!, options}, context, %__MODULE__{} = this), do: crash!(this, options, context)
       def call_forwarding(call, context, %__MODULE__{} = this) do

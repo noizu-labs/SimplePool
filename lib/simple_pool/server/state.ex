@@ -14,8 +14,8 @@ alias Noizu.SimplePool.Server.State
     pool: nil,
     server: nil,
     status_details: nil,
-    status: %{loading: :pending, state: :pending},    
-    extended: nil,
+    status: %{loading: :pending, state: :pending},
+    extended: %{},
     options: nil
   ]
 

@@ -6,7 +6,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # GenServer Lifecycle
     #---------------------------------------------------------------------------
     def init(server, sup, options \\ nil) do
-      server.enable_server!(node())
+      #server.enable_server!(node())
       state = %State{
           pool: sup,
           server: server,
@@ -17,9 +17,9 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       {:ok, state}
     end
 
-    def terminate(_reason, %State{} = state) do
-      state.server.base().banner("Terminate #{inspect state, pretty: true}")
-      state.server.disable_server!(node())
+    def terminate(reason, %State{} = state) do
+      state.server.base().banner("Terminate #{inspect state, pretty: true}\nReason: #{inspect reason}")
+      #state.server.disable_server!(node())
       :ok
     end
 
@@ -65,11 +65,11 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     def internal_cast_handler({:worker_transfer!, ref, transfer_state, options}, context, %State{} = state), do: worker_transfer!(ref, transfer_state, options, context, state) |> as_cast()
     def internal_cast_handler(call, context, %State{} = state) do
       if context do
-        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{state.server} unsupported cast(#{inspect call})")
+        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{state.server} unsupported cast(#{inspect call, pretty: true})")
       else
-        Logger.error(" #{state.server} unsupported cast(#{inspect call})")
+        Logger.error(" #{state.server} unsupported cast(#{inspect call, pretty: true})")
       end
-      {:reply, {:error, {:unsupported, call}}, state}
+      {:noreply, state}
     end
 
     #---------------------------------------------------------------------------
@@ -77,11 +77,11 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     def internal_info_handler(call, context, %State{} = state) do
       if context do
-        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{state.server} unsupported nfo(#{inspect call})")
+        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{state.server} unsupported info(#{inspect call, pretty: true})")
       else
-        Logger.error(" #{state.server} unsupported info(#{inspect call})")
+        Logger.error(" #{state.server} unsupported info(#{inspect call, pretty: true})")
       end
-      {:reply, {:error, {:unsupported, call}}, state}
+      {:noreply, state}
     end
 
     #---------------------------------------------------------------------------

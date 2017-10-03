@@ -17,8 +17,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   #@callback start_children(any) :: any
 
   # TODO callbacks
-
-
   @methods([
       :start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
       :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_start_transfer!, :worker_remove!, :worker_terminate!,
@@ -320,13 +318,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
-      #-------------------------------------------------------------------------------
-      # Internal Forwarding
-      #-------------------------------------------------------------------------------
-      def handle_call({:i, call, context}, from, state), do: @server_provider.internal_call_handler(call, context, from, state)
-      def handle_cast({:i, call, context}, state), do: @server_provider.internal_cast_handler(call, context, state)
-      def handle_info({:i, call, context}, state), do: @server_provider.internal_info_handler(call, context, state)
-
       @doc """
         Forward a call to the appropriate GenServer instance for this __MODULE__.
         @TODO add support for directing calls to specific nodes for load balancing purposes.
@@ -347,6 +338,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
       def internal_cast(call, context \\ nil) do
         extended_call = {:i, call, context}
+        IO.puts " CALLING CAST #{inspect extended_call}"
         GenServer.cast(__MODULE__, extended_call)
       end
 
@@ -694,6 +686,18 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
   defmacro __before_compile__(_env) do
     quote do
+
+
+      #-------------------------------------------------------------------------------
+      # Internal Forwarding
+      #-------------------------------------------------------------------------------
+      def handle_call({:i, call, context}, from, state), do: @server_provider.internal_call_handler(call, context, from, state)
+      def handle_cast({:i, call, context}, state), do: @server_provider.internal_cast_handler(call, context, state)
+      def handle_info({:i, call, context}, state), do: @server_provider.internal_info_handler(call, context, state)
+
+      #-------------------------------------------------------------------------------
+      # Catch All
+      #-------------------------------------------------------------------------------
       def handle_call(uncaught, _from, state) do
         Logger.warn("Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}")
         {:noreply, state}
@@ -708,7 +712,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         Logger.warn("Uncaught handle_info to #{__MODULE__} . . . #{inspect uncaught}")
         {:noreply, state}
       end
+
     end # end quote
   end # end __before_compile__
+
+
+
 
 end

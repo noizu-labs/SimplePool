@@ -72,7 +72,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       if (unquote(required.terminate)) do
         def terminate(reason, state) do
           if (unquote(verbose)) do
-            @base.banner("TERMINATE #{__MODULE__} (#{inspect state.worker_ref}") |> Logger.info()
+            @base.banner("TERMINATE #{__MODULE__} (#{inspect state.worker_ref}\n Reason: #{inspect reason}") |> Logger.info()
           end
           state = clear_inactivity_check(state)
           @worker_state_entity.terminate_hook(reason, state)
@@ -166,7 +166,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             nil -> state
             mt_ref ->
               :timer.cancel(mt_ref)
-              %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :mt_ref, nil)}
+              %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended || %{}, :mt_ref, nil)}
           end
         end
 
@@ -208,7 +208,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       if unquote(MapSet.member?(features, :inactivity_check)) do
         def schedule_inactivity_check(context, state) do
           {:ok, t_ref} = :timer.send_after(@check_interval_ms, self(), {:i, {:activity_check, state.worker_ref}, context})
-          %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :t_ref, t_ref)}
+          %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended || %{}, :t_ref, t_ref)}
         end
 
         def clear_inactivity_check(state) do
