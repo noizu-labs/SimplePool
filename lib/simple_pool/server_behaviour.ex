@@ -112,7 +112,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       def start_link(sup, nmid_generator) do
         if (unquote(global_verbose) || unquote(module_verbose)) do
           "************************************************\n" <>
-          "* START_LINK #{__MODULE__} (#{inspect {sup, nmid_generator}})\n" <>
+          "* START_LINK #{__MODULE__} (#{inspect {@worker_supervisor, nmid_generator}})\n" <>
           "************************************************\n" |> Logger.info
         end
         GenServer.start_link(__MODULE__, {@worker_supervisor, nmid_generator}, name: __MODULE__)
@@ -132,7 +132,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       def init({sup, {node, process}} = p) do
         if (unquote(global_verbose) || unquote(module_verbose)) do
           "************************************************\n" <>
-          "* INIT #{__MODULE__} (#{inspect {sup, {node, process}}})\n" <>
+          "* INIT #{__MODULE__} (#{inspect {@worker_supervisor, {node, process}}})\n" <>
           "************************************************\n" |> Logger.info
         end
         {{node, process}, sequence} = @base.book_keeping_init()
@@ -573,6 +573,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               end # end if else processed
             end # end List.foldl cn
           )
+          response
         end
       end
 
@@ -834,7 +835,20 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
   defmacro __before_compile__(_env) do
     quote do
+      def handle_call(uncaught, _from, state) do
+        Logger.warn("Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}")
+        {:noreply, state}
+      end
+
+      def handle_cast(uncaught, state) do
+        Logger.warn("Uncaught handle_cast to #{__MODULE__} . . . #{inspect uncaught}")
+        {:noreply, state}
+      end
+
+      def handle_info(uncaught, state) do
+        Logger.warn("Uncaught handle_info to #{__MODULE__} . . . #{inspect uncaught}")
+        {:noreply, state}
+      end
     end # end quote
   end # end __before_compile__
-
 end
