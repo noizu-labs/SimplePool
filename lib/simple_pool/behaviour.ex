@@ -98,17 +98,25 @@ defmodule Noizu.SimplePool.Behaviour do
           ets_table = __MODULE__.lookup_table()
 
           # Load sequence from mnesia for nmid generator.
-          entry = Amnesia.Fragment.transaction do
-            unquote(nmid_table).read(nmid_seed)
+          r = unquote(nmid_table).wait(120_000)
+          case r do
+            :ok -> :ok
+            e ->
+              Logger.error("#{__MODULE__} book keeping wait error: #{inspect e}")
           end
+          entry = unquote(nmid_table).read!(nmid_seed)
+
 
           sequence = case entry do
             %unquote(nmid_table){sequence: s} -> s
+            :badarg ->
+              Logger.error("#{__MODULE__} book keeping bad arg from sequence")
+              1
             :nil -> 1
           end
 
           # Start Ets Lookup Table for Worker book keeping.
-          if (:ets.info(ets_table) == :undefined) do
+          if (:ets.info(ets_table) == :undefined || :ets.info(ets_table) == :badarg) do
             :ets.new(ets_table, [:public, :named_table, :set, read_concurrency: true])
           else
             Logger.warn("""
