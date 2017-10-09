@@ -54,6 +54,7 @@ defmodule Noizu.SimplePool.Behaviour do
       require Amnesia
       require Amnesia.Fragment
       require Amnesia.Helper
+      require Logger
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.Behaviour
 
@@ -90,7 +91,7 @@ defmodule Noizu.SimplePool.Behaviour do
           if (unquote(global_verbose) || unquote(module_verbose)) do
             "************************************************\n" <>
             "* BOOK_KEEPING: #{__MODULE__}\n" <>
-            "************************************************\n" |> IO.puts()
+            "************************************************\n" |> Logger.info
           end
 
           nmid_seed = __MODULE__.nmid_seed()
@@ -107,7 +108,18 @@ defmodule Noizu.SimplePool.Behaviour do
           end
 
           # Start Ets Lookup Table for Worker book keeping.
-          :ets.new(ets_table, [:public, :named_table, :set, read_concurrency: true])
+          if (:ets.info(ets_table) == :undefined) do
+            :ets.new(ets_table, [:public, :named_table, :set, read_concurrency: true])
+          else
+            Logger.warn("""
+
+            ********** Skipping ets startup: ***************
+            table: #{inspect ets_table}
+            info: #{inspect :ets.info(ets_table)}
+            ************************************************
+
+            """)
+          end
 
           # Return Sequence Information
           {nmid_seed, sequence}

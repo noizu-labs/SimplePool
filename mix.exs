@@ -2,8 +2,9 @@ defmodule Noizu.SimplePool.Mixfile do
   use Mix.Project
 
   def project do
-    [app: :noizu_simple_pool,
-     version: "0.0.13",
+    [
+     app: :noizu_simple_pool,
+     version: "0.0.14",
      elixir: "~> 1.3",
      package: package(),
      deps: deps(),
