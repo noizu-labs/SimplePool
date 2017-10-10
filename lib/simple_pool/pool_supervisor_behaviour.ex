@@ -64,8 +64,10 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             {:ok, pool_supervisor} ->
 
               case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, @base.nmid_seed()], [])) do
-                {:ok, pid} -> {:ok, pid}
+                {:ok, pid} ->
+                  {:ok, pid}
                 {:error, {:already_started, process2_id}} ->
+                  Logger.warn "#{@base} - restart worker"
                   Supervisor.restart_child(__MODULE__, process2_id)
                 error ->
                   Logger.error "#{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
@@ -74,6 +76,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
               end
 
             {:error, {:already_started, process_id}} ->
+              Logger.warn "#{@base} - restart worker supervisor"
               case Supervisor.restart_child(__MODULE__, process_id) do
                 {:ok, pid} ->
                   case Supervisor.start_child(__MODULE__, worker(@pool_server, [@worker_supervisor, @base.nmid_seed()], [])) do

@@ -153,7 +153,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
     end # end terminate
 
-      def s_call!(worker, call, timeout \\ 15_000) do
+      def s_call!(worker, call, timeout \\ 30_000) do
         worker = normid(worker)
         try do
           case pid_or_spawn!(worker) do
@@ -164,7 +164,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           :exit, e ->
             case e do
               {:timeout, c} ->
-                Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
+                Logger.info "#{@base} - unresponsive worker (#{inspect worker}) #{inspect e}"
                 :error
                 _ ->
                   Logger.error "#{@base} - dead worker: caught (#{inspect e})"
@@ -189,7 +189,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
             case e do
               {:timeout, c} ->
-                Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
+                Logger.info "#{@base} - unresponsive worker (#{inspect worker}) #{inspect e}"
                 :error
                 _ ->
                   Logger.warn "#{@base} - dead worker (#{inspect worker})"
@@ -204,7 +204,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end # end try
       end # end s_cast!
 
-      def s_call(worker, call, timeout \\ 15_000) do
+      def s_call(worker, call, timeout \\ 30_000) do
         worker = normid(worker)
         try do
           case get_pid(worker) do
@@ -216,7 +216,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
             case e do
               {:timeout, c} ->
-                Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
+                Logger.info "#{@base} - unresponsive worker (#{inspect worker}) #{inspect e}"
                 :error
                 _ ->
                   Logger.warn "#{@base} - dead worker (#{inspect worker})"
@@ -243,7 +243,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           :exit, e ->
             case e do
               {:timeout, c} ->
-                Logger.warn "#{@base} - unresponsive worker (#{inspect worker})"
+                Logger.info "#{@base} - unresponsive worker (#{inspect worker}) #{inspect e}"
                 :error
                 _ ->
                   Logger.warn "#{@base} - dead worker (#{inspect worker})"
@@ -280,7 +280,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           Retrieve pool status
         """
         def status() do
-          GenServer.call(__MODULE__, {:status})
+          GenServer.call(__MODULE__, {:status}, 60_000)
         end
       end # end status
 
@@ -292,7 +292,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         """
         def generate(:nmid) do
           # Assuming uncapped sequence, and no more than 99 nodes and 999 processes per node
-          GenServer.call(__MODULE__, {:generate, :nmid})
+          GenServer.call(__MODULE__, {:generate, :nmid}, 60_000)
         end
       end # end generate
 
@@ -333,7 +333,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         """
         def fetch!(nmid, details \\ :default) do
           case pid_or_spawn!(nmid) do
-            {:ok, pid} -> GenServer.call(pid, {:fetch, details})
+            {:ok, pid} -> GenServer.call(pid, {:fetch, details}, 60_000)
             _ -> :not_found
           end
         end
@@ -451,7 +451,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 push_migrate(nmid, rnode)
               {true, pid} ->
                 # Call worker directly
-                GenServer.call(pid, {:begin_migrate_worker, nmid, rnode})
+                GenServer.call(pid, {:begin_migrate_worker, nmid, rnode}, 200_000)
             end
           else
             {:error, {:node, :unreachable}}
@@ -545,7 +545,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                     childSpec = @worker_supervisor.child(nmid)
                     Supervisor.start_child(@worker_supervisor, childSpec)
                   else
-                    GenServer.call({__MODULE__, x}, {:start, nmid})
+                    GenServer.call({__MODULE__, x}, {:start, nmid}, 60_000)
                   end
 
                   case init do
@@ -597,7 +597,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(only.push_migrate) && !unquote(override.push_migrate)) do
         def push_migrate(transfer, rnode) do
           if Node.ping(rnode) == :pong do
-            GenServer.call({__MODULE__, rnode}, {:start, transfer})
+            GenServer.call({__MODULE__, rnode}, {:start, transfer}, 200_000)
           else
             {:error, {:node, :unreachable}}
           end
@@ -605,7 +605,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
         def push_migrate(transfer, rnode, :asynch) do
           if Node.ping(rnode) == :pong do
-            GenServer.cast({__MODULE__, rnode}, {:start, transfer})
+            GenServer.cast({__MODULE__, rnode}, {:start, transfer}, 200_000)
           else
             {:error, {:node, :unreachable}}
           end
@@ -819,7 +819,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
               spawn fn ->
                 {status, details} = lazy_load(state)
-                GenServer.call(__MODULE__, {:load_complete, {status, details}})
+                GenServer.call(__MODULE__, {:load_complete, {status, details}}, 60_000)
               end
 
               {:noreply, state}
