@@ -2,7 +2,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
   alias Noizu.SimplePool.OptionSettings
   alias Noizu.SimplePool.OptionValue
   alias Noizu.SimplePool.OptionList
-
+  require Logger
   @callback start_link() :: any
   @callback child(any) :: any
   @callback child(any, any) :: any
@@ -20,14 +20,14 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
   def prepare_options(options) do
     settings = %OptionSettings{
       option_settings: %{
-        features: %OptionList{option: :features, default: Application.get_env(Noizu.SimplePool, :default_features, @default_features), valid_members: @features, membership_set: false},
+        features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
-        verbose: %OptionValue{option: :verbose, default: Application.get_env(Noizu.SimplePool, :verbose, false)},
+        verbose: %OptionValue{option: :verbose, default: Application.get_env(:noizu_simple_pool, :verbose, false)},
 
-        max_restarts: %OptionValue{option: :max_restarts, default: Application.get_env(Noizu.SimplePool, :pool_max_restarts, @default_max_restarts)},
-        max_seconds: %OptionValue{option: :max_seconds, default: Application.get_env(Noizu.SimplePool, :pool_max_seconds, @default_max_seconds)},
-        strategy: %OptionValue{option: :strategy, default: Application.get_env(Noizu.SimplePool, :pool_strategy, @default_strategy)}
+        max_restarts: %OptionValue{option: :max_restarts, default: Application.get_env(:noizu_simple_pool, :pool_max_restarts, @default_max_restarts)},
+        max_seconds: %OptionValue{option: :max_seconds, default: Application.get_env(:noizu_simple_pool, :pool_max_seconds, @default_max_seconds)},
+        strategy: %OptionValue{option: :strategy, default: Application.get_env(:noizu_simple_pool, :pool_strategy, @default_strategy)}
       }
     }
 

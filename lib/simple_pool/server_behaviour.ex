@@ -31,16 +31,16 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   def prepare_options(options) do
     settings = %OptionSettings{
       option_settings: %{
-        features: %OptionList{option: :features, default: Application.get_env(Noizu.SimplePool, :default_features, @default_features), valid_members: @features, membership_set: false},
+        features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
-        verbose: %OptionValue{option: :verbose, default: Application.get_env(Noizu.SimplePool, :verbose, false)},
+        verbose: %OptionValue{option: :verbose, default: Application.get_env(:noizu_simple_pool, :verbose, false)},
         worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
-        default_timeout: %OptionValue{option: :default_timeout, default:  Application.get_env(Noizu.SimplePool, :default_timeout, @default_timeout)},
-        shutdown_timeout: %OptionValue{option: :shutdown_timeout, default: Application.get_env(Noizu.SimplePool, :default_shutdown_timeout, @default_shutdown_timeout)},
-        server_driver: %OptionValue{option: :server_driver, default: Application.get_env(Noizu.SimplePool, :default_server_driver, Noizu.SimplePool.ServerDriver.Default)},
-        worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(Noizu.SimplePool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation)},
-        server_provider: %OptionValue{option: :server_provider, default: Application.get_env(Noizu.SimplePool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)}
+        default_timeout: %OptionValue{option: :default_timeout, default:  Application.get_env(:noizu_simple_pool, :default_timeout, @default_timeout)},
+        shutdown_timeout: %OptionValue{option: :shutdown_timeout, default: Application.get_env(:noizu_simple_pool, :default_shutdown_timeout, @default_shutdown_timeout)},
+        server_driver: %OptionValue{option: :server_driver, default: Application.get_env(:noizu_simple_pool, :default_server_driver, Noizu.SimplePool.ServerDriver.Default)},
+        worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation)},
+        server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)}
       }
     }
 
@@ -641,20 +641,35 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_cast, {__MODULE__, link.ref}, {:s, call, context}}, else: {:s, call, context}
           try do
             if link.handle do
-              GenServer.cast(link.handle, extended_call)
+              r = GenServer.cast(link.handle, extended_call)
+              IO.puts "
+                #{__MODULE__}.link_forward! 1 = #{inspect r}
+              "
               {:ok, link}
             else
               case worker_pid!(link.ref, [spawn: true], context) do
                 {:ok, pid} ->
-                  GenServer.cast(pid, extended_call)
+                  r = GenServer.cast(pid, extended_call)
+                  IO.puts "
+                    #{__MODULE__}.link_forward! 2 = #{inspect r}
+                  "
                   {:ok, %Link{link| handle: pid, state: :valid}}
                 {:error, details} ->
+                  IO.puts "
+                    #{__MODULE__}.link_forward! 3 = #{inspect {:error, details}}
+                  "
                   worker_deregister!(link.ref, context)
                   case worker_pid!(link.ref, [spawn: true], context) do
                     {:ok, pid} ->
-                      GenServer.cast(pid, extended_call)
+                      r = GenServer.cast(pid, extended_call)
+                      IO.puts "
+                        #{__MODULE__}.link_forward! 4 = #{inspect r}
+                      "
                       {:ok, %Link{link| handle: pid, state: :valid}}
                     {:error, details} ->
+                      IO.puts "
+                        #{__MODULE__}.link_forward! 5 = #{inspect {:error, details}}
+                      "
                       {:error, %Link{link| handle: nil, state: {:error, details}}}
                   end # end case inner worker_pid!
               end # end case worker_pid!

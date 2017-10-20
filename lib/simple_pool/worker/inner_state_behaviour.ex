@@ -1,5 +1,5 @@
 defmodule Noizu.SimplePool.InnerStateBehaviour do
-
+  require Logger
   @callback call_forwarding(call :: any, context :: any, state :: any) :: {:noreply, state :: any}
   @callback call_forwarding(call :: any, context :: any, from :: any,  state :: any) :: {atom, reply :: any, state :: any}
   @callback fetch(this :: any, options :: any, context :: any) :: {:reply, this :: any, this :: any}
@@ -27,7 +27,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
     settings = %OptionSettings{
       option_settings: %{
         pool: %OptionValue{option: :pool, required: true},
-        features: %OptionList{option: :features, default: Application.get_env(Noizu.SimplePool, :default_features, @default_features), valid_members: @features, membership_set: false},
+        features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @provided_methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
       }

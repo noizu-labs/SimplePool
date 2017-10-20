@@ -19,23 +19,21 @@ defmodule Noizu.SimplePool.Behaviour do
   @default_worker_supervisor_options([])
   @default_pool_supervisor_options([])
 
-
-
   def prepare_options(options) do
     settings = %OptionSettings{
       option_settings: %{
-        features: %OptionList{option: :features, default: Application.get_env(Noizu.SimplePool, :default_features, @default_features), valid_members: @features, membership_set: false},
+        features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
-        default_modules: %OptionList{option: :default_modules, default: Application.get_env(Noizu.SimplePool, :default_modules, @default_modules), valid_members: @modules, membership_set: true},
-        verbose: %OptionValue{option: :verbose, default: Application.get_env(Noizu.SimplePool, :verbose, false)},
-        worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(Noizu.SimplePool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour)},
-        worker_options: %OptionValue{option: :worker_options, default: Application.get_env(Noizu.SimplePool, :default_worker_options, @default_worker_options)},
-        server_options: %OptionValue{option: :server_options, default: Application.get_env(Noizu.SimplePool, :default_server_options, @default_server_options)},
-        worker_supervisor_options: %OptionValue{option: :worker_supervisor_options, default: Application.get_env(Noizu.SimplePool, :default_worker_supervisor_options, @default_worker_supervisor_options)},
-        pool_supervisor_options: %OptionValue{option: :pool_supervisor_options, default: Application.get_env(Noizu.SimplePool, :default_pool_supervisor_options, @default_pool_supervisor_options)},
+        default_modules: %OptionList{option: :default_modules, default: Application.get_env(:noizu_simple_pool, :default_modules, @default_modules), valid_members: @modules, membership_set: true},
+        verbose: %OptionValue{option: :verbose, default: Application.get_env(:noizu_simple_pool, :verbose, false)},
+        worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour)},
+        worker_options: %OptionValue{option: :worker_options, default: Application.get_env(:noizu_simple_pool, :default_worker_options, @default_worker_options)},
+        server_options: %OptionValue{option: :server_options, default: Application.get_env(:noizu_simple_pool, :default_server_options, @default_server_options)},
+        worker_supervisor_options: %OptionValue{option: :worker_supervisor_options, default: Application.get_env(:noizu_simple_pool, :default_worker_supervisor_options, @default_worker_supervisor_options)},
+        pool_supervisor_options: %OptionValue{option: :pool_supervisor_options, default: Application.get_env(:noizu_simple_pool, :default_pool_supervisor_options, @default_pool_supervisor_options)},
         worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
-        server_provider: %OptionValue{option: :server_provider, default: Application.get_env(Noizu.SimplePool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)}
+        server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)}
       }
     }
 

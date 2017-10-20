@@ -2,7 +2,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   alias Noizu.SimplePool.OptionSettings
   alias Noizu.SimplePool.OptionValue
   alias Noizu.SimplePool.OptionList
-
+  require Logger
   @methods([:start_link, :init, :terminate])
   @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
@@ -15,13 +15,13 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   def prepare_options(options) do
     settings = %OptionSettings{
       option_settings: %{
-        features: %OptionList{option: :features, default: Application.get_env(Noizu.SimplePool, :default_features, @default_features), valid_members: @features, membership_set: false},
+        features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
-        verbose: %OptionValue{option: :verbose, default: Application.get_env(Noizu.SimplePool, :verbose, false)},
+        verbose: %OptionValue{option: :verbose, default: Application.get_env(:noizu_simple_pool, :verbose, false)},
         worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
-        check_interval_ms: %OptionValue{option: :check_interval_ms, default: Application.get_env(Noizu.SimplePool, :default_inactivity_check_interval_ms, @default_check_interval_ms)},
-        kill_interval_ms: %OptionValue{option: :kill_interval_ms, default: Application.get_env(Noizu.SimplePool, :default_inactivity_kill_interval_ms, @default_kill_interval_ms)},
+        check_interval_ms: %OptionValue{option: :check_interval_ms, default: Application.get_env(:noizu_simple_pool, :default_inactivity_check_interval_ms, @default_check_interval_ms)},
+        kill_interval_ms: %OptionValue{option: :kill_interval_ms, default: Application.get_env(:noizu_simple_pool, :default_inactivity_kill_interval_ms, @default_kill_interval_ms)},
       }
     }
     initial = OptionSettings.expand(settings, options)
