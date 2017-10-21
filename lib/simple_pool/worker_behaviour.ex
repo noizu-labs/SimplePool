@@ -46,6 +46,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       @worker_state_entity(Noizu.SimplePool.Behaviour.expand_worker_state_entity(@base, unquote(options.worker_state_entity)))
       @check_interval_ms(unquote(options.check_interval_ms))
       @kill_interval_s(unquote(options.kill_interval_ms)/1000)
+      @migrate_shutdown_interval_ms(5_000)
 
       def option_settings do
         unquote(Macro.escape(option_settings))
@@ -74,8 +75,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           if (unquote(verbose)) do
             @base.banner("TERMINATE #{__MODULE__} (#{inspect state.worker_ref}\n Reason: #{inspect reason}") |> Logger.info()
           end
-          state = clear_inactivity_check(state)
-          @worker_state_entity.terminate_hook(reason, state)
+          @worker_state_entity.terminate_hook(reason, clear_inactivity_check(state))
         end
       end # end start_link
 
@@ -115,9 +115,9 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           {initialized, inner_state} = @worker_state_entity.transfer(ref, initial_state.inner_state)
 
           if unquote(MapSet.member?(features, :inactivity_check)) do
-            state = %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state, last_activity: :os.system_time(:seconds)}
-            state = schedule_inactivity_check(nil, state)
-            {:ok, state}
+            state2 = %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state, last_activity: :os.system_time(:seconds)}
+            state3 = schedule_inactivity_check(nil, state2)
+            {:ok, state3}
           else
             {:ok, %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state}}
           end
@@ -185,15 +185,15 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
                   @server.worker_terminate!(ref, nil, context)
                   {:noreply, state}
                 {:wait, state} ->
-                  state = schedule_migrate_shutdown(context, state)
-                  {:noreply, state}
+                  {:noreply, schedule_migrate_shutdown(context, state)}
               end
             else
               @server.worker_terminate!(ref, nil, context)
               {:noreply, state}
             end
+          else
+            {:noreply, state}
           end
-          {:noreply, state}
         end # end handle_info/:activity_check
 
         def handle_info({:i, {:migrate_shutdown, ref}, context}, %Noizu.SimplePool.Worker.State{migrating: false} = state) do
@@ -224,11 +224,9 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           if ref == state.worker_ref do
             if ((state.last_activity == nil) || ((state.last_activity + @kill_interval_s) < :os.system_time(:seconds))) do
               @server.worker_remove!(ref, [force: true], context)
-              state = clear_inactivity_check(state)
-              {:noreply, state}
+              {:noreply, clear_inactivity_check(state)}
             else
-              state = schedule_inactivity_check(context, state)
-              {:noreply, state}
+              {:noreply, schedule_inactivity_check(context, state)}
             end
           else
             {:noreply, state}
@@ -244,12 +242,10 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
                   {:noreply, state}
                 {:wait, state} ->
                   # @TODO force termination conditions needed.
-                  state = schedule_inactivity_check(context, state)
-                  {:noreply, state}
+                  {:noreply, schedule_inactivity_check(context, state)}
               end
             else
-              state = schedule_inactivity_check(context, state)
-              {:noreply, state}
+              {:noreply, schedule_inactivity_check(context, state)}
             end
           else
             {:noreply, state}
@@ -299,7 +295,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             schedule_migrate_shutdown(context, state)
           else
             spawn fn() ->
-                :thread.sleep(500)
+                Process.sleep(500)
                 @server.worker_terminate!(ref, nil, context)
               end
             state
@@ -321,7 +317,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             schedule_migrate_shutdown(context, state)
           else
             spawn fn() ->
-                :thread.sleep(500)
+                Process.sleep(500)
                 @server.worker_terminate!(ref, nil, context)
               end
             state
@@ -338,8 +334,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           case @worker_state_entity.load(state.worker_ref, context) do
             nil -> {:reply, :initilization_failed, state}
             inner_state ->
-              state = %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}
-              handle_call(call, from, state)
+              handle_call(call, from, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
           end
         end # end handle_call
 
@@ -347,8 +342,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           case @worker_state_entity.load(state.worker_ref, context) do
             nil -> {:noreply, state}
             inner_state ->
-              state = %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}
-              handle_cast(call, state)
+              handle_cast(call, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
           end
         end # end handle_cast
 
@@ -356,8 +350,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           case @worker_state_entity.load(state.worker_ref, context) do
             nil -> {:noreply, state}
             inner_state ->
-              state = %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}
-              handle_info(call, state)
+              handle_info(call, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
           end
         end # end handle_info
       end # end lazy_load feature block
@@ -367,8 +360,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         {reply, state} = @worker_state_entity.shutdown(state, options, context, from)
         case reply do
           :ok ->
-            state = clear_inactivity_check(state)
-            {:reply, reply, state}
+            {:reply, reply, clear_inactivity_check(state)}
           :wait ->
             {:reply, reply, state}
         end
