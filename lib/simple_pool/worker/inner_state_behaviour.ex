@@ -139,7 +139,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.on_migrate)) do
-        def on_migrate(%Noizu.SimplePool.Worker.State{} = state, _options \\ nil, _context \\ nil), do: {:ok, state}
+        def on_migrate(_rebase, %Noizu.SimplePool.Worker.State{} = state, _options \\ nil, _context \\ nil), do: {:ok, state}
       end
 
       if (unquote(required.terminate_hook)) do

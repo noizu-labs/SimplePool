@@ -49,9 +49,9 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     def internal_call_handler({:worker_transfer!, ref, transfer_state, options}, context, _from, %State{} = state), do: worker_transfer!(ref, transfer_state, options, context, state)
     def internal_call_handler(call, context, _from, %State{} = state) do
       if context do
-        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{state.server} unsupported call(#{inspect call})")
+        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{inspect state.server} unsupported call(#{inspect call})")
       else
-        Logger.error(" #{state.server} unsupported call(#{inspect call})")
+        Logger.error(" #{inspect state.server} unsupported call(#{inspect call})")
       end
       {:reply, {:error, {:unsupported, call}}, state}
     end
@@ -61,13 +61,13 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     def internal_cast_handler({:worker_remove!, ref, options}, context, %State{} = state) do
        worker_remove!(ref, options, context, state)
     end
-    def internal_call_handler({:worker_terminate!, ref, options}, context, %State{} = state), do: worker_terminate!(ref, options, context, state) |> as_cast()
+    def internal_cast_handler({:worker_terminate!, ref, options}, context, %State{} = state), do: worker_terminate!(ref, options, context, state) |> as_cast()
     def internal_cast_handler({:worker_transfer!, ref, transfer_state, options}, context, %State{} = state), do: worker_transfer!(ref, transfer_state, options, context, state) |> as_cast()
     def internal_cast_handler(call, context, %State{} = state) do
       if context do
-        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{state.server} unsupported cast(#{inspect call, pretty: true})")
+        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{inspect state.server} unsupported cast(#{inspect call, pretty: true})")
       else
-        Logger.error(" #{state.server} unsupported cast(#{inspect call, pretty: true})")
+        Logger.error(" #{inspect state.server} unsupported cast(#{inspect call, pretty: true})")
       end
       {:noreply, state}
     end
@@ -77,9 +77,9 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     def internal_info_handler(call, context, %State{} = state) do
       if context do
-        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{state.server} unsupported info(#{inspect call, pretty: true})")
+        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{inspect state.server} unsupported info(#{inspect call, pretty: true})")
       else
-        Logger.error(" #{state.server} unsupported info(#{inspect call, pretty: true})")
+        Logger.error(" #{inspect state.server} unsupported info(#{inspect call, pretty: true})")
       end
       {:noreply, state}
     end
@@ -115,7 +115,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # worker_transfer!()
     #------------------------------------------------
     def worker_transfer!(ref, transfer_state, _options, context, state) do
-      response = state.server.worker_sup_start(ref, transfer_state, state.pool, context)
+      response = state.server.worker_sup_start(ref, transfer_state, state.pool, context)      
       {:reply, response, state}
     end
 

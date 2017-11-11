@@ -136,7 +136,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               call = {:transfer_state, transfer_state}
               extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
               GenServer.cast(pid, extended_call)
-              Logger.warn("#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{node()}@#{pid}")
+              Logger.warn("#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}")
               {:ok, pid}
           {:error, :already_present} ->
             # We may no longer simply restart child as it may have been initilized
@@ -254,10 +254,14 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if unquote(required.worker_start_transfer!) do
         def worker_start_transfer!(ref, rebase, transfer_state, options \\ nil, context \\ nil) do
-          if options[:async] do
-            remote_call(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context, options[:timeout] || 60_000)
+          if Node.ping(rebase) == :pong do
+            if options[:async] do
+              remote_cast(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context)
+            else
+              remote_call(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context, options[:timeout] || 60_000)
+            end
           else
-            remote_cast(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context)
+            {:error, {:pang, rebase}}
           end
         end
       end
@@ -273,10 +277,15 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 s_call!(ref, {:migrate!, ref, rebase, options}, context, options[:timeout] || 60_000)
               end
             o ->
-              if options[:async] do
-                remote_cast(rebase, {:worker_add!, ref, options}, context)
+              Logger.warn("#{inspect o} - worker not running")
+              if (Node.ping(rebase) == :pong) do
+                if options[:async] do
+                  remote_cast(rebase, {:worker_add!, ref, options}, context)
+                else
+                  remote_call(rebase, {:worker_add!, ref, options}, context, options[:timeout] || 60_000)
+                end
               else
-                remote_call(rebase, {:worker_add!, ref, options}, context, options[:timeout] || 60_000)
+                {:error, {:pang, rebase}}
               end
           end
         end

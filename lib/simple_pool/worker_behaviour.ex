@@ -56,14 +56,18 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       if (unquote(required.start_link)) do
         def start_link(args) do
           if (unquote(verbose)) do
-            @base.banner("START_LINK #{__MODULE__} (#{inspect args})") |> Logger.info()
+            @base.banner("START_LINK/1 #{__MODULE__} (#{inspect args})") |> Logger.info()
           end
           GenServer.start_link(__MODULE__, args)
         end
 
-        def start_link(a,b) do
-          Logger.error "start_link/2? #{inspect {a, b}}"
+        def start_link(ref, args) do
+          if (unquote(verbose)) do
+            @base.banner("START_LINK/2.migrate #{__MODULE__} (#{inspect args})") |> Logger.info()
+          end
+          GenServer.start_link(__MODULE__, {:migrate, ref, args})
         end
+
         def start_link(a,b,c) do
           Logger.error "start_link/3? #{inspect {a, b, c}}"
         end
@@ -84,9 +88,28 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       @TODO use defmacro to strip out unnecessary compile time conditionals
       """
       if (unquote(required.init)) do
+
+
+        def init({:migrate, ref, {:transfer, initial_state}}) do
+          if (unquote(verbose)) do
+            @base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }") |> Logger.info()
+          end
+          @server.worker_register!(ref, {self(), node()})
+
+          {initialized, inner_state} = @worker_state_entity.transfer(ref, initial_state.inner_state)
+
+          if unquote(MapSet.member?(features, :inactivity_check)) do
+            state2 = %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state, last_activity: :os.system_time(:seconds)}
+            state3 = schedule_inactivity_check(nil, state2)
+            {:ok, state3}
+          else
+            {:ok, %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state}}
+          end
+        end
+
         def init(ref) do
           if (unquote(verbose)) do
-            @base.banner("INIT #{__MODULE__} (#{inspect ref }") |> Logger.info()
+            @base.banner("INIT/1 #{__MODULE__} (#{inspect ref }") |> Logger.info()
           end
           @server.worker_register!(ref, {self(), node()})
           {initialized, inner_state} = if unquote(MapSet.member?(features, :lazy_load)) do
@@ -106,22 +129,6 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           end
         end
 
-        def init(ref, {:transfer, %Noizu.SimplePool.Worker.State{} = initial_state}) do
-          if (unquote(verbose)) do
-            @base.banner("INIT.transfer #{__MODULE__} (#{inspect ref }") |> Logger.info()
-          end
-          @server.worker_register!(ref, {self(), node()})
-
-          {initialized, inner_state} = @worker_state_entity.transfer(ref, initial_state.inner_state)
-
-          if unquote(MapSet.member?(features, :inactivity_check)) do
-            state2 = %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state, last_activity: :os.system_time(:seconds)}
-            state3 = schedule_inactivity_check(nil, state2)
-            {:ok, state3}
-          else
-            {:ok, %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state}}
-          end
-        end
       end # end init
 
       # @s_redirect
@@ -283,46 +290,50 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       end
 
       def handle_cast({:s, {:migrate!, ref, rebase, options}, context}, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
-        if (rebase == node() && ref == state.worker_ref) do
-          {:noreply, state}
-        else
-          # TODO support for delay/halt hooks.
-          {:ok, state} = @worker_state_entity.on_migrate(rebase, state, context)
-          @server.worker_start_transfer!(ref, rebase, state, options, context)
+        cond do
+          (rebase == node() && ref == state.worker_ref) -> {:noreply, state}
+          Node.ping(rebase) == :pang -> {:noreply, state}
+          true ->
+            # TODO support for delay/halt hooks.
+            {:ok, state} = @worker_state_entity.on_migrate(rebase, state, options, context)
+            @server.worker_start_transfer!(ref, rebase, state, options, context)
 
-          state = %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :migrate_start, DateTime.utc_now()), migrating: true}
-          state = if unquote(MapSet.member?(features, :migrate_shutdown)) do
-            schedule_migrate_shutdown(context, state)
-          else
-            spawn fn() ->
-                Process.sleep(500)
-                @server.worker_terminate!(ref, nil, context)
-              end
-            state
-          end
-          {:noreply, state}
-        end
+            state = %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :migrate_start, DateTime.utc_now()), migrating: true}
+            state = if unquote(MapSet.member?(features, :migrate_shutdown)) do
+              schedule_migrate_shutdown(context, state)
+            else
+              spawn fn() ->
+                  Process.sleep(500)
+                  @server.worker_terminate!(ref, nil, context)
+                end
+              state
+            end
+            {:noreply, state}
+          end  #end cond do
       end
 
       def handle_call({:s, {:migrate!, ref, rebase, options}, context}, from, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
-        if (rebase == node() && ref == state.worker_ref) do
-          {:reply, {:ok, self()}, state}
-        else
-          # TODO support for delay/halt hooks.
-          {:ok, state} = @worker_state_entity.on_migrate(rebase, state, context)
-          response = @server.worker_start_transfer!(ref, rebase, state, options, context)
-
-          state = %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :migrate_start, DateTime.utc_now()), migrating: true}
-          state = if unquote(MapSet.member?(features, :migrate_shutdown)) do
-            schedule_migrate_shutdown(context, state)
-          else
-            spawn fn() ->
-                Process.sleep(500)
-                @server.worker_terminate!(ref, nil, context)
-              end
-            state
-          end
-          {:reply, response, state}
+        cond do
+          (rebase == node() && ref == state.worker_ref) -> {:reply, {:ok, self()}, state}
+          Node.ping(rebase) == :pang -> {:reply, {:error, {:pang, rebase}}, state}
+          true ->
+            # TODO support for delay/halt hooks.
+            {:ok, state} = @worker_state_entity.on_migrate(rebase, state, context)
+            response = @server.worker_start_transfer!(ref, rebase, state, options, context)
+            state = case response do
+              {:ok, _p} ->
+                state = %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :migrate_start, DateTime.utc_now()), migrating: true}
+                state = if unquote(MapSet.member?(features, :migrate_shutdown)) do
+                  schedule_migrate_shutdown(context, state)
+                else
+                  spawn fn() ->
+                      Process.sleep(500)
+                      @server.worker_terminate!(ref, nil, context)
+                    end
+                  state
+                end
+            end
+            {:reply, response, state}
         end
       end
 
