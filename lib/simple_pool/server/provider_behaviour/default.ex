@@ -24,7 +24,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     end
 
     #---------------------------------------------------------------------------
-    # Startup: Lazy Loading/Asynch Load/Immediate Load strategies.
+    # Startup: Lazy Loading/Async Load/Immediate Load strategies.
     # Blocking/Lazy Initialization, Loading Strategy.
     #---------------------------------------------------------------------------
     def status(server, context), do: server.internal_call(:status, context)
@@ -92,7 +92,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # worker_add!()
     #------------------------------------------------
     def worker_add!(ref, options, context, state) do
-      if Enum.member?(state.options.effective_options.features, :asynch_load) do
+      if Enum.member?(state.options.effective_options.features, :async_load) do
         state.server.worker_sup_start(ref, state.pool, context)
       else
         case state.server.worker_sup_start(ref, state.pool, context) do
@@ -132,9 +132,9 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # load_workers
     #------------------------------------------------
     def load_workers(options, context, state) do
-      if Enum.member?(state.options.effective_options.features, :asynch_load) do
-        state.server.base().banner("Load Workers Asynch")
-        pid = spawn(fn -> load_workers_asynch(options, context, state) end)
+      if Enum.member?(state.options.effective_options.features, :async_load) do
+        state.server.base().banner("Load Workers Async")
+        pid = spawn(fn -> load_workers_async(options, context, state) end)
         status = %{state.status| loading: :in_progress, state: :initialization}
         state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid)}
         {:reply, {:ok, :loading}, state}
@@ -146,7 +146,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
           {:reply, {:ok, :loaded}, state}
         else
           state.server.base().banner("Load Workers")
-          :ok = load_workers_synch(options, context, state)
+          :ok = load_workers_sync(options, context, state)
           state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}
         end
@@ -160,38 +160,38 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     end
 
     #------------------------------------------------
-    # load_workers_asynch
+    # load_workers_async
     #------------------------------------------------
-    def load_workers_asynch(options, context, state) do
+    def load_workers_async(options, context, state) do
       Amnesia.Fragment.transaction do
-        load_workers_asynch(state.server.worker_state_entity().worker_refs(options, context, state), options, context, state)
+        load_workers_async(state.server.worker_state_entity().worker_refs(options, context, state), options, context, state)
       end
     end
-    def load_workers_asynch(nil, _options, context, state), do: state.server.load_complete({self(), node()}, context, state)
-    def load_workers_asynch(sel, options, context, state) do
+    def load_workers_async(nil, _options, context, state), do: state.server.load_complete({self(), node()}, context, state)
+    def load_workers_async(sel, options, context, state) do
       values = Amnesia.Selection.values(sel)
       for value <- values do
         ref = state.server.ref(value)
         worker_add!(ref, options, context, state)
       end
-      load_workers_asynch(Amnesia.Selection.next(sel), options, context, state)
+      load_workers_async(Amnesia.Selection.next(sel), options, context, state)
     end
 
     #------------------------------------------------
-    # load_workers_synch
+    # load_workers_sync
     #------------------------------------------------
-    def load_workers_synch(options, context, state) do
+    def load_workers_sync(options, context, state) do
       Amnesia.Fragment.transaction do
-        load_workers_synch(state.server.worker_state_entity().worker_refs(), options, context, state)
+        load_workers_sync(state.server.worker_state_entity().worker_refs(), options, context, state)
       end
     end
-    def load_workers_synch(nil, _options, _context, _state), do: :ok
-    def load_workers_synch(sel, options, context, state) do
+    def load_workers_sync(nil, _options, _context, _state), do: :ok
+    def load_workers_sync(sel, options, context, state) do
       values = Amnesia.Selection.values(sel)
       for value <- values do
         ref = state.server.ref(value)
         worker_add!(ref, options, context, state)
       end
-      load_workers_synch(Amnesia.Selection.next(sel), options, context, state)
+      load_workers_sync(Amnesia.Selection.next(sel), options, context, state)
     end
 end

@@ -1,7 +1,7 @@
 defmodule Noizu.SimplePool.InnerStateBehaviour do
   require Logger
-  @callback call_forwarding(call :: any, context :: any, state :: any) :: {:noreply, state :: any}
-  @callback call_forwarding(call :: any, context :: any, from :: any,  state :: any) :: {atom, reply :: any, state :: any}
+  @callback call_forwarding(call :: any, context :: any, state :: any, outer_state :: any) :: {:noreply, state :: any}
+  @callback call_forwarding(call :: any, context :: any, from :: any,  state :: any, outer_state :: any) :: {atom, reply :: any, state :: any}
   @callback fetch(this :: any, options :: any, context :: any) :: {:reply, this :: any, this :: any}
 
   @callback load(ref :: any) ::  any
@@ -17,7 +17,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   alias Noizu.SimplePool.OptionList
 
   @required_methods([:call_forwarding, :load])
-  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!, :migrate_shutdown, :on_migrate, :transfer])
+  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!, :migrate_shutdown, :on_migrate, :transfer, :save!])
 
   @methods(@required_methods ++ @provided_methods)
   @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
@@ -51,6 +51,8 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   def as_cast({:noreply, state}), do: {:noreply, state}
   def as_cast({:stop, reason, _reply, state}), do: {:stop, reason, state}
   def as_cast({:stop, reason, state}), do: {:stop, reason, state}
+
+
 
   defmacro __using__(options) do
     option_settings = prepare_options(options)
@@ -93,10 +95,17 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
         end
       end
 
+      if (unquote(required.save!)) do
+        def save!(outer_state, _options, _context) do
+          Logger.warn("#{__MODULE__}.save method not implemented.")
+          {:reply, {:error, :implementation_required}, outer_state}
+        end
+      end
+
+
       if (unquote(required.health_check!)) do
         def health_check!(%__MODULE__{} = this, _options, context), do: {:reply, %{pending: true}, this}
       end
-
 
       if (unquote(required.call_forwarding_catchall)) do
 

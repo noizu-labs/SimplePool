@@ -21,9 +21,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       :start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
       :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_start_transfer!, :worker_remove!, :worker_terminate!,
       :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!,
-      :crash!, :health_check!
+      :crash!, :health_check!, :save!
   ])
-  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
+  @features([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
   @default_timeout 2_000
@@ -188,7 +188,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       def worker_lookup_handler(), do: @worker_lookup_handler
       def base(), do: @base
       #-------------------------------------------------------------------------------
-      # Startup: Lazy Loading/Asynch Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
+      # Startup: Lazy Loading/Async Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
       #-------------------------------------------------------------------------------
       if unquote(required.status) do
         def status(context \\ nil), do: @server_provider.status(__MODULE__, context)
@@ -254,7 +254,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if unquote(required.worker_start_transfer!) do
         def worker_start_transfer!(ref, rebase, transfer_state, options \\ nil, context \\ nil) do
-          if options[:asynch] do
+          if options[:async] do
             remote_call(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context, options[:timeout] || 60_000)
           else
             remote_cast(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context)
@@ -267,13 +267,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           ref = worker_ref!(ref)
           case worker_pid!(ref, nil, context) do
             {:ok, pid} ->
-              if options[:asynch] do
+              if options[:async] do
                 s_cast!(ref, {:migrate!, ref, rebase, options}, context)
               else
                 s_call!(ref, {:migrate!, ref, rebase, options}, context, options[:timeout] || 60_000)
               end
             o ->
-              if options[:asynch] do
+              if options[:async] do
                 remote_cast(rebase, {:worker_add!, ref, options}, context)
               else
                 remote_call(rebase, {:worker_add!, ref, options}, context, options[:timeout] || 60_000)
@@ -395,6 +395,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       def fetch(identifier, options \\ :default, context \\ nil), do: s_call!(identifier, {:fetch, options}, context)
 
+      if unquote(required.save!) do
+        def save!(identifier, context \\ nil), do: s_call!(identifier, :save!, context)
+        def save_async!(identifier, context \\ nil), do: s_cast!(identifier, :save!, context)
+      end
 
       if unquote(required.ping!) do
         def ping!(identifier, context \\ nil), do: s_call!(identifier, :ping!, context)

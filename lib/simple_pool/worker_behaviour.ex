@@ -3,8 +3,8 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   alias Noizu.SimplePool.OptionValue
   alias Noizu.SimplePool.OptionList
   require Logger
-  @methods([:start_link, :init, :terminate])
-  @features([:auto_identifier, :lazy_load, :asynch_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
+  @methods([:start_link, :init, :terminate, :fetch, :save!])
+  @features([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
 
   @default_check_interval_ms(1000 * 60 * 5)
@@ -367,14 +367,37 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       end
 
       #-------------------------------------------------------------------------
+      # Special Section for handlers that require full context
+      # @TODO change call_Forwarding to allow passing back and forth full state.
+      #-------------------------------------------------------------------------
+      if (unquote(required.save!)) do
+        def handle_call({:s, {:save!, options}, context} = call, _from,  %Noizu.SimplePool.Worker.State{initialized: true, inner_state: _inner_state} = state) do
+          @worker_state_entity.save!(state, options, context)
+        end
+
+        def handle_cast({:s, {:save!, options}, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: _inner_state} = state) do
+          @worker_state_entity.save!(state, options, context) |> @worker_state_entity.as_cast()
+        end
+
+        def handle_info({:s, {:save!, options}, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: _inner_state} = state) do
+          @worker_state_entity.save!(state, options, context) |> @worker_state_entity.as_cast()
+        end
+      end
+
+      if (unquote(required.fetch)) do
+        def handle_call({:s, {:fetch, :state}, context} = call, _from,  %Noizu.SimplePool.Worker.State{} = state) do
+          {:reply, state, state}
+        end
+
+        def handle_call({:s, {:fetch, :process}, context} = call, _from,  %Noizu.SimplePool.Worker.State{} = state) do
+          {:reply, {@worker_state_entity.ref(state.inner_state), self(), node()}, state}
+        end
+      end
+
+      #-------------------------------------------------------------------------
       # Call Forwarding Feature Section
       #-------------------------------------------------------------------------
-
-
       if unquote(MapSet.member?(features, :call_forwarding)) do
-
-
-
         def handle_info({:s, inner_call, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
           case @worker_state_entity.call_forwarding(inner_call, context, inner_state) do
             {:stop, reason, inner_state} ->

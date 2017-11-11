@@ -7,7 +7,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour do
   @callback terminate(reason :: any, state :: Noizu.SimplePool.Server.State.t) :: any
 
   #-------------------------------------------------------------------------------
-  # Startup: Lazy Loading/Asynch Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
+  # Startup: Lazy Loading/Async Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
   #-------------------------------------------------------------------------------
   @callback status(module :: Module, context :: any) :: any
   @callback load(module :: Module, settings :: any, context :: any) :: any
