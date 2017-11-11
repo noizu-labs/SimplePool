@@ -3,7 +3,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   alias Noizu.SimplePool.OptionValue
   alias Noizu.SimplePool.OptionList
   require Logger
-  @methods([:start_link, :init, :terminate, :fetch, :save!])
+  @methods([:start_link, :init, :terminate, :fetch, :save!, :reload!])
   @features([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
 
@@ -261,6 +261,50 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       end # end activity_check feature section
 
 
+
+      #-------------------------------------------------------------------------
+      # Special Section for handlers that require full context
+      # @TODO change call_Forwarding to allow passing back and forth full state.
+      #-------------------------------------------------------------------------
+      if (unquote(required.save!)) do
+        def handle_call({:s, {:save!, options}, context} = call, _from, %Noizu.SimplePool.Worker.State{} = state) do
+          @worker_state_entity.save!(state, options, context)
+        end
+
+        def handle_cast({:s, {:save!, options}, context} = call, %Noizu.SimplePool.Worker.State{} = state) do
+          @worker_state_entity.save!(state, options, context) |> @worker_state_entity.as_cast()
+        end
+
+        def handle_info({:s, {:save!, options}, context} = call, %Noizu.SimplePool.Worker.State{} = state) do
+          @worker_state_entity.save!(state, options, context) |> @worker_state_entity.as_cast()
+        end
+      end
+
+      if (unquote(required.fetch)) do
+        def handle_call({:s, {:fetch, :state}, context} = call, _from,  %Noizu.SimplePool.Worker.State{} = state) do
+          {:reply, state, state}
+        end
+
+        def handle_call({:s, {:fetch, :process}, context} = call, _from,  %Noizu.SimplePool.Worker.State{} = state) do
+          {:reply, {@worker_state_entity.ref(state.inner_state), self(), node()}, state}
+        end
+      end
+
+      if (unquote(required.reload!)) do
+        def handle_call({:s, {:reload!, options}, context} = call, _from,  %Noizu.SimplePool.Worker.State{} = state) do
+          @worker_state_entity.reload!(state, options, context)
+        end
+
+        def handle_cast({:s, {:reload!, options}, context} = call, %Noizu.SimplePool.Worker.State{} = state) do
+          @worker_state_entity.reload!(state, options, context) |> @worker_state_entity.as_cast()
+        end
+
+        def handle_info({:s, {:reload!, options}, context} = call, %Noizu.SimplePool.Worker.State{} = state) do
+          @worker_state_entity.reload!(state, options, context) |> @worker_state_entity.as_cast()
+        end
+      end
+
+
       #-------------------------------------------------------------------------
       # Load handler, placed before lazy load to avoid resending load commands
       #-------------------------------------------------------------------------
@@ -275,6 +319,10 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
               {:noreply, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state}}
             end
         end
+      end
+
+      def handle_info({:s, {:load, options}, context}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+        handle_cast({:s, {:load, options}, context}, state)
       end
 
       def handle_call({:s, {:load, options}, context}, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
@@ -310,6 +358,10 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             end
             {:noreply, state}
           end  #end cond do
+      end
+
+      def handle_info({:s, {:migrate!, ref, rebase, options}, context}, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
+        handle_cast({:s, {:migrate!, ref, rebase, options}, context}, state)
       end
 
       def handle_call({:s, {:migrate!, ref, rebase, options}, context}, from, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
@@ -377,33 +429,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         end
       end
 
-      #-------------------------------------------------------------------------
-      # Special Section for handlers that require full context
-      # @TODO change call_Forwarding to allow passing back and forth full state.
-      #-------------------------------------------------------------------------
-      if (unquote(required.save!)) do
-        def handle_call({:s, {:save!, options}, context} = call, _from,  %Noizu.SimplePool.Worker.State{initialized: true, inner_state: _inner_state} = state) do
-          @worker_state_entity.save!(state, options, context)
-        end
 
-        def handle_cast({:s, {:save!, options}, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: _inner_state} = state) do
-          @worker_state_entity.save!(state, options, context) |> @worker_state_entity.as_cast()
-        end
-
-        def handle_info({:s, {:save!, options}, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: _inner_state} = state) do
-          @worker_state_entity.save!(state, options, context) |> @worker_state_entity.as_cast()
-        end
-      end
-
-      if (unquote(required.fetch)) do
-        def handle_call({:s, {:fetch, :state}, context} = call, _from,  %Noizu.SimplePool.Worker.State{} = state) do
-          {:reply, state, state}
-        end
-
-        def handle_call({:s, {:fetch, :process}, context} = call, _from,  %Noizu.SimplePool.Worker.State{} = state) do
-          {:reply, {@worker_state_entity.ref(state.inner_state), self(), node()}, state}
-        end
-      end
 
       #-------------------------------------------------------------------------
       # Call Forwarding Feature Section

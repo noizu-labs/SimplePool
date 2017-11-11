@@ -21,7 +21,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       :start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
       :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_start_transfer!, :worker_remove!, :worker_terminate!,
       :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!,
-      :crash!, :health_check!, :save!
+      :crash!, :health_check!, :save!, :reload!
   ])
   @features([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -407,6 +407,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.save!) do
         def save!(identifier, context \\ nil), do: s_call!(identifier, :save!, context)
         def save_async!(identifier, context \\ nil), do: s_cast!(identifier, :save!, context)
+      end
+
+      if unquote(required.reload!) do
+        def reload!(identifier, options \\ nil, context \\ nil), do: s_call!(identifier, {:reload!, options}, context)
+        def reload_async!(identifier, options \\ nil, context \\ nil), do: s_cast!(identifier, {:reload!, options}, context)
       end
 
       if unquote(required.ping!) do

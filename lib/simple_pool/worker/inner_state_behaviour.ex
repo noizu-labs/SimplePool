@@ -17,7 +17,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   alias Noizu.SimplePool.OptionList
 
   @required_methods([:call_forwarding, :load])
-  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!, :migrate_shutdown, :on_migrate, :transfer, :save!])
+  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!, :migrate_shutdown, :on_migrate, :transfer, :save!, :reload!])
 
   @methods(@required_methods ++ @provided_methods)
   @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
@@ -85,6 +85,16 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
         def ping!(%__MODULE__{} = this, context), do: {:reply, :pong, this}
       end
 
+      if (unquote(required.reload!)) do
+        def reload!(%Noizu.SimplePool.Worker.State{} = state, options, context) do
+          case load(state.worker_ref, options, context) do
+            nil -> {:reply, :error, state}
+            inner_state ->
+              {:reply, :ok, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+          end
+        end
+      end
+
       if (unquote(required.kill!)) do
         def kill!(%__MODULE__{} = this, context), do: {:stop, {:user_requested, context}, this}
       end
@@ -101,7 +111,6 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
           {:reply, {:error, :implementation_required}, outer_state}
         end
       end
-
 
       if (unquote(required.health_check!)) do
         def health_check!(%__MODULE__{} = this, _options, context), do: {:reply, %{pending: true}, this}
