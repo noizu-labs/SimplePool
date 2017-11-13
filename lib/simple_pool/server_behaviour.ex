@@ -657,37 +657,24 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         """
         def link_forward!(%Link{handler: __MODULE__} = link, call, context \\ nil) do
           extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_cast, {__MODULE__, link.ref}, {:s, call, context}}, else: {:s, call, context}
+          now_ts = :os.system_time(:seconds)
           try do
-            if link.handle do
+            if link.handle && (link.expire == :infinity or link.expire > now_ts) do
               r = GenServer.cast(link.handle, extended_call)
-              IO.puts "
-                #{__MODULE__}.link_forward! 1 = #{inspect r}
-              "
               {:ok, link}
             else
               case worker_pid!(link.ref, [spawn: true], context) do
                 {:ok, pid} ->
                   r = GenServer.cast(pid, extended_call)
-                  IO.puts "
-                    #{__MODULE__}.link_forward! 2 = #{inspect r}
-                  "
-                  {:ok, %Link{link| handle: pid, state: :valid}}
+                  rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
+                  {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
                 {:error, details} ->
-                  IO.puts "
-                    #{__MODULE__}.link_forward! 3 = #{inspect {:error, details}}
-                  "
                   worker_deregister!(link.ref, context)
                   case worker_pid!(link.ref, [spawn: true], context) do
                     {:ok, pid} ->
-                      r = GenServer.cast(pid, extended_call)
-                      IO.puts "
-                        #{__MODULE__}.link_forward! 4 = #{inspect r}
-                      "
-                      {:ok, %Link{link| handle: pid, state: :valid}}
+                      rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
+                      {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
                     {:error, details} ->
-                      IO.puts "
-                        #{__MODULE__}.link_forward! 5 = #{inspect {:error, details}}
-                      "
                       {:error, %Link{link| handle: nil, state: {:error, details}}}
                   end # end case inner worker_pid!
               end # end case worker_pid!
