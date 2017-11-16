@@ -13,7 +13,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
   @default_max_seconds(5)
-  @default_max_restarts(1000)
+  @default_max_restarts(5)
   @default_strategy(:one_for_one)
 
   def prepare_options(options) do

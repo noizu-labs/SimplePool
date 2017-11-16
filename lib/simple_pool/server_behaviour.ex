@@ -225,7 +225,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               fn(node, {proceed, response} = acc) ->
                 if proceed do
                   if Node.ping(node) == :pong do
-                    case remote_call(node, {:worker_add!, ref, options}, context, 30_000) do
+                    case remote_call(node, {:worker_add!, ref, options}, context, 60_000) do
                       {:ok, pid} -> {false, {:ok, pid}}
                       e -> {proceed, e}
                     end
@@ -239,7 +239,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             )
             response
           else
-            internal_call({:worker_add!, ref, options}, context, 30_000)
+            internal_call({:worker_add!, ref, options}, context, 60_000)
           end
          end
       end
@@ -490,8 +490,19 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
-                      {:error, {:exit, e}}
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
+                      if timeout > 45 do
+                        try do
+                          Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
+                          worker_deregister!(ref, context)
+                          s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                        catch
+                          :exit, e ->
+                            {:error, {:exit, e}}
+                        end # end inner try
+                      else
+                        {:error, {:exit, e}}
+                      end
                     _  ->
                       try do
                         Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
@@ -551,8 +562,19 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
-                      {:error, {:exit, e}}
+                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
+                      if timeout > 45 do
+                        try do
+                          Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
+                          worker_deregister!(ref, context)
+                          s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                        catch
+                          :exit, e ->
+                            {:error, {:exit, e}}
+                        end # end inner try
+                      else
+                        {:error, {:exit, e}}
+                      end
                     _  ->
                       try do
                         Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
