@@ -26,8 +26,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   @features([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
-  @default_timeout 2_000
-  @default_shutdown_timeout 5_000
+  @default_timeout 15_000
+  @default_shutdown_timeout 30_000
   def prepare_options(options) do
     settings = %OptionSettings{
       option_settings: %{
@@ -225,7 +225,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               fn(node, {proceed, response} = acc) ->
                 if proceed do
                   if Node.ping(node) == :pong do
-                    case remote_call(node, {:worker_add!, ref, options}, context) do
+                    case remote_call(node, {:worker_add!, ref, options}, context, 30_000) do
                       {:ok, pid} -> {false, {:ok, pid}}
                       e -> {proceed, e}
                     end
@@ -239,7 +239,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             )
             response
           else
-            internal_call({:worker_add!, ref, options}, context)
+            internal_call({:worker_add!, ref, options}, context, 30_000)
           end
          end
       end
@@ -316,7 +316,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           case @worker_lookup_handler.get_reg_worker!(@base, ref) do
             {false, :nil} ->
               if options[:spawn] do
-                worker_add!(ref, options, context)
+                worker_add!(ref, options, context, 30_000)
               else
                 {:error, :not_registered}
               end
