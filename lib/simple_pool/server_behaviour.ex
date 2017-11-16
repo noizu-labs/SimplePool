@@ -316,7 +316,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           case @worker_lookup_handler.get_reg_worker!(@base, ref) do
             {false, :nil} ->
               if options[:spawn] do
-                worker_add!(ref, options, context, 30_000)
+                worker_add!(ref, options, context)
               else
                 {:error, :not_registered}
               end
