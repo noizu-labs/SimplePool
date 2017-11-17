@@ -490,12 +490,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
                       if timeout > 29_000 do
-                        Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
-                        worker_deregister!(ref, context)
+                        Logger.error @base.banner("#{__MODULE__}.s_call! - possibly worker (#{inspect ref})")
                         {:error, {:exit, e}}
                       else
+                        Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
                         {:error, {:exit, e}}
                       end
                     _  ->
@@ -557,17 +556,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
                       if timeout > 25_000 do
-                        try do
-                          Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
-                          worker_deregister!(ref, context)
-                          {:error, {:exit, e}}
-                        catch
-                          :exit, e ->
-                            {:error, {:exit, e}}
-                        end # end inner try
+                        Logger.error @base.banner("#{__MODULE__}.s_call! - possibly worker (#{inspect ref})")
+                        {:error, {:exit, e}}
                       else
+                        Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
                         {:error, {:exit, e}}
                       end
                     _  ->
