@@ -625,6 +625,16 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             {:error, {:already_started, pid}} ->
               #reg_worker(nmid, pid)
               {:ok, pid}
+
+            {:error, :already_present} ->
+                # We may no longer simply restart child as it may have been initilized
+                # With transfer_state and must be restarted with the correct context.
+                Supervisor.delete_child(@worker_supervisor, nmid)
+                case Supervisor.start_child(@worker_supervisor, childSpec) do
+                  {:ok, pid} -> {:ok, pid}
+                  error -> error
+                end
+
             error ->
               Logger.warn("#{__MODULE__} unable to start #{inspect nmid}")
               error
@@ -642,6 +652,17 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             {:error, {:already_started, pid}} ->
               #reg_worker(nmid, pid)
               {:ok, pid}
+
+
+          {:error, :already_present} ->
+              # We may no longer simply restart child as it may have been initilized
+              # With transfer_state and must be restarted with the correct context.
+              Supervisor.delete_child(@worker_supervisor, nmid)
+              case Supervisor.start_child(@worker_supervisor, childSpec) do
+                {:ok, pid} -> {:ok, pid}
+                error -> error
+              end
+
             error ->
               #Logger.warn("#{__MODULE__} unable to start #{inspect nmid}")
               error
