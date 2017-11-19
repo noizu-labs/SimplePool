@@ -78,6 +78,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @worker_supervisor(Module.concat([@base, "WorkerSupervisor"]))
       @server(__MODULE__)
       @pool_supervisor(Module.concat([@base, "PoolSupervisor"]))
+      @pool_async_load(unquote(Map.get(options, :async_load, false)))
       @simple_pool_group({@base, @worker, @worker_supervisor, __MODULE__, @pool_supervisor})
 
       @worker_state_entity(Noizu.SimplePool.Behaviour.expand_worker_state_entity(@base, unquote(options.worker_state_entity)))
@@ -168,7 +169,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end # end case
       end # endstart/3
 
-
       def worker_sup_terminate(ref, sup, context) do
         Supervisor.terminate_child(@worker_supervisor, ref)
         Supervisor.delete_child(@worker_supervisor, ref)
@@ -224,13 +224,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               {true, {:error, :unexpected}},
               fn(node, {proceed, response} = acc) ->
                 if proceed do
-                  if Node.ping(node) == :pong do
-                    case remote_call(node, {:worker_add!, ref, options}, context, 60_000) do
-                      {:ok, pid} -> {false, {:ok, pid}}
-                      e -> {proceed, e}
-                    end
-                  else
-                    acc
+                  case :rpc.call(node, @server_provider, :offthread_worker_add!, [ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor]) do
+                    {:ok, pid} -> {false, {:ok, pid}}
+                    {:badrpc, _d} = e -> {proceed, e}
+                    e -> {proceed, e}
                   end
                 else
                   acc
@@ -239,7 +236,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             )
             response
           else
-            internal_call({:worker_add!, ref, options}, context, 60_000)
+            @server_provider.offthread_worker_add!(ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor)
           end
          end
       end
@@ -256,9 +253,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def worker_start_transfer!(ref, rebase, transfer_state, options \\ nil, context \\ nil) do
           if Node.ping(rebase) == :pong do
             if options[:async] do
-              remote_cast(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context)
+              :rpc.cast(rebase, @server_provider, :offthread_worker_add!, [ref, transfer_state, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
             else
-              remote_call(rebase, {:worker_transfer!, ref, {:transfer, transfer_state}, options}, context, options[:timeout] || 60_000)
+              :rpc.call(rebase, @server_provider, :offthread_worker_add!, [ref, transfer_state, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
             end
           else
             {:error, {:pang, rebase}}
@@ -280,9 +277,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               Logger.warn("#{inspect o} - worker not running")
               if (Node.ping(rebase) == :pong) do
                 if options[:async] do
-                  remote_cast(rebase, {:worker_add!, ref, options}, context)
+                  :rpc.cast(rebase, @server_provider, :offthread_worker_add!, [ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
+                  #remote_cast(rebase, {:worker_add!, ref, options}, context)
                 else
-                  remote_call(rebase, {:worker_add!, ref, options}, context, options[:timeout] || 60_000)
+                  :rpc.call(rebase, @server_provider, :offthread_worker_add!, [ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
+                  #remote_call(rebase, {:worker_add!, ref, options}, context, options[:timeout] || 60_000)
                 end
               else
                 {:error, {:pang, rebase}}
@@ -491,7 +490,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                   case e do
                     {:timeout, c} ->
                       if timeout > 29_000 do
-                        Logger.error @base.banner("#{__MODULE__}.s_call! - possibly worker (#{inspect ref})")
+                        Logger.error @base.banner("#{__MODULE__}.s_call! - possibly dead worker (#{inspect ref})")
                         {:error, {:exit, e}}
                       else
                         Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
@@ -557,7 +556,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                   case e do
                     {:timeout, c} ->
                       if timeout > 25_000 do
-                        Logger.error @base.banner("#{__MODULE__}.s_call! - possibly worker (#{inspect ref})")
+                        Logger.error @base.banner("#{__MODULE__}.s_call! - possibly dead worker (#{inspect ref})")
                         {:error, {:exit, e}}
                       else
                         Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"

@@ -93,12 +93,41 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     def worker_add!(ref, options, context, state) do
       if Enum.member?(state.options.effective_options.features, :async_load) do
-        state.server.worker_sup_start(ref, state.pool, context)
+        {:reply, state.server.worker_sup_start(ref, state.pool, context), state}
       else
         case state.server.worker_sup_start(ref, state.pool, context) do
           {:ok, pid} -> GenServer.cast(pid, {:s, {:load, options}, context})
             {:reply, {:ok, pid}, state}
           error -> {:reply, error, state}
+        end
+      end
+    end
+
+    #------------------------------------------------
+    # offthread_worker_add!()
+    #------------------------------------------------
+    def offthread_worker_add!(ref, options, context, async_load, server, state_pool) do
+      if async_load do
+        server.worker_sup_start(ref, state_pool, context)
+      else
+        case server.worker_sup_start(ref, state_pool, context) do
+          {:ok, pid} ->
+            GenServer.cast(pid, {:s, {:load, options}, context})
+            {:ok, pid}
+          error -> error
+        end
+      end
+    end
+
+    def offthread_worker_add!(ref, transfer_state, options, context, async_load, server, state_pool) do
+      if async_load do
+        server.worker_sup_start(ref, transfer_state, state_pool, context)
+      else
+        case server.worker_sup_start(ref, transfer_state, state_pool, context) do
+          {:ok, pid} ->
+            GenServer.cast(pid, {:s, {:load, options}, context})
+            {:ok, pid}
+          error -> error
         end
       end
     end
@@ -115,10 +144,9 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # worker_transfer!()
     #------------------------------------------------
     def worker_transfer!(ref, transfer_state, _options, context, state) do
-      response = state.server.worker_sup_start(ref, transfer_state, state.pool, context)      
+      response = state.server.worker_sup_start(ref, transfer_state, state.pool, context)
       {:reply, response, state}
     end
-
 
     #------------------------------------------------
     # worker_remove!
