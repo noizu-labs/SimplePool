@@ -401,7 +401,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # fetch
       #-------------------------------------------------------------------------
 
-      def fetch(identifier, options \\ :default, context \\ nil), do: s_call!(identifier, {:fetch, options}, context)
+      def fetch(identifier, options \\ :default, context \\ nil, timeout \\ @timeout), do: s_call!(identifier, {:fetch, options}, context, timeout)
 
       if unquote(required.save!) do
         def save!(identifier, context \\ nil), do: s_call!(identifier, :save!, context)
@@ -414,7 +414,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.ping!) do
-        def ping!(identifier, context \\ nil), do: s_call!(identifier, :ping!, context)
+        def ping!(identifier, context \\ nil, timeout \\ @timeout), do: s_call!(identifier, :ping!, context, timeout)
       end
 
       if unquote(required.kill!) do
@@ -426,7 +426,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.health_check!) do
-        def health_check!(identifier,  options \\ :default, context \\ nil), do: s_call!(identifier, {:health_check!, options}, context)
+        def health_check!(identifier,  options \\ :default, context \\ nil, timeout \\ @timeout), do: s_call!(identifier, {:health_check!, options}, context, timeout)
       end
 
       #-------------------------------------------------------------------------
@@ -672,34 +672,48 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               r = GenServer.cast(link.handle, extended_call)
               {:ok, link}
             else
-              case worker_pid!(link.ref, [spawn: true], context) do
+              case worker_pid!(link.ref, [spawn: false], context) do
                 {:ok, pid} ->
                   r = GenServer.cast(pid, extended_call)
                   rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
                   {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
                 {:error, details} ->
-                  worker_deregister!(link.ref, context)
-                  case worker_pid!(link.ref, [spawn: true], context) do
-                    {:ok, pid} ->
-                      rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
-                      {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
-                    {:error, details} ->
-                      {:error, %Link{link| handle: nil, state: {:error, details}}}
-                  end # end case inner worker_pid!
+
+                  spawn(fn ->
+                    case worker_pid!(link.ref, [spawn: true], context) do
+                      {:ok, pid} ->
+                        r = GenServer.cast(pid, extended_call)
+                        rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
+                        {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
+                      {:error, details} ->
+                        worker_deregister!(link.ref, context)
+                        case worker_pid!(link.ref, [spawn: true], context) do
+                          {:ok, pid} ->
+                            rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
+                            {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
+                          {:error, details} ->
+                            {:error, %Link{link| handle: nil, state: {:error, details}}}
+                        end # end case inner worker_pid!
+                    end
+                  end)
+                  {:error, %Link{link| handle: nil, state: {:error, details}}}
               end # end case worker_pid!
             end # end if else
           catch
             :exit, e ->
               try do
                 Logger.warn @base.banner("#{__MODULE__}.s_forward - dead worker (#{inspect link})")
-                worker_deregister!(link.ref, context)
-                case worker_pid!(link.ref, [spawn: true], context) do
-                  {:ok, pid} ->
-                    GenServer.cast(pid, extended_call)
-                    {:ok, %Link{link| handle: pid, state: :valid}}
-                  {:error, details} ->
-                    {:error, %Link{link| handle: nil, state: {:error, details}}}
-                end
+                spawn(fn ->
+                    worker_deregister!(link.ref, context)
+                    case worker_pid!(link.ref, [spawn: true], context) do
+                      {:ok, pid} ->
+                        rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
+                        {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
+                      {:error, details} ->
+                        {:error, %Link{link| handle: nil, state: {:error, details}}}
+                    end # end case inner worker_pid!
+                end)
+                {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
               catch
                 :exit, e ->
                   {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
