@@ -23,7 +23,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
         features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
-        verbose: %OptionValue{option: :verbose, default: Application.get_env(:noizu_simple_pool, :verbose, false)},
+        verbose: %OptionValue{option: :verbose, default: :auto},
 
         max_restarts: %OptionValue{option: :max_restarts, default: Application.get_env(:noizu_simple_pool, :pool_max_restarts, @default_max_restarts)},
         max_seconds: %OptionValue{option: :max_seconds, default: Application.get_env(:noizu_simple_pool, :pool_max_seconds, @default_max_seconds)},
@@ -56,6 +56,19 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       import unquote(__MODULE__)
       require Logger
 
+
+      @verbose(
+        if unquote(verbose) == :auto do
+          if Application.get_env(:noizu_simple_pool, @base, %{})[:WorkerSupervisor][:verbose] do
+            Application.get_env(:noizu_simple_pool, @base, %{})[:WorkerSupervisor][:verbose]
+          else
+            Application.get_env(:noizu_simple_pool, :verbose, false)
+          end
+        else
+          unquote(verbose)
+        end
+      )
+
       def option_settings do
         unquote(Macro.escape(option_settings))
       end
@@ -64,7 +77,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
     # @start_link
     if (unquote(required.start_link)) do
       def start_link do
-        if unquote(verbose) do
+        if @verbose do
           @base.banner("#{__MODULE__}.start_link") |> Logger.info()
         end
         Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}])
@@ -85,7 +98,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
     # @init
     if (unquote(required.init)) do
       def init(any) do
-        if (unquote(verbose)) do
+        if @verbose do
           Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect any}") |> Logger.info()
         end
         supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])

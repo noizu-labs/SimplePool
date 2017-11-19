@@ -18,7 +18,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
-        verbose: %OptionValue{option: :verbose, default: Application.get_env(:noizu_simple_pool, :verbose, false)},
+        verbose: %OptionValue{option: :verbose, default: :auto},
         worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
         check_interval_ms: %OptionValue{option: :check_interval_ms, default: Application.get_env(:noizu_simple_pool, :default_inactivity_check_interval_ms, @default_check_interval_ms)},
         kill_interval_ms: %OptionValue{option: :kill_interval_ms, default: Application.get_env(:noizu_simple_pool, :default_inactivity_kill_interval_ms, @default_kill_interval_ms)},
@@ -48,6 +48,18 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       @kill_interval_s(unquote(options.kill_interval_ms)/1000)
       @migrate_shutdown_interval_ms(5_000)
 
+      @verbose(
+        if unquote(verbose) == :auto do
+          if Application.get_env(:noizu_simple_pool, @base, %{})[:Worker][:verbose] do
+            Application.get_env(:noizu_simple_pool, @base, %{})[:Worker][:verbose]
+          else
+            Application.get_env(:noizu_simple_pool, :verbose, false)
+          end
+        else
+          unquote(verbose)
+        end
+      )
+
       def option_settings do
         unquote(Macro.escape(option_settings))
       end
@@ -55,14 +67,14 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       # @start_link
       if (unquote(required.start_link)) do
         def start_link(args) do
-          if (unquote(verbose)) do
+          if (@verbose) do
             @base.banner("START_LINK/1 #{__MODULE__} (#{inspect args})") |> Logger.info()
           end
           GenServer.start_link(__MODULE__, args)
         end
 
         def start_link(ref, args) do
-          if (unquote(verbose)) do
+          if (@verbose) do
             @base.banner("START_LINK/2.migrate #{__MODULE__} (#{inspect args})") |> Logger.info()
           end
           GenServer.start_link(__MODULE__, {:migrate, ref, args})
@@ -76,7 +88,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       # @terminate
       if (unquote(required.terminate)) do
         def terminate(reason, state) do
-          if (unquote(verbose)) do
+          if (@verbose) do
             @base.banner("TERMINATE #{__MODULE__} (#{inspect state.worker_ref}\n Reason: #{inspect reason}") |> Logger.info()
           end
           @worker_state_entity.terminate_hook(reason, clear_inactivity_check(state))
@@ -91,7 +103,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
 
 
         def init({:migrate, ref, {:transfer, initial_state}}) do
-          if (unquote(verbose)) do
+          if (@verbose) do
             @base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }") |> Logger.info()
           end
           @server.worker_register!(ref, {self(), node()})
@@ -108,7 +120,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         end
 
         def init(ref) do
-          if (unquote(verbose)) do
+          if (@verbose) do
             @base.banner("INIT/1 #{__MODULE__} (#{inspect ref }") |> Logger.info()
           end
           @server.worker_register!(ref, {self(), node()})

@@ -34,7 +34,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
-        verbose: %OptionValue{option: :verbose, default: Application.get_env(:noizu_simple_pool, :verbose, false)},
+        verbose: %OptionValue{option: :verbose, default: :auto},
         worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
         default_timeout: %OptionValue{option: :default_timeout, default:  Application.get_env(:noizu_simple_pool, :default_timeout, @default_timeout)},
         shutdown_timeout: %OptionValue{option: :shutdown_timeout, default: Application.get_env(:noizu_simple_pool, :default_shutdown_timeout, @default_shutdown_timeout)},
@@ -89,6 +89,19 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @timeout(unquote(default_timeout))
       @shutdown_timeout(unquote(shutdown_timeout))
 
+
+      @verbose(
+        if unquote(verbose) == :auto do
+          if Application.get_env(:noizu_simple_pool, @base, %{})[:Server][:verbose] do
+            Application.get_env(:noizu_simple_pool, @base, %{})[:Server][:verbose]
+          else
+            Application.get_env(:noizu_simple_pool, :verbose, false)
+          end
+        else
+          unquote(verbose)
+        end
+      )
+
       alias Noizu.SimplePool.Worker.Link
 
       def worker_state_entity, do: @worker_state_entity
@@ -100,7 +113,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       #=========================================================================
       if unquote(required.start_link) do
         def start_link(sup) do
-          if unquote(verbose) do
+          if @verbose do
             @base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}") |> Logger.info()
           end
           GenServer.start_link(__MODULE__, @worker_supervisor, name: __MODULE__)
@@ -109,7 +122,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.init)) do
         def init(sup) do
-          if unquote(verbose) do
+          if @verbose do
             @base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})") |> Logger.info()
           end
           @server_provider.init(__MODULE__, @worker_supervisor, option_settings())
@@ -374,24 +387,57 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def handle_cast({_type, {__MODULE__, _ref}, call}, state), do: handle_cast(call, state)
         def handle_call({_type, {__MODULE__, _ref}, call}, from, state), do: handle_call(call, from, state)
 
+        def handle_cast({:redirect, {_type, {__MODULE__, _ref}, call}}, state), do: handle_cast(call, state)
+        def handle_call({:redirect, {_type, {__MODULE__, _ref}, call}}, from, state), do: handle_call(call, from, state)
+
+
+
         def handle_cast({:s_cast, {call_server, ref}, {:s, _inner, context} = call}, state) do
+          Logger.warn "Redirecting Cast #{inspect call, pretty: true}\n\n"
           call_server.worker_clear!(ref, {self(), node()}, context)
-          call_server.s_cast(ref, call)
+          call_server.s_cast(ref, {:redirect, call})
           {:noreply, state}
         end # end handle_cast/:s_cast
 
         def handle_cast({:s_cast!, {call_server, ref}, {:s, _inner, context} = call}, state) do
+          Logger.warn "Redirecting Cast #{inspect call, pretty: true}\n\n"
           call_server.worker_clear!(ref, {self(), node()}, context)
-          call_server.s_cast!(ref, call)
+          call_server.s_cast!(ref, {:redirect, call})
           {:noreply, state}
         end # end handle_cast/:s_cast!
 
         def handle_call({:s_call, {call_server, ref, timeout}, {:s, _inner, context} = call}, from, state) do
+          Logger.warn "Redirecting Call #{inspect call, pretty: true}\n\n"
           call_server.worker_clear!(ref, {self(), node()}, context)
           {:reply, :s_retry, state}
         end # end handle_call/:s_call
 
         def handle_call({:s_call!, {call_server, ref, timeout}, {:s, _inner, context}} = call, from, state) do
+          Logger.warn "Redirecting Call #{inspect call, pretty: true}\n\n"
+          call_server.worker_clear!(ref, {self(), node()}, context)
+          {:reply, :s_retry, state}
+        end # end handle_call/:s_call!
+
+        def handle_cast({:redirect,  {:s_cast, {call_server, ref}, {:s, _inner, context} = call}} = fc, state) do
+          Logger.error "Redirecting Cast Failed! #{inspect fc, pretty: true}\n\n"
+          call_server.worker_clear!(ref, {self(), node()}, context)
+          {:noreply, state}
+        end # end handle_cast/:s_cast
+
+        def handle_cast({:redirect,  {:s_cast!, {call_server, ref}, {:s, _inner, context} = call}} = fc, state) do
+          Logger.error "Redirecting Cast Failed! #{inspect fc, pretty: true}\n\n"
+          call_server.worker_clear!(ref, {self(), node()}, context)
+          {:noreply, state}
+        end # end handle_cast/:s_cast!
+
+        def handle_call({:redirect, {:s_call, {call_server, ref, timeout}, {:s, _inner, context} = call}} = fc, from, state) do
+          Logger.error "Redirecting Call Failed! #{inspect fc, pretty: true}\n\n"
+          call_server.worker_clear!(ref, {self(), node()}, context)
+          {:reply, :s_retry, state}
+        end # end handle_call/:s_call
+
+        def handle_call({:redirect, {:s_call!, {call_server, ref, timeout}, {:s, _inner, context} = call}} = fc, from, state) do
+          Logger.error "Redirecting Call Failed! #{inspect fc, pretty: true}\n\n"
           call_server.worker_clear!(ref, {self(), node()}, context)
           {:reply, :s_retry, state}
         end # end handle_call/:s_call!
@@ -452,6 +498,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # s_call unsafe implementations
       #-------------------------------------------------------------------------
       def s_call_unsafe(ref, spawn, extended_call, context, timeout \\ @timeout) do
+        #IO.puts "s_call_unsafe #{inspect ref} - #{inspect extended_call}"
         case worker_pid!(ref, spawn, context) do
           {:ok, pid} ->
             case GenServer.call(pid, extended_call, timeout) do
@@ -468,6 +515,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end #end s_call_unsafe
 
       def s_cast_unsafe(ref, spawn, extended_call, context) do
+        #IO.puts "s_cast_unsafe #{inspect ref} - #{inspect extended_call}"
         case worker_pid!(ref, spawn, context) do
           {:ok, pid} -> GenServer.cast(pid, extended_call)
           error -> error
@@ -678,7 +726,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                   rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
                   {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
                 {:error, details} ->
-
+                  Logger.error "link_forward!: #{inspect {:error, details}}\n\n"
                   spawn(fn ->
                     case worker_pid!(link.ref, [spawn: true], context) do
                       {:ok, pid} ->
@@ -702,7 +750,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           catch
             :exit, e ->
               try do
-                Logger.warn @base.banner("#{__MODULE__}.s_forward - dead worker (#{inspect link})")
+                Logger.warn @base.banner("#{__MODULE__}.s_forward - dead worker (#{inspect link})\n\n")
                 spawn(fn ->
                     worker_deregister!(link.ref, context)
                     case worker_pid!(link.ref, [spawn: true], context) do
