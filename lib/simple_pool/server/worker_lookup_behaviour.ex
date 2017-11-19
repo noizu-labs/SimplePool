@@ -2,6 +2,10 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
   @callback update_server!(module :: atom, node :: any, context :: any) :: :ok
   @callback enable_server!(module :: atom, node :: any, context :: any) :: :ok
   @callback disable_server!(module :: atom, node :: any, context :: any) :: :ok
+
+  @callback force_check_worker!(atom, any, context :: any) :: {boolean, pid|any}
+  @callback check_worker!(any, atom, any, context :: any) :: {boolean, pid|any}
+
   @callback get_reg_worker!(atom, any, context :: any) :: {boolean, pid|any}
   @callback dereg_worker!(atom, any, context :: any) :: :ok | :error
   @callback reg_worker!(atom, any, pid, context :: any) :: :ok | {:error, any}
@@ -30,6 +34,9 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     def dereg_worker!(mod, nmid, _context \\ nil) do
       :ets.delete(mod.lookup_table(), nmid)
     end
+
+    def check_worker!(pid_node, mod, nmid, _context \\ nil), do: raise "not implemented"
+    def force_check_worker!(mod, nmid, _context \\ nil), do: raise "not implemented"
 
     def get_reg_worker!(mod, nmid, _context \\ nil) do
       case :ets.info(mod.lookup_table()) do

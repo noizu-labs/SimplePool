@@ -483,7 +483,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           {:error, details} ->
             %Link{ref: ref, handler: __MODULE__, handle: nil, state: {:error, details}}
           ref ->
-            case worker_pid!(ref, [spawn: true], context) do
+            @worker_lookup_handler.force_check_worker!(@base, ref, context)
+            case worker_pid!(ref, [spawn: false], context) do
               {:ok, pid} ->
                 %Link{ref: ref, handler: __MODULE__, handle: pid, state: :valid}
               {:error, details} ->
@@ -539,10 +540,18 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                     {:timeout, c} ->
                       if timeout > 29_000 do
                         Logger.error @base.banner("#{__MODULE__}.s_call! - possibly dead worker (#{inspect ref})")
-                        {:error, {:exit, e}}
                       else
                         Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
-                        {:error, {:exit, e}}
+                      end
+                      try do
+                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
+                          {true, pid} -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                          {false, _pid} -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                          _ -> {:error, {:exit, e}}
+                        end
+                      catch
+                        :exit, e ->
+                          {:error, {:exit, e}}
                       end
                     _  ->
                       try do
@@ -567,18 +576,63 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             ref ->
               extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_cast!, {__MODULE__, ref}, {:s, call, context}}, else: {:s, call, context}
               try do
-                s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                case worker_pid!(ref, [spawn: false], context) do
+                  {:ok, pid} -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                  _ -> spawn(fn ->
+                    try do
+                      s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                    catch
+                      :exit, e ->
+                        case e do
+                          {:timeout, c} ->
+                            Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
+                            try do
+                              case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
+                                {true, pid} -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                                _ -> {:error, {:exit, e}}
+                              end
+                            catch
+                              :exit, e ->
+                                {:error, {:exit, e}}
+                            end
+                          _  ->
+                            try do
+                              Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
+                              worker_deregister!(ref, context)
+                              s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                            catch
+                              :exit, e ->
+                                {:error, {:exit, e}}
+                            end # end inner try
+                        end
+                    end # end try
+                  end)
+                end
+
               catch
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
                       Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
-                      {:error, {:exit, e}}
+                      try do
+                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
+                          {true, pid} -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
+                          {false, nil} -> spawn(fn -> s_cast_unsafe(ref, [spawn: true], extended_call, context) end)
+                          _ -> {:error, {:exit, e}}
+                        end
+                      catch
+                        :exit, e ->
+                          {:error, {:exit, e}}
+                      end
                     _  ->
                       try do
                         Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
                         worker_deregister!(ref, context)
-                        s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
+                          {true, pid} -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
+                          {false, nil} -> spawn(fn -> s_cast_unsafe(ref, [spawn: true], extended_call, context) end)
+                          _ -> {:error, {:exit, e}}
+                        end
                       catch
                         :exit, e ->
                           {:error, {:exit, e}}
@@ -605,16 +659,23 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                     {:timeout, c} ->
                       if timeout > 25_000 do
                         Logger.error @base.banner("#{__MODULE__}.s_call! - possibly dead worker (#{inspect ref})")
-                        {:error, {:exit, e}}
                       else
                         Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
-                        {:error, {:exit, e}}
+                      end
+                      try do
+                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
+                          {true, pid} -> s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
+                          _ -> {:error, {:exit, e}}
+                        end
+                      catch
+                        :exit, e ->
+                          {:error, {:exit, e}}
                       end
                     _  ->
                       try do
                         Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
                         worker_deregister!(ref, context)
-                        s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                        s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
                       catch
                         :exit, e ->
                           {:error, {:exit, e}}
@@ -639,12 +700,20 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                   case e do
                     {:timeout, c} ->
                       Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
-                      {:error, {:exit, e}}
+                      try do
+                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
+                          {true, pid} -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
+                          _ -> {:error, {:exit, e}}
+                        end
+                      catch
+                        :exit, e ->
+                          {:error, {:exit, e}}
+                      end
                     _  ->
                       try do
                         Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
                         worker_deregister!(ref, context)
-                        s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                        s_cast_unsafe(ref, [spawn: false], extended_call, context)
                       catch
                         :exit, e ->
                           {:error, {:exit, e}}
