@@ -795,7 +795,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                   rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
                   {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
                 {:error, details} ->
-                  Logger.error "link_forward!: #{inspect {:error, details}}\n\n"
                   spawn(fn ->
                     case worker_pid!(link.ref, [spawn: true], context) do
                       {:ok, pid} ->
@@ -809,6 +808,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                             rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
                             {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
                           {:error, details} ->
+                            Logger.error "link_forward!: #{inspect {:error, details}} - #{inspect link, pretty: true}"
                             {:error, %Link{link| handle: nil, state: {:error, details}}}
                         end # end case inner worker_pid!
                     end
