@@ -7,14 +7,14 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
   @callback start_link() :: any
   @callback start_children(any) :: any
 
-  @methods([:start_link, :start_children, :init])
+  @methods ([:start_link, :start_children, :init])
 
-  @features([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
+  @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
+  @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
-  @default_max_seconds(5)
-  @default_max_restarts(5)
-  @default_strategy(:one_for_one)
+  @default_max_seconds (5)
+  @default_max_restarts (100_000)
+  @default_strategy (:one_for_one)
 
   def prepare_options(options) do
     settings = %OptionSettings{

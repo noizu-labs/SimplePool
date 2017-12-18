@@ -17,14 +17,14 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   #@callback start_children(any) :: any
 
   # TODO callbacks
-  @methods([
+  @methods ([
       :start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
       :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_start_transfer!, :worker_remove!, :worker_terminate!,
       :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!,
-      :crash!, :health_check!, :save!, :reload!
+      :crash!, :health_check!, :save!, :reload!, :remove!
   ])
-  @features([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
+  @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
+  @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
   @default_timeout 15_000
   @default_shutdown_timeout 30_000
@@ -73,24 +73,24 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.ServerBehaviour
       use GenServer
-      @base(Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat)
-      @worker(Module.concat([@base, "Worker"]))
-      @worker_supervisor(Module.concat([@base, "WorkerSupervisor"]))
-      @server(__MODULE__)
-      @pool_supervisor(Module.concat([@base, "PoolSupervisor"]))
-      @pool_async_load(unquote(Map.get(options, :async_load, false)))
-      @simple_pool_group({@base, @worker, @worker_supervisor, __MODULE__, @pool_supervisor})
+      @base (Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat)
+      @worker (Module.concat([@base, "Worker"]))
+      @worker_supervisor (Module.concat([@base, "WorkerSupervisor"]))
+      @server (__MODULE__)
+      @pool_supervisor (Module.concat([@base, "PoolSupervisor"]))
+      @pool_async_load (unquote(Map.get(options, :async_load, false)))
+      @simple_pool_group ({@base, @worker, @worker_supervisor, __MODULE__, @pool_supervisor})
 
-      @worker_state_entity(Noizu.SimplePool.Behaviour.expand_worker_state_entity(@base, unquote(options.worker_state_entity)))
-      @server_provider(unquote(options.server_provider))
-      @worker_lookup_handler(unquote(worker_lookup_handler))
-      @module_and_lookup_handler({__MODULE__, @worker_lookup_handler})
+      @worker_state_entity (Noizu.SimplePool.Behaviour.expand_worker_state_entity(@base, unquote(options.worker_state_entity)))
+      @server_provider (unquote(options.server_provider))
+      @worker_lookup_handler (unquote(worker_lookup_handler))
+      @module_and_lookup_handler ({__MODULE__, @worker_lookup_handler})
 
-      @timeout(unquote(default_timeout))
-      @shutdown_timeout(unquote(shutdown_timeout))
+      @timeout (unquote(default_timeout))
+      @shutdown_timeout (unquote(shutdown_timeout))
 
 
-      @verbose(
+      @verbose (
         if unquote(verbose) == :auto do
           if Application.get_env(:noizu_simple_pool, @base, %{})[:Server][:verbose] do
             Application.get_env(:noizu_simple_pool, @base, %{})[:Server][:verbose]
@@ -219,39 +219,62 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def ref(identifier), do: @worker_state_entity.ref(identifier)
       end
 
-
       #-------------------------------------------------------------------------------
       # Worker Process Management
       #-------------------------------------------------------------------------------
       if unquote(required.worker_add!) do
         def worker_add!(ref, options \\ nil, context \\ nil) do
-          if options[:distributed] do
-            nodes = if options[:node] do
-              [options[:node]]
-            else
-              options[:nodes] || @worker_lookup_handler.get_distributed_nodes!(@base, ref, context)
-            end
-
-            {_proceed, response} = Enum.reduce(
-              nodes,
-              {true, {:error, :unexpected}},
-              fn(node, {proceed, response} = acc) ->
-                if proceed do
-                  case :rpc.call(node, @server_provider, :offthread_worker_add!, [ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor]) do
-                    {:ok, pid} -> {false, {:ok, pid}}
-                    {:badrpc, _d} = e -> {proceed, e}
-                    e -> {proceed, e}
-                  end
-                else
-                  acc
-                end
-              end
-            )
-            response
+          t = :os.system_time(:seconds)
+          if @worker_lookup_handler.is_locked?(@base, ref, t, context) && options[:force] != true do
+            {:error, :locked}
           else
-            @server_provider.offthread_worker_add!(ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor)
+            if options[:distributed] do
+              nodes = if options[:node] do
+                [options[:node]]
+              else
+                options[:nodes] || @worker_lookup_handler.get_distributed_nodes!(@base, ref, context)
+              end
+
+              {_proceed, response} = Enum.reduce(
+                nodes,
+                {true, {:error, :unexpected}},
+                fn(node, {proceed, response} = acc) ->
+                  if proceed do
+                    case :rpc.call(node, @server_provider, :offthread_worker_add!, [ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor]) do
+                      {:ok, pid} ->
+                        @worker_lookup_handler.record_restart!(@base, ref, t, context)
+                        {false, {:ok, pid}}
+                      {:badrpc, _d} = e -> {proceed, e}
+                      e -> {proceed, e}
+                    end
+                  else
+                    acc
+                  end
+                end
+              )
+              response
+            else
+              case @server_provider.offthread_worker_add!(ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor) do
+                {:ok, pid} ->
+                  @worker_lookup_handler.record_restart!(@base, ref, t, context)
+                  {:ok, pid}
+                o -> o
+              end
+            end
           end
          end
+      end
+
+
+      if unquote(required.remove!) do
+        def remove!(ref, options, context) do
+          ref = worker_ref!(ref)
+          rnode = @worker_lookup_handler.get_worker_node(@base, ref)
+          cond do
+            rnode == :error -> {:error, :not_registered}
+            true -> remote_cast(rnode, {:worker_remove!, ref, options}, context)
+          end
+        end
       end
 
       if unquote(required.worker_remove!) do
@@ -287,7 +310,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 s_call!(ref, {:migrate!, ref, rebase, options}, context, options[:timeout] || 60_000)
               end
             o ->
-              Logger.warn("#{inspect o} - worker not running")
               if (Node.ping(rebase) == :pong) do
                 if options[:async] do
                   :rpc.cast(rebase, @server_provider, :offthread_worker_add!, [ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
@@ -348,9 +370,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         extended_call = {:s, call, context}
         GenServer.call(__MODULE__, extended_call, timeout)
       end
-      def self_cast(call, context \\ nil, timeout \\ @timeout) do
+      def self_cast(call, context \\ nil) do
         extended_call = {:s, call, context}
-        GenServer.call(__MODULE__, extended_call, timeout)
+        GenServer.cast(__MODULE__, extended_call)
       end
 
       def internal_call(call, context \\ nil, timeout \\ @timeout) do
@@ -538,15 +560,30 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      if timeout > 29_000 do
-                        Logger.error @base.banner("#{__MODULE__}.s_call! - possibly dead worker (#{inspect ref})")
-                      else
-                        Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
-                      end
                       try do
                         case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                          {true, pid} -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
-                          {false, _pid} -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                          {true, pid} ->
+
+                            t = :os.system_time(:seconds)
+                            case @worker_lookup_handler.record_timeout!(@base, ref, {t, timeout}, context) do
+                              :ok -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                              :reap ->
+                                case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
+                                  :proceed -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                                  :ok -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
+                                  :queued -> {:error, :queued_for_reaping}
+                                  o ->
+                                    Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
+                                    {:error, o}
+                                end
+                              :error -> {:error, {:timeout, c}}
+                              o ->
+                                Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
+                                {:error, o}
+                            end
+
+                          {false, _pid} ->
+                            s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
                           _ -> {:error, {:exit, e}}
                         end
                       catch
@@ -585,16 +622,37 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                       :exit, e ->
                         case e do
                           {:timeout, c} ->
-                            Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
                             try do
                               case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                                {true, pid} -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                                {true, pid} ->
+
+                                  t = :os.system_time(:seconds)
+                                  case @worker_lookup_handler.record_timeout!(@base, ref, {t, 5_000}, context) do
+                                    :ok -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                                    :reap ->
+                                      case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
+                                        :proceed -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                                        :ok -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                                        :queued -> {:error, :queued_for_reaping}
+                                        o ->
+                                          Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
+                                          {:error, o}
+                                      end
+                                    :error -> {:error, {:timeout, c}}
+                                    o ->
+                                      Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
+                                      {:error, o}
+                                  end
+
+                                {false, _pid} ->
+                                  s_cast_unsafe(ref, [spawn: true], extended_call, context)
                                 _ -> {:error, {:exit, e}}
                               end
                             catch
                               :exit, e ->
                                 {:error, {:exit, e}}
                             end
+
                           _  ->
                             try do
                               Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
@@ -613,11 +671,29 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
                       try do
                         case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                          {true, pid} -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
-                          {false, nil} -> spawn(fn -> s_cast_unsafe(ref, [spawn: true], extended_call, context) end)
+                          {true, pid} ->
+                            t = :os.system_time(:seconds)
+                            case @worker_lookup_handler.record_timeout!(@base, ref, {t, 5_000}, context) do
+                              :ok -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                              :reap ->
+                                case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
+                                  :proceed -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                                  :ok -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
+                                  :queued -> {:error, :queued_for_reaping}
+                                  o ->
+                                    Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
+                                    {:error, o}
+                                end
+                              :error -> {:error, {:timeout, c}}
+                              o ->
+                                Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
+                                {:error, o}
+                            end
+
+                          {false, _pid} ->
+                            s_cast_unsafe(ref, [spawn: true], extended_call, context)
                           _ -> {:error, {:exit, e}}
                         end
                       catch
@@ -657,20 +733,38 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      if timeout > 25_000 do
-                        Logger.error @base.banner("#{__MODULE__}.s_call! - possibly dead worker (#{inspect ref})")
-                      else
-                        Logger.warn "#{@base} - unresponsive worker (#{inspect ref}) #{inspect timeout}"
-                      end
+
                       try do
                         case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                          {true, pid} -> s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
+                          {true, pid} ->
+                            t = :os.system_time(:seconds)
+                            case @worker_lookup_handler.record_timeout!(@base, ref, {t, timeout}, context) do
+                              :ok -> s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
+                              :reap ->
+                                case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
+                                  :proceed -> s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
+                                  :ok -> s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
+                                  :queued -> {:error, :queued_for_reaping}
+                                  o ->
+                                    Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
+                                    {:error, o}
+                                end
+                              :error -> {:error, {:timeout, c}}
+                              o ->
+                                Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
+                                {:error, o}
+                            end
+
+                          {false, _pid} ->
+                            s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
                           _ -> {:error, {:exit, e}}
                         end
                       catch
                         :exit, e ->
                           {:error, {:exit, e}}
                       end
+
+
                     _  ->
                       try do
                         Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
@@ -699,10 +793,30 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :exit, e ->
                   case e do
                     {:timeout, c} ->
-                      Logger.warn "#{@base} - unresponsive worker (#{inspect ref})"
                       try do
                         case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                          {true, pid} -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
+                          {true, pid} ->
+
+                            t = :os.system_time(:seconds)
+                            case @worker_lookup_handler.record_timeout!(@base, ref, {t, 5_000}, context) do
+                              :ok -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
+                              :reap ->
+                                case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
+                                  :proceed -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
+                                  :ok -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
+                                  :queued -> {:error, :queued_for_reaping}
+                                  o ->
+                                    Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
+                                    {:error, o}
+                                end
+                              :error -> {:error, {:timeout, c}}
+                              o ->
+                                Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
+                                {:error, o}
+                            end
+
+                          {false, _pid} ->
+                            s_cast_unsafe(ref, [spawn: false], extended_call, context)
                           _ -> {:error, {:exit, e}}
                         end
                       catch

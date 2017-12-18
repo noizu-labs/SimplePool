@@ -3,12 +3,12 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   alias Noizu.SimplePool.OptionValue
   alias Noizu.SimplePool.OptionList
   require Logger
-  @methods([:start_link, :init, :terminate, :fetch, :save!, :reload!])
-  @features([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
+  @methods ([:start_link, :init, :terminate, :fetch, :save!, :reload!])
+  @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
+  @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
 
-  @default_check_interval_ms(1000 * 60 * 5)
-  @default_kill_interval_ms(1000 * 60 * 15)
+  @default_check_interval_ms (1000 * 60 * 5)
+  @default_kill_interval_ms (1000 * 60 * 15)
 
   @callback option_settings() :: Noizu.SimplePool.OptionSettings.t
 
@@ -41,14 +41,14 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       require Logger
       @behaviour Noizu.SimplePool.WorkerBehaviour
       use GenServer
-      @base(Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat)
-      @server(Module.concat([@base, "Server"]))
-      @worker_state_entity(Noizu.SimplePool.Behaviour.expand_worker_state_entity(@base, unquote(options.worker_state_entity)))
-      @check_interval_ms(unquote(options.check_interval_ms))
-      @kill_interval_s(unquote(options.kill_interval_ms)/1000)
-      @migrate_shutdown_interval_ms(5_000)
+      @base (Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat)
+      @server (Module.concat([@base, "Server"]))
+      @worker_state_entity (Noizu.SimplePool.Behaviour.expand_worker_state_entity(@base, unquote(options.worker_state_entity)))
+      @check_interval_ms (unquote(options.check_interval_ms))
+      @kill_interval_s (unquote(options.kill_interval_ms)/1000)
+      @migrate_shutdown_interval_ms (5_000)
 
-      @verbose(
+      @verbose (
         if unquote(verbose) == :auto do
           if Application.get_env(:noizu_simple_pool, @base, %{})[:Worker][:verbose] do
             Application.get_env(:noizu_simple_pool, @base, %{})[:Worker][:verbose]
