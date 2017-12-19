@@ -1,33 +1,30 @@
-defmodule Noizu.SimplePool.ServerBehaviour do
-  alias Noizu.SimplePool.OptionSettings
-  alias Noizu.SimplePool.OptionValue
-  alias Noizu.SimplePool.OptionList
-  require Logger
-  # @TODO auto generate convience methods, fetch worker_entity_provider\s set of methods using reflection. and use macros to genrate.
+#-------------------------------------------------------------------------------
+# Author: Keith Brings <keith.brings@noizu.com>
+# Copyright (C) 2017 Noizu Labs, Inc. All rights reserved.
+#-------------------------------------------------------------------------------
 
-  # @TODO
-  # 1. automaticly pass calling context as part of s_cast/s_call,
-  # 2. Call tuples should look as follows  {{:call, params, ...}, context}
-  # 3. Support module lookup of server processes using s_call or self_call
-  # 4. Support module worker migration.
-  # 5. Test and fin!
+defmodule Noizu.SimplePool.ServerBehaviour do
+  alias Noizu.ElixirCore.OptionSettings
+  alias Noizu.ElixirCore.OptionValue
+  alias Noizu.ElixirCore.OptionList
+  alias Noizu.SimplePool.Worker.Link
+  require Logger
 
   @callback option_settings() :: Map.t
   @callback start_link(any) :: any
-  #@callback start_children(any) :: any
 
-  # TODO callbacks
   @methods ([
-      :start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
-      :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_start_transfer!, :worker_remove!, :worker_terminate!,
-      :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!,
-      :crash!, :health_check!, :save!, :reload!, :remove!
-  ])
+              :start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
+              :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_start_transfer!, :worker_remove!, :worker_terminate!,
+              :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!,
+              :crash!, :health_check!, :save!, :reload!, :remove!
+            ])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
   @default_timeout 15_000
   @default_shutdown_timeout 30_000
+
   def prepare_options(options) do
     settings = %OptionSettings{
       option_settings: %{
@@ -40,7 +37,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         shutdown_timeout: %OptionValue{option: :shutdown_timeout, default: Application.get_env(:noizu_simple_pool, :default_shutdown_timeout, @default_shutdown_timeout)},
         server_driver: %OptionValue{option: :server_driver, default: Application.get_env(:noizu_simple_pool, :default_server_driver, Noizu.SimplePool.ServerDriver.Default)},
         worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation)},
-        server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)}
+        server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)},
+        server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitor, Noizu.SimplePool.ServerMonitorBehaviour.DefaultImplementation)},
       }
     }
 
@@ -48,6 +46,391 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     modifications = Map.put(initial.effective_options, :required, List.foldl(@methods, %{}, fn(x, acc) -> Map.put(acc, x, initial.effective_options.only[x] && !initial.effective_options.override[x]) end))
     %OptionSettings{initial| effective_options: Map.merge(initial.effective_options, modifications)}
   end
+
+  def default_verbose(verbose, base) do
+    if verbose == :auto do
+      if Application.get_env(:noizu_simple_pool, base, %{})[:PoolSupervisor][:verbose] do
+        Application.get_env(:noizu_simple_pool, base, %{})[:PoolSupervisor][:verbose]
+      else
+        Application.get_env(:noizu_simple_pool, :verbose, false)
+      end
+    else
+      verbose
+    end
+  end
+
+  def default_run_on_host(mod, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
+    case worker_lookup_handler.host!(ref, mod, context, options) do
+      {:ack, host} ->
+        if host == node() do
+          apply(m,f,a)
+        else
+          :rpc.call(host, m,f,a, timeout)
+        end
+      o -> o
+    end
+  end
+
+  def default_cast_to_host(mod, worker_lookup_handler, ref, {m,f,a}, context, options) do
+    case worker_lookup_handler.host!(ref, mod, context, options) do
+      {:ack, host} ->
+        if host == node() do
+          apply(m,f,a)
+        else
+          :rpc.cast(host, m,f,a)
+        end
+      o -> o
+    end
+  end
+
+  #-------------------------------------------------------------------------
+  # get_direct_link!
+  #-------------------------------------------------------------------------
+  def default_get_direct_link!(mod, ref, context, options \\ %{spawn: false}) do
+    case  mod.worker_ref!(ref, context) do
+      nil ->
+        %Link{ref: ref, handler: mod, handle: nil, state: {:error, :no_ref}}
+      {:error, details} ->
+        %Link{ref: ref, handler: mod, handle: nil, state: {:error, details}}
+      ref ->
+        options_b = if Map.has_key?(options, :spawn) do
+          options
+        else
+          put_in(options, [:spawn], false)
+        end
+
+        case mod.worker_pid!(ref, context, options_b) do
+          {:ack, pid} ->
+            %Link{ref: ref, handler: mod, handle: pid, state: :valid}
+          {:error, details} ->
+            %Link{ref: ref, handler: mod, handle: nil, state: {:error, details}}
+          error ->
+            %Link{ref: ref, handler: mod, handle: nil, state: {:error, error}}
+        end
+    end
+  end
+
+  #-------------------------------------------------------------------------
+  # s_call unsafe implementations
+  #-------------------------------------------------------------------------
+  def default_s_call_unsafe(mod, ref, extended_call, context, options, timeout) do
+    case mod.worker_pid!(ref, context, options) do
+      {:ack, pid} ->
+        case GenServer.call(pid, extended_call, timeout) do
+          :s_retry ->
+            case mod.worker_pid!(ref, context, options) do
+              {:ack, pid} -> GenServer.call(pid, extended_call, timeout)
+              error -> error
+            end
+          v -> v
+        end
+      error ->
+        error
+    end # end case
+  end #end s_call_unsafe
+
+  def default_s_cast_unsafe(mod, ref, extended_call, context, options) do
+    case mod.worker_pid!(ref, context, options) do
+      {:ack, pid} -> GenServer.cast(pid, extended_call)
+      error -> error
+    end
+  end
+
+
+  def default_crash_protection_rs_call!({mod, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options, timeout) do
+    extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_call!, {mod, identifier, timeout}, {:s, call, context}}, else: {:s, call, context}
+    try do
+      mod.s_call_unsafe(identifier, extended_call, context, options, timeout)
+    catch
+      :exit, e ->
+        case e do
+          {:timeout, c} ->
+            try do
+              worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
+              {:error, {:timeout, c}}
+            catch
+              :exit, e ->  {:error, {:exit, e}}
+            end # end inner try
+          o  ->
+            try do
+              Logger.warn fn -> base.banner("#{mod}.s_call! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}") end
+              worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+              {:error, {:exit, o}}
+            catch
+              :exit, e ->
+                {:error, {:exit, e}}
+            end # end inner try
+        end
+    end # end try
+  end
+
+  @doc """
+    Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
+  """
+  def default_crash_protection_s_call!(mod, identifier, call, context , options, timeout) do
+    case  mod.worker_ref!(identifier, context) do
+      {:error, details} -> {:error, details}
+      ref ->
+        try do
+          options_b = put_in(options, [:spawn], true)
+          mod.run_on_host(ref, {mod, :rs_call!, [ref, call, context, options_b, timeout]}, context, options_b, timeout)
+        catch
+          :exit, e -> {:error, {:exit, e}}
+        end
+    end
+  end # end s_call!
+
+
+  def default_crash_protection_rs_cast!({mod, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options) do
+    extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast!, {mod, identifier}, {:s, call, context}}, else: {:s, call, context}
+    try do
+      mod.s_cast_unsafe(identifier, extended_call, context, options)
+    catch
+      :exit, e ->
+        case e do
+          {:timeout, c} ->
+            try do
+              worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+              {:error, {:timeout, c}}
+            catch
+              :exit, e ->  {:error, {:exit, e}}
+            end # end inner try
+          o  ->
+            try do
+              Logger.warn fn -> base.banner("#{mod}.s_cast! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}") end
+              worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+              {:error, {:exit, o}}
+            catch
+              :exit, e ->
+                {:error, {:exit, e}}
+            end # end inner try
+        end
+    end # end try
+  end
+
+  @doc """
+    Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
+  """
+  def default_crash_protection_s_cast!(mod, identifier, call, context, options) do
+    case  mod.worker_ref!(identifier, context) do
+      {:error, details} -> {:error, details}
+      ref ->
+        try do
+          options_b = put_in(options, [:spawn], true)
+          mod.cast_to_host(ref, {mod, :rs_cast!, [ref, call, context, options_b]}, context, options)
+        catch
+          :exit, e -> {:error, {:exit, e}}
+        end
+    end
+  end # end s_cast!
+
+  def default_crash_protection_rs_call({mod, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options, timeout) do
+    extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_call, {mod, identifier, timeout}, {:s, call, context}}, else: {:s, call, context}
+    try do
+      mod.s_call_unsafe(identifier, extended_call, context, options, timeout)
+    catch
+      :exit, e ->
+        case e do
+          {:timeout, c} ->
+            try do
+              worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
+              {:error, {:timeout, c}}
+            catch
+              :exit, e ->  {:error, {:exit, e}}
+            end # end inner try
+          o  ->
+            try do
+              Logger.warn fn -> base.banner("#{mod}.s_call - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}") end
+              worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+              {:error, {:exit, o}}
+            catch
+              :exit, e ->
+                {:error, {:exit, e}}
+            end # end inner try
+        end
+    end # end try
+  end
+
+  @doc """
+    Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
+  """
+  def default_crash_protection_s_call(mod, identifier, call, context, options, timeout) do
+    case  mod.worker_ref!(identifier, context) do
+      {:error, details} -> {:error, details}
+      ref ->
+        try do
+          options_b = put_in(options, [:spawn], false)
+          mod.run_on_host(ref, {mod, :rs_call, [ref, call, context, options_b, timeout]}, context, options_b, timeout)
+        catch
+          :exit, e -> {:error, {:exit, e}}
+        end
+    end
+  end # end s_call!
+
+  def default_crash_protection_rs_cast({mod, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options) do
+    extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast, {mod, identifier}, {:s, call, context}}, else: {:s, call, context}
+    try do
+      mod.s_cast_unsafe(identifier, extended_call, context, options)
+    catch
+      :exit, e ->
+        case e do
+          {:timeout, c} ->
+            try do
+              worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+              {:error, {:timeout, c}}
+            catch
+              :exit, e ->  {:error, {:exit, e}}
+            end # end inner try
+          o  ->
+            try do
+              Logger.warn fn -> base.banner("#{mod}.s_call! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}") end
+              worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+              {:error, {:exit, o}}
+            catch
+              :exit, e ->
+                {:error, {:exit, e}}
+            end # end inner try
+        end
+    end # end try
+  end
+
+  @doc """
+    Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
+  """
+  def default_crash_protection_s_cast(mod, identifier, call, context, options) do
+    case  mod.worker_ref!(identifier, context) do
+      {:error, details} -> {:error, details}
+      ref ->
+        try do
+          options_b = put_in(options, [:spawn], false)
+          mod.cast_to_host(ref, {__MODULE__, :rs_cast, [ref, call, context, options_b]}, context, options_b)
+        catch
+          :exit, e -> {:error, {:exit, e}}
+        end
+    end
+  end # end s_cast!
+
+
+
+  @doc """
+    Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
+  """
+  def default_nocrash_protection_s_call!({mod, s_redirect_feature}, identifier, call, context, options, timeout ) do
+    case mod.worker_ref!(identifier, context) do
+      {:error, details} -> {:error, details}
+      ref ->
+        extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_call!, {mod, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
+        options_b = put_in(options, [:spawn], true)
+        mod.run_on_host(ref, {mod, :s_call_unsafe, [ref, extended_call, context, options_b, timeout]}, context, options_b, timeout)
+    end
+  end # end s_call!
+
+  @doc """
+    Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
+  """
+  def default_nocrash_protection_s_cast!({mod, s_redirect_feature}, identifier, call, context, options) do
+    case mod.worker_ref!(identifier, context) do
+      {:error, details} -> {:error, details}
+      ref ->
+        extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast!, {mod, ref}, {:s, call, context}}, else: {:s, call, context}
+        options_b = put_in(options, [:spawn], true)
+        mod.cast_to_host(ref, {__MODULE__, :s_cast_unsafe, [ref, extended_call, context, options_b]}, context, options_b)
+    end # end case worker_ref!
+  end # end s_cast!
+
+  @doc """
+    Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
+  """
+  def default_nocrash_protection_s_call({mod, s_redirect_feature}, identifier, call, context, options, timeout ) do
+    case  mod.worker_ref!(identifier, context) do
+      {:error, details} -> {:error, details}
+      ref ->
+        extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_call, {mod, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
+        options_b = put_in(options, [:spawn], false)
+        mod.run_on_host(ref, {__MODULE__, :s_call_unsafe, [ref, extended_call, context, options_b, timeout]}, context, options_b, timeout)
+    end # end case
+  end # end s_call!
+
+  @doc """
+    Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
+  """
+  def default_nocrash_protection_s_cast({mod, s_redirect_feature}, identifier, call, context, options) do
+    case mod.worker_ref!(identifier, context) do
+      {:error, details} -> {:error, details}
+      ref ->
+        extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast, {mod, ref}, {:s, call, context}}, else: {:s, call, context}
+        options_b = put_in(options, [:spawn], false)
+        mod.cast_to_host(ref, {__MODULE__, :s_cast_unsafe, [ref, extended_call, context, options_b]}, context, options_b)
+    end # end case worker_ref!
+  end # end s_cast!
+
+
+  @doc """
+    Crash Protection always enabled, for now.
+  """
+  def default_link_forward!({mod, base, s_redirect_feature}, %Link{handler: __MODULE__} = link, call, context, options) do
+    extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast, {mod, link.ref}, {:s, call, context}}, else: {:s, call, context}
+    now_ts = options[:time] || :os.system_time(:seconds)
+    options_b = put_in(options, [:spawn], true)
+
+    try do
+      if link.handle && (link.expire == :infinity or link.expire > now_ts) do
+        r = GenServer.cast(link.handle, extended_call)
+        {:ok, link}
+      else
+        case mod.worker_pid!(link.ref, context, options_b) do
+          {:ack, pid} ->
+            r = GenServer.cast(pid, extended_call)
+            rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
+            {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
+          {:error, details} ->
+            {:error, %Link{link| handle: nil, state: {:error, details}}}
+        end # end case worker_pid!
+      end # end if else
+    catch
+      :exit, e ->
+        try do
+          Logger.warn(fn -> {base.banner("#{__MODULE__}.s_forward - dead worker (#{inspect link})\n\n"),  Noizu.ElixirCore.CallingContext.metadata(context)} end )
+          {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
+        catch
+          :exit, e ->
+            {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
+        end # end inner try
+    end # end try
+  end # end link_forward!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   defmacro __using__(options) do
     option_settings = prepare_options(options)
@@ -57,10 +440,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     worker_lookup_handler = options.worker_lookup_handler
     default_timeout = options.default_timeout
     shutdown_timeout = options.shutdown_timeout
+    server_monitor = options.server_monitor
+
     case Map.keys(option_settings.output.errors) do
       [] -> :ok
       l when is_list(l) ->
-         Logger.error "
+        Logger.error "
     ---------------------- Errors In Pool Settings  ----------------------------
     #{inspect option_settings, pretty: true, limit: :infinity}
     ----------------------------------------------------------------------------
@@ -89,32 +474,31 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @timeout (unquote(default_timeout))
       @shutdown_timeout (unquote(shutdown_timeout))
 
+      @base_verbose unquote(verbose)
 
-      @verbose (
-        if unquote(verbose) == :auto do
-          if Application.get_env(:noizu_simple_pool, @base, %{})[:Server][:verbose] do
-            Application.get_env(:noizu_simple_pool, @base, %{})[:Server][:verbose]
-          else
-            Application.get_env(:noizu_simple_pool, :verbose, false)
-          end
-        else
-          unquote(verbose)
-        end
-      )
+      @server_monitor unquote(server_monitor)
+      @option_settings unquote(Macro.escape(option_settings))
+      @options unquote(Macro.escape(options))
+      @s_redirect_feature unquote(MapSet.member?(features, :s_redirect))
+
+      @graceful_stop unquote(MapSet.member?(features, :graceful_stop))
+
+      def verbose() (
+            default_verbose(@base_verbose, @base)
+          )
 
       alias Noizu.SimplePool.Worker.Link
-
       def worker_state_entity, do: @worker_state_entity
-      def option_settings, do: unquote(Macro.escape(option_settings))
-
+      def option_settings, do: @option_settings
+      def options, do: @options
 
       #=========================================================================
       # Genserver Lifecycle
       #=========================================================================
       if unquote(required.start_link) do
         def start_link(sup) do
-          if @verbose do
-            @base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}") |> Logger.info()
+          if verbose() do
+            Logger.info(fn -> @base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}") end)
           end
           GenServer.start_link(__MODULE__, @worker_supervisor, name: __MODULE__)
         end
@@ -122,8 +506,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.init)) do
         def init(sup) do
-          if @verbose do
-            @base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})") |> Logger.info()
+          if verbose() do
+            Logger.info(fn -> @base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})") end)
           end
           @server_provider.init(__MODULE__, @worker_supervisor, option_settings())
         end
@@ -144,20 +528,20 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       def worker_sup_start(ref, transfer_state, sup, context) do
         childSpec = @worker_supervisor.child(ref, transfer_state, context)
         case Supervisor.start_child(@worker_supervisor, childSpec) do
-          {:ok, pid} -> {:ok, pid}
+          {:ok, pid} -> {:ack, pid}
           {:error, {:already_started, pid}} ->
-              timeout = @timeout
-              call = {:transfer_state, transfer_state}
-              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
-              GenServer.cast(pid, extended_call)
-              Logger.warn("#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}")
-              {:ok, pid}
+            timeout = @timeout
+            call = {:transfer_state, transfer_state}
+            extended_call = if @s_redirect_feature, do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
+            GenServer.cast(pid, extended_call)
+            Logger.warn(fn ->"#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}" end)
+            {:ack, pid}
           {:error, :already_present} ->
             # We may no longer simply restart child as it may have been initilized
             # With transfer_state and must be restarted with the correct context.
             Supervisor.delete_child(@worker_supervisor, ref)
             case Supervisor.start_child(@worker_supervisor, childSpec) do
-              {:ok, pid} -> {:ok, pid}
+              {:ok, pid} -> {:ack, pid}
               error -> error
             end
           error -> error
@@ -167,28 +551,29 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       def worker_sup_start(ref, sup, context) do
         childSpec = @worker_supervisor.child(ref, context)
         case Supervisor.start_child(@worker_supervisor, childSpec) do
-          {:ok, pid} -> {:ok, pid}
+          {:ok, pid} -> {:ack, pid}
           {:error, {:already_started, pid}} ->
-              {:ok, pid}
+            {:ack, pid}
           {:error, :already_present} ->
             # We may no longer simply restart child as it may have been initilized
             # With transfer_state and must be restarted with the correct context.
             Supervisor.delete_child(@worker_supervisor, ref)
             case Supervisor.start_child(@worker_supervisor, childSpec) do
-              {:ok, pid} -> {:ok, pid}
+              {:ok, pid} -> {:ack, pid}
               error -> error
             end
           error -> error
         end # end case
       end # endstart/3
 
-      def worker_sup_terminate(ref, sup, context) do
+      def worker_sup_terminate(ref, sup, context, options \\ %{}) do
         Supervisor.terminate_child(@worker_supervisor, ref)
         Supervisor.delete_child(@worker_supervisor, ref)
       end # end remove/3
 
-      def worker_sup_remove(ref, sup, context) do
-        if unquote(MapSet.member?(features, :graceful_stop)) do
+      def worker_sup_remove(ref, sup, context, options \\ %{}) do
+        g = if Map.has_key(options, :graceful_stop), do: options[:graceful_stop], else: @graceful_stop
+        if g do
           s_call(ref, {:shutdown, [force: true]}, context, @shutdown_timeout)
         end
         Supervisor.terminate_child(@worker_supervisor, ref)
@@ -224,83 +609,68 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       #-------------------------------------------------------------------------------
       if unquote(required.worker_add!) do
         def worker_add!(ref, options \\ nil, context \\ nil) do
-          t = :os.system_time(:seconds)
-          if @worker_lookup_handler.is_locked?(@base, ref, t, context) && options[:force] != true do
-            {:error, :locked}
-          else
-            if options[:distributed] do
-              nodes = if options[:node] do
-                [options[:node]]
-              else
-                options[:nodes] || @worker_lookup_handler.get_distributed_nodes!(@base, ref, context)
-              end
-
-              {_proceed, response} = Enum.reduce(
-                nodes,
-                {true, {:error, :unexpected}},
-                fn(node, {proceed, response} = acc) ->
-                  if proceed do
-                    case :rpc.call(node, @server_provider, :offthread_worker_add!, [ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor]) do
-                      {:ok, pid} ->
-                        @worker_lookup_handler.record_restart!(@base, ref, t, context)
-                        {false, {:ok, pid}}
-                      {:badrpc, _d} = e -> {proceed, e}
-                      e -> {proceed, e}
-                    end
-                  else
-                    acc
-                  end
-                end
-              )
-              response
-            else
-              case @server_provider.offthread_worker_add!(ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor) do
-                {:ok, pid} ->
-                  @worker_lookup_handler.record_restart!(@base, ref, t, context)
-                  {:ok, pid}
-                o -> o
-              end
-            end
-          end
-         end
+          options_b = put_in(options, [:spawn], true)
+          ref = worker_ref!(ref)
+          @worker_lookup_handler.process!(ref, mod, context, options_b)
+        end
       end
 
+      def run_on_host(mod, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
+        default_run_on_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options, timeout)
+      end
+
+      def cast_to_host(mod, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}) do
+        default_cast_to_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options)
+      end
 
       if unquote(required.remove!) do
         def remove!(ref, options, context) do
-          ref = worker_ref!(ref)
-          rnode = @worker_lookup_handler.get_worker_node(@base, ref)
-          cond do
-            rnode == :error -> {:error, :not_registered}
-            true -> remote_cast(rnode, {:worker_remove!, ref, options}, context)
+          run_on_host(ref, {__MODULE__, :r_remove!, [ref, context, options]}, context, options)
+        end
+
+        def r_remove!(ref, context, options) do
+          options_b = put_in(options, [:lock], %{type: :reap, for: 60})
+          case @worker_lookup_handler.obtain_lock!(ref, context, options) do
+            {:ack, _lock} -> worker_sup_remove(ref, @worker_supervisor, context, options)
+            o -> o
           end
         end
       end
 
-      if unquote(required.worker_remove!) do
-        def worker_remove!(ref, options \\ nil, context \\ nil), do: internal_cast({:worker_remove!, ref, options}, context)
-      end
+      if unquote(required.terminate!) do
+        def terminate!(ref, options, context) do
+          run_on_host(ref, {__MODULE__, :r_terminate!, [ref, context, options]}, context, options)
+        end
 
-      if unquote(required.worker_terminate!) do
-        def worker_terminate!(ref, options \\ nil, context \\ nil), do: internal_cast({:worker_terminate!, ref, options}, context)
+        def r_terminate!(ref, context, options) do
+          options_b = put_in(options, [:lock], %{type: :reap, for: 60})
+          case @worker_lookup_handler.obtain_lock!(ref, context, options) do
+            {:ack, _lock} -> worker_sup_terminate(ref, @worker_supervisor, context, options)
+            o -> o
+          end
+        end
       end
 
       if unquote(required.worker_start_transfer!) do
         def worker_start_transfer!(ref, rebase, transfer_state, options \\ nil, context \\ nil) do
-          if Node.ping(rebase) == :pong do
-            if options[:async] do
-              :rpc.cast(rebase, @server_provider, :offthread_worker_add!, [ref, transfer_state, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
-            else
-              :rpc.call(rebase, @server_provider, :offthread_worker_add!, [ref, transfer_state, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
-            end
-          else
-            {:error, {:pang, rebase}}
-          end
+          #if Node.ping(rebase) == :pong do
+          #  if options[:async] do
+          #    :rpc.cast(rebase, @server_provider, :offthread_worker_add!, [ref, transfer_state, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
+          #  else
+          #    :rpc.call(rebase, @server_provider, :offthread_worker_add!, [ref, transfer_state, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
+          #  end
+          #else
+          #  {:error, {:pang, rebase}}
+          #end
+          raise "pri-1"
         end
       end
 
       if unquote(required.worker_migrate!) do
         def worker_migrate!(ref, rebase, options \\ nil, context \\ nil) do
+
+          """
+
           ref = worker_ref!(ref)
           case worker_pid!(ref, nil, context) do
             {:ok, pid} ->
@@ -322,6 +692,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 {:error, {:pang, rebase}}
               end
           end
+          """
+          raise "pri-1"
         end
       end
 
@@ -329,35 +701,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def worker_load!(ref, options \\ nil, context \\ nil), do: s_cast!(ref, {:load, options}, context)
       end
 
-      if unquote(required.worker_register!) do
-        def worker_register!(ref, process_node, context \\ nil), do: @worker_lookup_handler.reg_worker!(@base, ref, process_node, context)
-      end
-
-      if unquote(required.worker_deregister!) do
-        def worker_deregister!(ref, context \\ nil), do: @worker_lookup_handler.dereg_worker!(@base, ref, context)
-      end
-
-      if unquote(required.worker_clear!) do
-        def worker_clear!(ref, process_node, context \\ nil), do: @worker_lookup_handler.clear_process!(@base, ref, process_node, context)
-      end
-
       if unquote(required.worker_ref!) do
         def worker_ref!(identifier, _context \\ nil), do: @worker_state_entity.ref(identifier)
       end
 
       if unquote(required.worker_pid!) do
-        def worker_pid!(ref, options \\ %{}, context \\ nil) do
-          case @worker_lookup_handler.get_reg_worker!(@base, ref) do
-            {false, :nil} ->
-              if options[:spawn] do
-                worker_add!(ref, options, context)
-              else
-                {:error, :not_registered}
-              end
-            {true, pid} ->
-              {:ok, pid}
-            {:error, error} -> {:error, error}
-          end
+        def worker_pid!(ref, context \\ nil, options \\ %{}) do
+          @worker_lookup_handler.process!(ref, __MODULE__, context, options)
         end
       end
 
@@ -367,38 +717,64 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @TODO add support for s_redirect
       """
       def self_call(call, context \\ nil, timeout \\ @timeout) do
-        extended_call = {:s, call, context}
-        GenServer.call(__MODULE__, extended_call, timeout)
+        case @server_monitor.supported_node(node(), @base, context) do
+          :ack ->
+            extended_call = {:s, call, context}
+            GenServer.call(__MODULE__, extended_call, timeout)
+          v -> {:error, v}
+        end
       end
       def self_cast(call, context \\ nil) do
-        extended_call = {:s, call, context}
-        GenServer.cast(__MODULE__, extended_call)
+        case @server_monitor.supported_node(node(), @base, context) do
+          :ack ->
+            extended_call = {:s, call, context}
+            GenServer.cast(__MODULE__, extended_call)
+          v -> {:error, v}
+        end
       end
 
       def internal_call(call, context \\ nil, timeout \\ @timeout) do
-        extended_call = {:i, call, context}
-        GenServer.call(__MODULE__, extended_call, timeout)
+        case @server_monitor.supported_node(node(), @base, context) do
+          :ack ->
+            extended_call = {:i, call, context}
+            GenServer.call(__MODULE__, extended_call, timeout)
+          v -> {:error, v}
+        end
       end
+
       def internal_cast(call, context \\ nil) do
-        extended_call = {:i, call, context}
-        GenServer.cast(__MODULE__, extended_call)
+        case @server_monitor.supported_node(node(), @base, context) do
+          :ack ->
+            extended_call = {:i, call, context}
+            GenServer.cast(__MODULE__, extended_call)
+          v -> {:error, v}
+        end
       end
 
       def remote_call(remote_node, call, context \\ nil, timeout \\ @timeout) do
-        extended_call = {:i, call, context}
-        if remote_node == node() do
-          GenServer.call(__MODULE__, extended_call, timeout)
-        else
-          GenServer.call({__MODULE__, remote_node}, extended_call, timeout)
+        case @server_monitor.supported_node(remote_node, @base, context) do
+          :ack ->
+            extended_call = {:i, call, context}
+            if remote_node == node() do
+              GenServer.call(__MODULE__, extended_call, timeout)
+            else
+              GenServer.call({__MODULE__, remote_node}, extended_call, timeout)
+            end
+          v -> {:error, v}
         end
       end
 
       def remote_cast(remote_node, call, context \\ nil) do
-        extended_call = {:i, call, context}
-        if remote_node == node() do
-          GenServer.cast(__MODULE__, extended_call)
-        else
-          GenServer.cast({__MODULE__, remote_node}, extended_call)
+        case @server_monitor.supported_node(remote_node, @base, context) do
+          :ack ->
+            extended_call = {:i, call, context}
+            extended_call = {:i, call, context}
+            if remote_node == node() do
+              GenServer.cast(__MODULE__, extended_call)
+            else
+              GenServer.cast({__MODULE__, remote_node}, extended_call)
+            end
+          v -> {:error, v}
         end
       end
 
@@ -412,55 +788,51 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def handle_cast({:redirect, {_type, {__MODULE__, _ref}, call}}, state), do: handle_cast(call, state)
         def handle_call({:redirect, {_type, {__MODULE__, _ref}, call}}, from, state), do: handle_call(call, from, state)
 
-
-
         def handle_cast({:s_cast, {call_server, ref}, {:s, _inner, context} = call}, state) do
-          Logger.warn "Redirecting Cast #{inspect call, pretty: true}\n\n"
-          call_server.worker_clear!(ref, {self(), node()}, context)
-          call_server.s_cast(ref, {:redirect, call})
+          Logger.warn fn -> "Redirecting Cast #{inspect call, pretty: true}\n\n"  end
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:noreply, state}
         end # end handle_cast/:s_cast
 
         def handle_cast({:s_cast!, {call_server, ref}, {:s, _inner, context} = call}, state) do
-          Logger.warn "Redirecting Cast #{inspect call, pretty: true}\n\n"
-          call_server.worker_clear!(ref, {self(), node()}, context)
-          call_server.s_cast!(ref, {:redirect, call})
+          Logger.warn fn -> "Redirecting Cast #{inspect call, pretty: true}\n\n"  end
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:noreply, state}
         end # end handle_cast/:s_cast!
 
         def handle_call({:s_call, {call_server, ref, timeout}, {:s, _inner, context} = call}, from, state) do
-          Logger.warn "Redirecting Call #{inspect call, pretty: true}\n\n"
-          call_server.worker_clear!(ref, {self(), node()}, context)
+          Logger.warn fn -> "Redirecting Call #{inspect call, pretty: true}\n\n"  end
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:reply, :s_retry, state}
         end # end handle_call/:s_call
 
         def handle_call({:s_call!, {call_server, ref, timeout}, {:s, _inner, context}} = call, from, state) do
           Logger.warn "Redirecting Call #{inspect call, pretty: true}\n\n"
-          call_server.worker_clear!(ref, {self(), node()}, context)
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:reply, :s_retry, state}
         end # end handle_call/:s_call!
 
         def handle_cast({:redirect,  {:s_cast, {call_server, ref}, {:s, _inner, context} = call}} = fc, state) do
           Logger.error "Redirecting Cast Failed! #{inspect fc, pretty: true}\n\n"
-          call_server.worker_clear!(ref, {self(), node()}, context)
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:noreply, state}
         end # end handle_cast/:s_cast
 
         def handle_cast({:redirect,  {:s_cast!, {call_server, ref}, {:s, _inner, context} = call}} = fc, state) do
           Logger.error "Redirecting Cast Failed! #{inspect fc, pretty: true}\n\n"
-          call_server.worker_clear!(ref, {self(), node()}, context)
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:noreply, state}
         end # end handle_cast/:s_cast!
 
         def handle_call({:redirect, {:s_call, {call_server, ref, timeout}, {:s, _inner, context} = call}} = fc, from, state) do
           Logger.error "Redirecting Call Failed! #{inspect fc, pretty: true}\n\n"
-          call_server.worker_clear!(ref, {self(), node()}, context)
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:reply, :s_retry, state}
         end # end handle_call/:s_call
 
         def handle_call({:redirect, {:s_call!, {call_server, ref, timeout}, {:s, _inner, context} = call}} = fc, from, state) do
           Logger.error "Redirecting Call Failed! #{inspect fc, pretty: true}\n\n"
-          call_server.worker_clear!(ref, {self(), node()}, context)
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:reply, :s_retry, state}
         end # end handle_call/:s_call!
       end # if feature.s_redirect
@@ -500,341 +872,66 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       #-------------------------------------------------------------------------
       # get_direct_link!
       #-------------------------------------------------------------------------
-      def get_direct_link!(ref, context) do
-        case  worker_ref!(ref, context) do
-          {:error, details} ->
-            %Link{ref: ref, handler: __MODULE__, handle: nil, state: {:error, details}}
-          ref ->
-            @worker_lookup_handler.force_check_worker!(@base, ref, context)
-            case worker_pid!(ref, [spawn: false], context) do
-              {:ok, pid} ->
-                %Link{ref: ref, handler: __MODULE__, handle: pid, state: :valid}
-              {:error, details} ->
-                %Link{ref: ref, handler: __MODULE__, handle: nil, state: {:error, details}}
-              error ->
-                %Link{ref: ref, handler: __MODULE__, handle: nil, state: {:error, error}}
-            end
-        end
+      def get_direct_link!(ref, context, options \\ %{spawn: false}) do
+        default_get_direct_link!(__MODULE__, ref, context, options)
       end
 
       #-------------------------------------------------------------------------
       # s_call unsafe implementations
       #-------------------------------------------------------------------------
-      def s_call_unsafe(ref, spawn, extended_call, context, timeout \\ @timeout) do
-        #IO.puts "s_call_unsafe #{inspect ref} - #{inspect extended_call}"
-        case worker_pid!(ref, spawn, context) do
-          {:ok, pid} ->
-            case GenServer.call(pid, extended_call, timeout) do
-              :s_retry ->
-                case worker_pid!(ref, spawn, context) do
-                  {:ok, pid} -> GenServer.call(pid, extended_call, timeout)
-                  error -> error
-                end
-              v -> v
-            end
-          error ->
-            error
-        end # end case
+      def s_call_unsafe(ref, extended_call, context, options, timeout \\ @timeout) do
+        default_s_call_unsafe(__MODULE__, ref, extended_call, context, options, timeout)
       end #end s_call_unsafe
 
-      def s_cast_unsafe(ref, spawn, extended_call, context) do
-        #IO.puts "s_cast_unsafe #{inspect ref} - #{inspect extended_call}"
-        case worker_pid!(ref, spawn, context) do
-          {:ok, pid} -> GenServer.cast(pid, extended_call)
-          error -> error
-        end
+      def s_cast_unsafe(ref, extended_call, context, options) do
+        default_s_cast_unsafe(__MODULE__, ref, extended_call, context, options)
       end
 
       if unquote(MapSet.member?(features, :crash_protection)) do
+        def rs_call!(identifier, call, context, options, timeout) do
+          default_crash_protection_rs_call!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
+        end
+
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
-        def s_call!(identifier, call, context \\ nil, timeout \\ @timeout) do
-          case  worker_ref!(identifier, context) do
-            {:error, details} -> {:error, details}
-            ref ->
-              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
-              try do
-                s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
-              catch
-                :exit, e ->
-                  case e do
-                    {:timeout, c} ->
-                      try do
-                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                          {true, pid} ->
-
-                            t = :os.system_time(:seconds)
-                            case @worker_lookup_handler.record_timeout!(@base, ref, {t, timeout}, context) do
-                              :ok -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
-                              :reap ->
-                                case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
-                                  :proceed -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
-                                  :ok -> s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
-                                  :queued -> {:error, :queued_for_reaping}
-                                  o ->
-                                    Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
-                                    {:error, o}
-                                end
-                              :error -> {:error, {:timeout, c}}
-                              o ->
-                                Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
-                                {:error, o}
-                            end
-
-                          {false, _pid} ->
-                            s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
-                          _ -> {:error, {:exit, e}}
-                        end
-                      catch
-                        :exit, e ->
-                          {:error, {:exit, e}}
-                      end
-                    _  ->
-                      try do
-                        Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
-                        worker_deregister!(ref, context)
-                        s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
-                      catch
-                        :exit, e ->
-                          {:error, {:exit, e}}
-                      end # end inner try
-                  end
-              end # end try
-          end
+        def s_call!(identifier, call, context \\ nil, options \\ %{}, timeout \\ @timeout) do
+          default_crash_protection_s_call!(__MODULE__, identifier, call, context , options, timeout)
         end # end s_call!
+
+
+        def rs_cast!(identifier, call, context, options) do
+          default_crash_protection_rs_cast!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
+        end
 
         @doc """
           Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
-        def s_cast!(identifier, call, context \\ nil) do
-          case  worker_ref!(identifier, context) do
-            {:error, details} -> {:error, details}
-            ref ->
-              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_cast!, {__MODULE__, ref}, {:s, call, context}}, else: {:s, call, context}
-              try do
-                case worker_pid!(ref, [spawn: false], context) do
-                  {:ok, pid} -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                  _ -> spawn(fn ->
-                    try do
-                      s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                    catch
-                      :exit, e ->
-                        case e do
-                          {:timeout, c} ->
-                            try do
-                              case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                                {true, pid} ->
-
-                                  t = :os.system_time(:seconds)
-                                  case @worker_lookup_handler.record_timeout!(@base, ref, {t, 5_000}, context) do
-                                    :ok -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                                    :reap ->
-                                      case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
-                                        :proceed -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                                        :ok -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                                        :queued -> {:error, :queued_for_reaping}
-                                        o ->
-                                          Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
-                                          {:error, o}
-                                      end
-                                    :error -> {:error, {:timeout, c}}
-                                    o ->
-                                      Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
-                                      {:error, o}
-                                  end
-
-                                {false, _pid} ->
-                                  s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                                _ -> {:error, {:exit, e}}
-                              end
-                            catch
-                              :exit, e ->
-                                {:error, {:exit, e}}
-                            end
-
-                          _  ->
-                            try do
-                              Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
-                              worker_deregister!(ref, context)
-                              s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                            catch
-                              :exit, e ->
-                                {:error, {:exit, e}}
-                            end # end inner try
-                        end
-                    end # end try
-                  end)
-                end
-
-              catch
-                :exit, e ->
-                  case e do
-                    {:timeout, c} ->
-                      try do
-                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                          {true, pid} ->
-                            t = :os.system_time(:seconds)
-                            case @worker_lookup_handler.record_timeout!(@base, ref, {t, 5_000}, context) do
-                              :ok -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                              :reap ->
-                                case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
-                                  :proceed -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                                  :ok -> s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                                  :queued -> {:error, :queued_for_reaping}
-                                  o ->
-                                    Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
-                                    {:error, o}
-                                end
-                              :error -> {:error, {:timeout, c}}
-                              o ->
-                                Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
-                                {:error, o}
-                            end
-
-                          {false, _pid} ->
-                            s_cast_unsafe(ref, [spawn: true], extended_call, context)
-                          _ -> {:error, {:exit, e}}
-                        end
-                      catch
-                        :exit, e ->
-                          {:error, {:exit, e}}
-                      end
-                    _  ->
-                      try do
-                        Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
-                        worker_deregister!(ref, context)
-                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                          {true, pid} -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
-                          {false, nil} -> spawn(fn -> s_cast_unsafe(ref, [spawn: true], extended_call, context) end)
-                          _ -> {:error, {:exit, e}}
-                        end
-                      catch
-                        :exit, e ->
-                          {:error, {:exit, e}}
-                      end # end inner try
-                  end
-
-              end # end try
-          end # end case worker_ref!
+        def s_cast!(identifier, call, context \\ nil, options \\ %{}) do
+          default_crash_protection_s_cast!(__MODULE__, identifier, call, context, options)
         end # end s_cast!
+
+        def rs_call(identifier, call, context, options, timeout) do
+          default_crash_protection_rs_call({__MODULE__, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options, timeout)
+        end
 
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
-        def s_call(identifier, call, context \\ nil, timeout \\ @timeout) do
-          case  worker_ref!(identifier, context) do
-            {:error, details} -> {:error, details}
-            ref ->
-              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_call, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
-              try do
-                s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
-              catch
-                :exit, e ->
-                  case e do
-                    {:timeout, c} ->
-
-                      try do
-                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                          {true, pid} ->
-                            t = :os.system_time(:seconds)
-                            case @worker_lookup_handler.record_timeout!(@base, ref, {t, timeout}, context) do
-                              :ok -> s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
-                              :reap ->
-                                case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
-                                  :proceed -> s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
-                                  :ok -> s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
-                                  :queued -> {:error, :queued_for_reaping}
-                                  o ->
-                                    Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
-                                    {:error, o}
-                                end
-                              :error -> {:error, {:timeout, c}}
-                              o ->
-                                Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
-                                {:error, o}
-                            end
-
-                          {false, _pid} ->
-                            s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
-                          _ -> {:error, {:exit, e}}
-                        end
-                      catch
-                        :exit, e ->
-                          {:error, {:exit, e}}
-                      end
-
-
-                    _  ->
-                      try do
-                        Logger.warn @base.banner("#{__MODULE__}.s_call! - dead worker (#{inspect ref})")
-                        worker_deregister!(ref, context)
-                        s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
-                      catch
-                        :exit, e ->
-                          {:error, {:exit, e}}
-                      end # end inner try
-                  end
-              end # end try
-          end # end case
+        def s_call(identifier, call, context \\ nil, options \\ %{}, timeout \\ @timeout) do
+          default_crash_protection_s_call(__MODULE__, identifier, call, context, options, timeout)
         end # end s_call!
+
+        def rs_cast(identifier, call, context, options) do
+          default_crash_protection_rs_cast({__MODULE__, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options)
+        end
+
 
         @doc """
           Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
-        def s_cast(identifier, call, context \\ nil) do
-          case  worker_ref!(identifier, context) do
-            {:error, details} -> {:error, details}
-            ref ->
-              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_cast, {__MODULE__, ref}, {:s, call, context}}, else: {:s, call, context}
-              try do
-                s_cast_unsafe(ref, [spawn: false], extended_call, context)
-              catch
-                :exit, e ->
-                  case e do
-                    {:timeout, c} ->
-                      try do
-                        case @worker_lookup_handler.force_check_worker!(@base, ref, context) do
-                          {true, pid} ->
-
-                            t = :os.system_time(:seconds)
-                            case @worker_lookup_handler.record_timeout!(@base, ref, {t, 5_000}, context) do
-                              :ok -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
-                              :reap ->
-                                case @worker_lookup_handler.queue_for_reap!(@base, __MODULE__, ref, t, context) do
-                                  :proceed -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
-                                  :ok -> s_cast_unsafe(ref, [spawn: false], extended_call, context)
-                                  :queued -> {:error, :queued_for_reaping}
-                                  o ->
-                                    Logger.warn("#{@worker_lookup_handler}.queue_for_reap! returned illegal response: #{inspect o}")
-                                    {:error, o}
-                                end
-                              :error -> {:error, {:timeout, c}}
-                              o ->
-                                Logger.warn("#{@worker_lookup_handler}.record_timeout! returned illegal response: #{inspect o}")
-                                {:error, o}
-                            end
-
-                          {false, _pid} ->
-                            s_cast_unsafe(ref, [spawn: false], extended_call, context)
-                          _ -> {:error, {:exit, e}}
-                        end
-                      catch
-                        :exit, e ->
-                          {:error, {:exit, e}}
-                      end
-                    _  ->
-                      try do
-                        Logger.warn @base.banner("#{__MODULE__}.s_cast! - dead worker (#{inspect ref})")
-                        worker_deregister!(ref, context)
-                        s_cast_unsafe(ref, [spawn: false], extended_call, context)
-                      catch
-                        :exit, e ->
-                          {:error, {:exit, e}}
-                      end # end inner try
-                  end
-              end # end try
-          end # end case worker_ref!
+        def s_cast(identifier, call, context \\ nil, options \\ %{}) do
+          default_crash_protection_s_cast(__MODULE__, identifier, call, context, options)
         end # end s_cast!
 
 
@@ -843,113 +940,38 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
-        def s_call!(identifier, call, context \\ nil, timeout \\ @timeout) do
-          case  worker_ref!(identifier, context) do
-            {:error, details} -> {:error, details}
-            ref ->
-              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
-              s_call_unsafe(ref, [spawn: true], extended_call, context, timeout)
-          end
+        def s_call!(identifier, call, context \\ nil, options \\ %{}, timeout \\ @timeout) do
+          default_nocrash_protection_s_call!({__MODULE__, @s_redirect_feature}, identifier, call, context, options, timeout)
         end # end s_call!
 
         @doc """
           Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
         def s_cast!(identifier, call, context \\ nil) do
-          case  worker_ref!(identifier, context) do
-            {:error, details} -> {:error, details}
-            ref ->
-              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_cast!, {__MODULE__, ref}, {:s, call, context}}, else: {:s, call, context}
-              s_cast_unsafe(ref, [spawn: true], extended_call, context)
-          end # end case worker_ref!
+          default_nocrash_protection_s_cast!({__MODULE__, @s_redirect_feature}, identifier, call, context, options)
         end # end s_cast!
 
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
         def s_call(identifier, call, context \\ nil, timeout \\ @timeout) do
-          case  worker_ref!(identifier, context) do
-            {:error, details} -> {:error, details}
-            ref ->
-              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_call, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
-              s_call_unsafe(ref, [spawn: false], extended_call, context, timeout)
-          end # end case
+          default_nocrash_protection_s_call({__MODULE__, @s_redirect_feature}, identifier, call, context, options, timeout )
         end # end s_call!
 
         @doc """
           Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
-        def s_cast(identifier, call, context \\ nil) do
-          case  worker_ref!(identifier, context) do
-            {:error, details} -> {:error, details}
-            ref ->
-              extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_cast, {__MODULE__, ref}, {:s, call, context}}, else: {:s, call, context}
-              s_cast_unsafe(ref, [spawn: false], extended_call, context)
-          end # end case worker_ref!
+        def s_cast(identifier, call, context \\ nil, optiosn \\ %{}) do
+          default_nocrash_protection_s_cast({__MODULE__, @s_redirect_feature}, identifier, call, context, options)
         end # end s_cast!
       end # end if feature.crash_protection
-
-
 
       if unquote(required.link_forward!) do
         @doc """
           Crash Protection always enabled, for now.
         """
-        def link_forward!(%Link{handler: __MODULE__} = link, call, context \\ nil) do
-          extended_call = if unquote(MapSet.member?(features, :s_redirect)), do: {:s_cast, {__MODULE__, link.ref}, {:s, call, context}}, else: {:s, call, context}
-          now_ts = :os.system_time(:seconds)
-          try do
-            if link.handle && (link.expire == :infinity or link.expire > now_ts) do
-              r = GenServer.cast(link.handle, extended_call)
-              {:ok, link}
-            else
-              case worker_pid!(link.ref, [spawn: false], context) do
-                {:ok, pid} ->
-                  r = GenServer.cast(pid, extended_call)
-                  rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
-                  {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
-                {:error, details} ->
-                  spawn(fn ->
-                    case worker_pid!(link.ref, [spawn: true], context) do
-                      {:ok, pid} ->
-                        r = GenServer.cast(pid, extended_call)
-                        rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
-                        {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
-                      {:error, details} ->
-                        worker_deregister!(link.ref, context)
-                        case worker_pid!(link.ref, [spawn: true], context) do
-                          {:ok, pid} ->
-                            rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
-                            {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
-                          {:error, details} ->
-                            Logger.error "link_forward!: #{inspect {:error, details}} - #{inspect link, pretty: true}"
-                            {:error, %Link{link| handle: nil, state: {:error, details}}}
-                        end # end case inner worker_pid!
-                    end
-                  end)
-                  {:error, %Link{link| handle: nil, state: {:error, details}}}
-              end # end case worker_pid!
-            end # end if else
-          catch
-            :exit, e ->
-              try do
-                Logger.warn @base.banner("#{__MODULE__}.s_forward - dead worker (#{inspect link})\n\n")
-                spawn(fn ->
-                    worker_deregister!(link.ref, context)
-                    case worker_pid!(link.ref, [spawn: true], context) do
-                      {:ok, pid} ->
-                        rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
-                        {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
-                      {:error, details} ->
-                        {:error, %Link{link| handle: nil, state: {:error, details}}}
-                    end # end case inner worker_pid!
-                end)
-                {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
-              catch
-                :exit, e ->
-                  {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
-              end # end inner try
-          end # end try
+        def link_forward!(%Link{handler: __MODULE__} = link, call, context \\ nil, options \\ %{}) do
+          default_link_forward!({__MODULE__, @base, @s_redirect_feature}, link, call, context, options)
         end # end link_forward!
       end # end if required link_forward!
 

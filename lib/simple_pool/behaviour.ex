@@ -1,23 +1,28 @@
+#-------------------------------------------------------------------------------
+# Author: Keith Brings <keith.brings@noizu.com>
+# Copyright (C) 2017 Noizu Labs, Inc. All rights reserved.
+#-------------------------------------------------------------------------------
+
 defmodule Noizu.SimplePool.Behaviour do
-  alias Noizu.SimplePool.OptionSettings
-  alias Noizu.SimplePool.OptionValue
-  alias Noizu.SimplePool.OptionList
+  alias Noizu.ElixirCore.OptionSettings
+  alias Noizu.ElixirCore.OptionValue
+  alias Noizu.ElixirCore.OptionList
 
   require Logger
 
   @callback option_settings() :: Map.t
 
-  @features([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
-  @default_features([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
+  @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
+  @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
 
-  @modules([:worker, :server, :worker_supervisor, :pool_supervisor])
-  @default_modules([:worker_supervisor, :pool_supervisor])
-  @methods([])
+  @modules ([:worker, :server, :worker_supervisor, :pool_supervisor])
+  @default_modules ([:worker_supervisor, :pool_supervisor])
+  @methods ([])
 
-  @default_worker_options([])
-  @default_server_options([])
-  @default_worker_supervisor_options([])
-  @default_pool_supervisor_options([])
+  @default_worker_options ([])
+  @default_server_options ([])
+  @default_worker_supervisor_options ([])
+  @default_pool_supervisor_options ([])
 
   def prepare_options(options) do
     settings = %OptionSettings{
@@ -92,8 +97,8 @@ defmodule Noizu.SimplePool.Behaviour do
     quote do
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.Behaviour
-      @mod_name("#{__MODULE__}")
-      @worker_state_entity(expand_worker_state_entity(__MODULE__, unquote(options.worker_state_entity)))
+      @mod_name ("#{__MODULE__}")
+      @worker_state_entity (expand_worker_state_entity(__MODULE__, unquote(options.worker_state_entity)))
 
       def banner(msg) do
         banner(@mod_name, msg)

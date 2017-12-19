@@ -1,3 +1,8 @@
+#-------------------------------------------------------------------------------
+# Author: Keith Brings <keith.brings@noizu.com>
+# Copyright (C) 2017 Noizu Labs, Inc. All rights reserved.
+#-------------------------------------------------------------------------------
+
 defmodule Noizu.SimplePool.Mixfile do
   use Mix.Project
 
@@ -29,6 +34,7 @@ defmodule Noizu.SimplePool.Mixfile do
       {:ex_doc, "~> 0.16.2", only: [:dev, :test], optional: true}, # Documentation Provider
       {:markdown, github: "devinus/markdown", only: [:dev], optional: true}, # Markdown processor for ex_doc
       {:amnesia, git: "https://github.com/meh/amnesia.git", ref: "87d8b4f", optional: true}, # Mnesia Wrapper
+      {:noizu_core, github: "noizu/ElixirCore", tag: "1.0.0"},
     ]
   end # end deps
 

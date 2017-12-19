@@ -12,16 +12,16 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   @callback shutdown(Noizu.SimplePool.Worker.State.t, options :: any, context :: any, from :: any) :: {:ok | :wait, Noizu.SimplePool.Worker.State.t}
   @callback worker_refs(any, any, any) :: any | nil
 
-  alias Noizu.SimplePool.OptionSettings
-  alias Noizu.SimplePool.OptionValue
-  alias Noizu.SimplePool.OptionList
+  alias Noizu.ElixirCore.OptionSettings
+  alias Noizu.ElixirCore.OptionValue
+  alias Noizu.ElixirCore.OptionList
 
-  @required_methods([:call_forwarding, :load])
-  @provided_methods([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!, :migrate_shutdown, :on_migrate, :transfer, :save!, :reload!])
+  @required_methods ([:call_forwarding, :load])
+  @provided_methods ([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!, :migrate_shutdown, :on_migrate, :transfer, :save!, :reload!])
 
-  @methods(@required_methods ++ @provided_methods)
-  @features([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
-  @default_features([:lazy_load, :s_redirect, :inactivity_check])
+  @methods (@required_methods ++ @provided_methods)
+  @features ([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
+  @default_features ([:lazy_load, :s_redirect, :inactivity_check])
 
   def prepare_options(options) do
     settings = %OptionSettings{
@@ -64,12 +64,12 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
     quote do
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.InnerStateBehaviour
-      @base(unquote(Macro.expand(pool, __CALLER__)))
-      @worker(Module.concat([@base, "Worker"]))
-      @worker_supervisor(Module.concat([@base, "WorkerSupervisor"]))
-      @server(Module.concat([@base, "Server"]))
-      @pool_supervisor(Module.concat([@base, "PoolSupervisor"]))
-      @simple_pool_group({@base, @worker, @worker_supervisor, @server, @pool_supervisor})
+      @base (unquote(Macro.expand(pool, __CALLER__)))
+      @worker (Module.concat([@base, "Worker"]))
+      @worker_supervisor (Module.concat([@base, "WorkerSupervisor"]))
+      @server (Module.concat([@base, "Server"]))
+      @pool_supervisor (Module.concat([@base, "PoolSupervisor"]))
+      @simple_pool_group ({@base, @worker, @worker_supervisor, @server, @pool_supervisor})
 
       alias Noizu.SimplePool.Worker.Link
 

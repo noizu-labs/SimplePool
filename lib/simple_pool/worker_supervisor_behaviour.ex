@@ -1,7 +1,12 @@
+#-------------------------------------------------------------------------------
+# Author: Keith Brings <keith.brings@noizu.com>
+# Copyright (C) 2017 Noizu Labs, Inc. All rights reserved.
+#-------------------------------------------------------------------------------
+
 defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
-  alias Noizu.SimplePool.OptionSettings
-  alias Noizu.SimplePool.OptionValue
-  alias Noizu.SimplePool.OptionList
+  alias Noizu.ElixirCore.OptionSettings
+  alias Noizu.ElixirCore.OptionValue
+  alias Noizu.ElixirCore.OptionList
   require Logger
   @callback start_link() :: any
   @callback child(any) :: any
@@ -37,6 +42,18 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
   end
 
 
+  def default_verbose(verbose, base) do
+    if verbose == :auto do
+      if Application.get_env(:noizu_simple_pool, base, %{})[:PoolSupervisor][:verbose] do
+        Application.get_env(:noizu_simple_pool, base, %{})[:PoolSupervisor][:verbose]
+      else
+        Application.get_env(:noizu_simple_pool, :verbose, false)
+      end
+    else
+      verbose
+    end
+  end
+
   defmacro __using__(options) do
     option_settings = prepare_options(options)
     options = option_settings.effective_options
@@ -57,53 +74,55 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       require Logger
 
 
-      @verbose(
-        if unquote(verbose) == :auto do
-          if Application.get_env(:noizu_simple_pool, @base, %{})[:WorkerSupervisor][:verbose] do
-            Application.get_env(:noizu_simple_pool, @base, %{})[:WorkerSupervisor][:verbose]
-          else
-            Application.get_env(:noizu_simple_pool, :verbose, false)
-          end
-        else
-          unquote(verbose)
-        end
-      )
+      @strategy unquote(strategy)
+      @max_restarts unquote(max_restarts)
+      @max_seconds unquote(max_seconds)
+
+
+      @base_verbose (unquote(verbose))
+      def verbose() do
+        default_verbose(@base_verbose, @base)
+      end
+
+      def options do
+        unquote(Macro.escape(options))
+      end
 
       def option_settings do
         unquote(Macro.escape(option_settings))
       end
 
 
-    # @start_link
-    if (unquote(required.start_link)) do
-      def start_link do
-        if @verbose do
-          @base.banner("#{__MODULE__}.start_link") |> Logger.info()
+      # @start_link
+      if (unquote(required.start_link)) do
+        def start_link do
+          if verbose() do
+             Logger.info(fn -> @base.banner("#{__MODULE__}.start_link")  end)
+          end
+          Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}])
         end
-        Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}])
-      end
-    end # end start_link
+      end # end start_link
 
-    # @child
-    if (unquote(required.child)) do
-      def child(ref, _context) do
-        worker(@worker, [ref], [id: ref])
-      end
-
-      def child(ref, params, context) do
-        worker(@worker, [ref, params], [id: ref])
-      end
-    end # end child
-
-    # @init
-    if (unquote(required.init)) do
-      def init(any) do
-        if @verbose do
-          Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect any}") |> Logger.info()
+      # @child
+      if (unquote(required.child)) do
+        def child(ref, _context) do
+          worker(@worker, [ref], [id: ref])
         end
-        supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])
-      end
-    end # end init
+
+        def child(ref, params, context) do
+          worker(@worker, [ref, params], [id: ref])
+        end
+      end # end child
+
+      # @init
+      if (unquote(required.init)) do
+        def init(any) do
+          if verbose() do
+            Logger.info(fn -> Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect any}") end)
+          end
+          supervise([], [{:strategy,  @strategy}, {:max_restarts, @max_restarts}, {:max_seconds, @max_seconds}])
+        end
+      end # end init
 
       @before_compile unquote(__MODULE__)
     end # end quote
@@ -112,17 +131,17 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
   defmacro __before_compile__(_env) do
     quote do
       def handle_call(uncaught, _from, state) do
-        Logger.warn("Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}")
+        Logger.info(fn -> "Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}"  end)
         {:noreply, state}
       end
 
       def handle_cast(uncaught, state) do
-        Logger.warn("Uncaught handle_cast to #{__MODULE__} . . . #{inspect uncaught}")
+        Logger.info(fn -> "Uncaught handle_cast to #{__MODULE__} . . . #{inspect uncaught}"  end)
         {:noreply, state}
       end
 
       def handle_info(uncaught, state) do
-        Logger.warn("Uncaught handle_info to #{__MODULE__} . . . #{inspect uncaught}")
+        Logger.info(fn -> "Uncaught handle_info to #{__MODULE__} . . . #{inspect uncaught}"  end)
         {:noreply, state}
       end
     end # end quote
