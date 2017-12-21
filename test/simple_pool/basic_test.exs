@@ -208,11 +208,8 @@ defmodule Noizu.SimplePool.BasicTest do
   # @TODO - update behaviour definitions
   # @TODO - cleanup method lists.
   # @TODO - flesh out server monitor and related functionality
-
-  # get direct link
-  # link forward
-  # multi-node - migrate, s_call
-  # get rid of @timeout parameter, pass in options if desired.
+  # @TODO - multi-node testing, migrate, s_call
+  # @TODO - get rid of @timeout parameter, pass in options if desired.
 
   #--------------------------
   # helpers
