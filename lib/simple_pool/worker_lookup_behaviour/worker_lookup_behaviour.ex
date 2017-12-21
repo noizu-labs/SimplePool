@@ -61,7 +61,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     end
 
     def default_register!({mod, _d, _m, _sm, r}, ref, context, _options \\ %{}) do
-      r = Registry.register(r, ref, :process)
+      r = Registry.register(r, {:worker, ref}, :process)
       options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
         case x do
           %{lock: {{_s, _p}, :spawn, _t}} -> true

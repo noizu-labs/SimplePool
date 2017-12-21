@@ -308,7 +308,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       ref ->
         try do
           options_b = put_in(options, [:spawn], false)
-          mod.cast_to_host(ref, {__MODULE__, :rs_cast, [ref, call, context, options_b]}, context, options_b)
+          mod.cast_to_host(ref, {mod, :rs_cast, [ref, call, context, options_b]}, context, options_b)
         catch
           :exit, e -> {:error, {:exit, e}}
         end
