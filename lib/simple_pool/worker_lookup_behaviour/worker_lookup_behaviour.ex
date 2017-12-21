@@ -56,7 +56,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     end
 
     def default_record_event!({_mod, _d, m,_sm, _r}, ref, event, details, context, options \\ %{}) do
-      Logger.info(fn -> {"#{inspect %{ref: ref, event: event, details: details}}", CallingContext.metadata(context)} end)
+      Logger.info(fn -> {"[RecordEvent #{inspect event}] #{inspect %{ref: ref, event: event, details: details}}", CallingContext.metadata(context)} end)
       m.new(ref, event, details, context, options)
       |> m.create!(context, options)
     end
@@ -94,6 +94,53 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     def default_process!({mod, d, _m, _s, r}, ref, server, context, options \\ %{}) do
       record = options[:dispatch_record] || d.get!(ref, context, options)
       case record do
+        nil ->
+          case mod.host!(ref, server, context, options) do
+            {:ack, host} ->
+              if host == node() do
+                case Registry.lookup(r, {:worker, ref}) do
+                  [] ->
+                    if options[:spawn] do
+                      options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
+                        case x do
+                          %{lock: {{_s, _p}, :spawn, _t}} -> true
+                          _ -> false
+                        end
+                      end}
+                      case mod.obtain_lock!(ref, context, options_b) do
+                        {:ack, _lock} ->
+                          case server.worker_sup_start(ref, context) do
+                            {:ok, pid} -> {:ack, pid}
+                            o -> o
+                          end
+                        o -> o
+                      end
+                    else
+                      {:nack, :not_registered}
+                    end
+                  [{pid, _v}] -> {:ack, pid}
+                  v ->
+                    mod.record_event!(ref, :registry_lookup_fail, v, context, options)
+                    {:error, {:unexpected_response, v}}
+                end
+              else
+                options_b = put_in(options, [:dispatch_record], r)
+                case :rpc.call(host, mod, :process!, [ref, context, options_b], 1_000) do
+                  {:ack, process} -> {:ack, process}
+                  {:nack, details} -> {:nack, details}
+                  {:error, details} -> {:error, details}
+                  {:badrpc, details} ->
+                    mod.record_event!(ref, :process_check_fail, {:badrpc, details}, context, options)
+                    {:error, {:badrpc, details}}
+                  o -> {:error, o}
+                end
+              end
+
+            _ -> {:nack, :not_registered}
+          end
+
+
+
         %{server: host} ->
           if host == node() do
             case Registry.lookup(r, {:worker, ref}) do

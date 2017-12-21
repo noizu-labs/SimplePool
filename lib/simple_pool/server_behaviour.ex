@@ -371,11 +371,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
   @doc """
     Crash Protection always enabled, for now.
+    @TODO links should be allowed in place of refs.
+    @TODO forward should handle cast, call and info forwarding
   """
-  def default_link_forward!({mod, base, s_redirect_feature}, %Link{handler: __MODULE__} = link, call, context, options) do
+  def default_link_forward!({mod, base, s_redirect_feature}, %Link{} = link, call, context, options) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast, {mod, link.ref}, {:s, call, context}}, else: {:s, call, context}
     now_ts = options[:time] || :os.system_time(:seconds)
-    options_b = put_in(options, [:spawn], true)
+    options_b = options #put_in(options, [:spawn], true)
 
     try do
       if link.handle && (link.expire == :infinity or link.expire > now_ts) do
@@ -387,6 +389,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             GenServer.cast(pid, extended_call)
             rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
             {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
+          {:nack, details} -> {:error, %Link{link| handle: nil, state: {:error, {:nack, details}}}}
           {:error, details} ->
             {:error, %Link{link| handle: nil, state: {:error, details}}}
         end # end case worker_pid!
@@ -856,7 +859,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.ping!) do
-        def ping!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout), do: s_call!(identifier, :ping!, context, timeout)
+        def ping!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout), do: s_call(identifier, :ping!, context, %{},  timeout)
       end
 
       if unquote(required.kill!) do
