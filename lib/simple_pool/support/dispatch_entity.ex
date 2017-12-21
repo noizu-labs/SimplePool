@@ -28,16 +28,16 @@ defmodule Noizu.SimplePool.DispatchEntity do
   def sref({:ref, __MODULE__, identifier}), do: "ref.noizu-dispatch.#{identifier}"
 
   def entity(ref, options \\ %{})
-  def entity({:ref, __MODULE__, identifier}, _options), do: Noizu.SimplePool.DispatchRepo.get(identifier)
+  def entity({:ref, __MODULE__, identifier}, options), do: Noizu.SimplePool.DispatchRepo.get(identifier, options[:context], options)
   def entity(%__MODULE__{} = e, _options), do: e
 
   def entity!(ref, options \\ %{})
-  def entity!({:ref, __MODULE__, identifier}, _options), do: Noizu.SimplePool.DispatchRepo.get!(identifier)
+  def entity!({:ref, __MODULE__, identifier}, options), do: Noizu.SimplePool.DispatchRepo.get(identifier, options[:context], options)
   def entity!(%__MODULE__{} = e, _options), do: e
 
   def record(ref, options \\ %{})
-  def record({:ref, __MODULE__, identifier}, _options) do
-    entity = Noizu.SimplePool.DispatchRepo.get(identifier)
+  def record({:ref, __MODULE__, identifier}, options) do
+    entity = Noizu.SimplePool.DispatchRepo.get(identifier, options[:context], options)
     entity && %Noizu.SimplePool.Database.DispatchTable{identifier: entity.identifier, server: entity.server, entity: entity}
   end
   def record(%__MODULE__{} = entity, _options) do
@@ -45,16 +45,16 @@ defmodule Noizu.SimplePool.DispatchEntity do
   end
 
   def record!(ref, options \\ %{})
-  def record!({:ref, __MODULE__, identifier}, _options) do
-    entity = Noizu.SimplePool.DispatchRepo.get!(identifier)
+  def record!({:ref, __MODULE__, identifier}, options) do
+    entity = Noizu.SimplePool.DispatchRepo.get!(identifier, options[:context], options)
     entity && %Noizu.SimplePool.Database.DispatchTable{identifier: entity.identifier, server: entity.server, entity: entity}
   end
   def record!(%__MODULE__{} = entity, _options) do
     %Noizu.SimplePool.Database.DispatchTable{identifier: entity.identifier, server: entity.server, entity: entity}
   end
 
-  def has_permission(ref, permission, context), do: true
-  def has_permission!(ref, permission, context), do: true
+  def has_permission(_ref, _permission, _context), do: true
+  def has_permission!(_ref, _permission, _context), do: true
 
   defimpl Noizu.ERP, for: Noizu.SimplePool.DispatchEntity do
     def id(obj) do
@@ -70,11 +70,11 @@ defmodule Noizu.SimplePool.DispatchEntity do
     end # end sref/1
 
     def record(obj, _options \\ nil) do
-      obj
+      %Noizu.SimplePool.Database.DispatchTable{identifier: obj.identifier, server: obj.server, entity: obj}
     end # end record/2
 
     def record!(obj, _options \\ nil) do
-      obj
+      %Noizu.SimplePool.Database.DispatchTable{identifier: obj.identifier, server: obj.server, entity: obj}
     end # end record/2
 
     def entity(obj, _options \\ nil) do

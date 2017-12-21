@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.Dispatch.MonitorRepo do
-  def new(ref, event, details, context, options \\ %{}) do
+  def new(ref, event, details, _context, options \\ %{}) do
     time = options[:time] || :os.system_time(:seconds)
     %Noizu.SimplePool.Database.Dispatch.MonitorTable{identifier: ref, time: time, event: event, details: details}
   end

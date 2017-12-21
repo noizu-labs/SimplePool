@@ -5,7 +5,7 @@
 
 defmodule Noizu.SimplePool.DispatchRepo do
 
-  def new(ref, context, options \\ %{}) do
+  def new(ref, _context, options \\ %{}) do
     state = options[:state] || :new
     server = options[:server] || node()
     lock = prepare_lock(options)
@@ -13,7 +13,7 @@ defmodule Noizu.SimplePool.DispatchRepo do
   end
 
   def prepare_lock(options, force \\ false) do
-    lock = if options[:lock] || force do
+    if options[:lock] || force do
       time = options[:time] || :os.system_time()
       lock_server = options[:lock][:server] || node()
       lock_process = options[:lock][:process] || self()
@@ -26,13 +26,13 @@ defmodule Noizu.SimplePool.DispatchRepo do
   end
 
   def obtain_lock!(ref, context, options \\ %{lock: %{}}) do
-    lock = {{lock_server, lock_process}, lock_type, lock_until} = prepare_lock(options, true)
+    lock = {{lock_server, lock_process}, _lock_type, _lock_until} = prepare_lock(options, true)
     entity = get!(ref, context, options)
     time = options[:time] || :os.system_time()
     if entity do
       case entity.lock do
         nil -> {:ack, put_in(entity, [Access.key(:lock)], lock) |> update!(context, options)}
-        {{s,p}, lt, lu} ->
+        {{s,p}, _lt, lu} ->
           cond do
             options[:force] -> {:ack, put_in(entity, [Access.key(:lock)], lock) |> update!(context, options)}
             time > lu -> {:ack, put_in(entity, [Access.key(:lock)], lock) |> update!(context, options)}
@@ -51,7 +51,7 @@ defmodule Noizu.SimplePool.DispatchRepo do
               end
             true -> {:nack, {:locked, entity}}
           end
-        o -> {:nack, {:invalid, entity}}
+        _o -> {:nack, {:invalid, entity}}
       end
     else
       e = new(ref, context, options)

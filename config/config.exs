@@ -6,3 +6,9 @@
 use Mix.Config
 
 config :ex_doc, :markdown_processor, ExDoc.Markdown.Hoedown
+
+
+config :noizu_mnesia_versioning,
+       topology_provider: Noizu.SimplePool.Support.TopologyProvider,
+       schema_provider: Noizu.SimplePool.Support.SchemaProvider,
+       mnesia_migrate_on_start: false

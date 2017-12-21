@@ -46,11 +46,12 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     end
   end
 
-  def default_init(mod, server, base, worker_state_entity, inactivity_check, {:migrate, ref, {:transfer, initial_state}}) do
+  def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, {:migrate, ref, {:transfer, initial_state}}) do
     if (mod.verbose()) do
       Logger.info(fn -> base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }") end)
     end
-    server.worker_register!(ref, {self(), node()})
+
+    server.worker_lookup_handler().register!(ref, Noizu.ElixirCore.CallingContext.system(%{}))
 
     {initialized, inner_state} = worker_state_entity.transfer(ref, initial_state.inner_state)
 
@@ -64,11 +65,11 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     end
   end
 
-  def default_init(mod, server, base, worker_state_entity, inactivity_check, lazy_load, ref) do
+  def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, ref) do
     if (mod.verbose()) do
       Logger.info(fn -> base.banner("INIT/1 #{__MODULE__} (#{inspect ref }") end)
     end
-    server.worker_register!(ref, {self(), node()})
+    server.worker_lookup_handler().register!(ref, Noizu.ElixirCore.CallingContext.system(%{}))
 
     {initialized, inner_state} = if lazy_load do
       case worker_state_entity.load(ref) do
@@ -124,7 +125,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     end
   end # end handle_info/:activity_check
 
-  def default_handle_migrate_shutdown(_mod, _server, _worker_state_entity, _inactivity_check, {:i, {:migrate_shutdown, ref}, context}, %Noizu.SimplePool.Worker.State{migrating: false} = state) do
+  def default_handle_migrate_shutdown(_mod, _server, _worker_state_entity, _inactivity_check, {:i, {:migrate_shutdown, _ref}, _context}, %Noizu.SimplePool.Worker.State{migrating: false} = state) do
     Logger.error(fn -> "#{__MODULE__}.migrate_shutdown called when not in migrating state"  end)
     {:noreply, state}
   end # end handle_info/:activity_check
@@ -238,7 +239,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         state = case response do
           {:ok, _p} ->
             state = %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :migrate_start, DateTime.utc_now()), migrating: true}
-            state = if migrate_shutdown do
+            if migrate_shutdown do
               mod.schedule_migrate_shutdown(context, state)
             else
               spawn fn() ->
@@ -264,7 +265,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   end # end handle_call
 
 
-  def default_handle_cast_lazy_load(mod, worker_state_entity, {:s, _inner, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+  def default_handle_cast_lazy_load(mod, worker_state_entity, {:s, _inner, context} = call, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
     case worker_state_entity.load(state.worker_ref, context) do
       nil -> {:noreply, state}
       inner_state ->
@@ -272,7 +273,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     end
   end # end handle_call
 
-  def default_handle_info_lazy_load(mod, worker_state_entity, {:s, _inner, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+  def default_handle_info_lazy_load(mod, worker_state_entity, {:s, _inner, context} = call, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
     case worker_state_entity.load(state.worker_ref, context) do
       nil -> {:noreply, state}
       inner_state ->
@@ -293,7 +294,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   #-------------------------------------------------------------------------
   # Call Forwarding Feature Section
   #-------------------------------------------------------------------------
-  def default_handle_cast_forwarding(worker_state_entity, inactivity_check, {:s, inner_call, context} = call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
+  def default_handle_cast_forwarding(worker_state_entity, inactivity_check, {:s, inner_call, context} = _call, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
     case worker_state_entity.call_forwarding(inner_call, context, inner_state) do
       {:stop, reason, inner_state} ->
         if inactivity_check do
@@ -310,7 +311,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     end
   end
 
-  def default_handle_call_forwarding(worker_state_entity, inactivity_check, {:s, inner_call, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
+  def default_handle_call_forwarding(worker_state_entity, inactivity_check, {:s, inner_call, context} = _call, from, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
     case worker_state_entity.call_forwarding(inner_call, context, from, inner_state) do
       {:stop, reason, response, inner_state} ->
         if inactivity_check do
@@ -347,7 +348,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       @migrate_shutdown_interval_ms (5_000)
       @migrate_shutdown unquote(MapSet.member?(features, :migrate_shutdown))
       @inactivity_check unquote(MapSet.member?(features, :inactivity_check))
-
+      @lazy_load unquote(MapSet.member?(features, :lazy_load))
       @base_verbose (unquote(verbose))
       def verbose() do
         default_verbose(@base_verbose, @base)
@@ -394,7 +395,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       """
       if (unquote(required.init)) do
         def init(arg) do
-          default_init(__MODULE__, @server, @base, @worker_state_entity, @inactivity_check, arg)
+          default_init({__MODULE__, @server, @base, @worker_state_entity, @inactivity_check, @lazy_load}, arg)
         end
       end # end init
 
@@ -519,7 +520,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         handle_cast({:s, {:migrate!, ref, rebase, options}, context}, state)
       end
 
-      def handle_call({:s, {:migrate!, ref, rebase, options}, context}, from, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
+      def handle_call({:s, {:migrate!, ref, rebase, options} = call, context}, from, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
         default_handle_call_migrate(__MODULE__, @server, @worker_state_entity, @migrate_shutdown, call, from, state)
       end
 
@@ -541,7 +542,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       end # end lazy_load feature block
 
       # Capture shutdown with full state  to allow for timer clearing, etc.
-      def handle_call({:s, {:shutdown, options} = _inner_call, context} = _call, from, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: _inner_state} = state) do
+      def handle_call({:s, {:shutdown, options} = _inner_call, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: _inner_state} = state) do
         default_handle_call_shutdown(__MODULE__, @worker_state_entity, call, from, state)
       end
 

@@ -53,94 +53,6 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
     end
   end
 
-  def default_start_link(verbose, base, mod) do
-    if verbose do
-       Logger.info(fn -> base.banner("#{mod}.start_link") end)
-    end
-
-    case Supervisor.start_link(mod, [], [{:name, mod}]) do
-      {:ok, sup} ->
-        Logger.info(fn ->  "#{mod}.start_link Supervisor Not Started. #{inspect sup}" end)
-        mod.start_children(mod)
-        {:ok, sup}
-      {:error, {:already_started, sup}} ->
-        Logger.info(fn -> "#{mod}.start_link Supervisor Already Started. Handling unexected state.  #{inspect sup}"  end)
-        mod.start_children(mod)
-        {:ok, sup}
-    end
-  end
-
-
-  def default_start_children(verbose, base, worker_supervisor, pool_server, mod, sup) do
-    if verbose do
-      Logger.info(fn ->
-        base.banner(
-          """
-          #{mod} START_CHILDREN
-          Options: #{inspect mod.options()}
-          worker_supervisor: #{worker_supervisor}
-          worker_server: #{pool_server}
-          """)
-      end)
-    end
-
-    case Supervisor.start_child(sup, mod.supervisor(worker_supervisor, [], [])) do
-      {:ok, pool_supervisor} ->
-
-        case Supervisor.start_child(sup, mod.worker(pool_server, [worker_supervisor], [])) do
-          {:ok, pid} -> {:ok, pid}
-          {:error, {:already_started, process2_id}} ->
-            Supervisor.restart_child(__MODULE__, process2_id)
-          error ->
-            Logger.error(fn ->
-              """
-
-              #{__MODULE__}.start_children(1) #{inspect worker_supervisor} Already Started. Handling unexepected state.
-              #{inspect error}
-              """
-            end)
-        end
-
-      {:error, {:already_started, process_id}} ->
-        case Supervisor.restart_child(__MODULE__, process_id) do
-          {:ok, pid} ->
-            case Supervisor.start_child(__MODULE__, mod.worker(pool_server, [worker_supervisor], [])) do
-              {:ok, pid} -> {:ok, pid}
-              {:error, {:already_started, process2_id}} ->
-                Supervisor.restart_child(__MODULE__, process2_id)
-              error ->
-                Logger.error(fn ->
-                  """
-
-                  #{__MODULE__}.start_children(2) #{inspect worker_supervisor} Already Started. Handling unexepected state.
-                  #{inspect error}
-                  """
-                end)
-            end
-          error ->
-            Logger.info(fn ->
-              """
-
-              #{__MODULE__}.start_children(3) #{inspect worker_supervisor} Already Started. Handling unexepected state.
-              #{inspect error}
-              """  end)
-        end
-
-      error ->
-        Logger.info(fn ->
-          """
-
-          #{__MODULE__}.start_children(4) #{inspect worker_supervisor} Already Started. Handling unexepected state.
-          #{inspect error}
-          """
-        end)
-    end
-
-    # Lazy Load Children Load Children
-    pool_server.load(nil, nil)
-  end
-
-
   defmacro __using__(options) do
     option_settings = prepare_options(options)
     options = option_settings.effective_options
@@ -175,14 +87,82 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       # @start_link
       if (unquote(required.start_link)) do
         def start_link do
-          default_start_link(verbose(), @base, __MMODULE__)
+          if verbose() do
+            Logger.info(fn -> @base.banner("#{__MODULE__}.start_link") end)
+          end
+
+          case Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}]) do
+            {:ok, sup} ->
+              Logger.info(fn ->  "#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}" end)
+              start_children(__MODULE__)
+              {:ok, sup}
+            {:error, {:already_started, sup}} ->
+              Logger.info(fn -> "#{__MODULE__}.start_link Supervisor Already Started. Handling unexected state.  #{inspect sup}"  end)
+              start_children(__MODULE__)
+              {:ok, sup}
+          end
         end
       end # end start_link
 
       # @start_children
       if (unquote(required.start_children)) do
         def start_children(sup) do
-          default_start_children(verbose(), @base, @worker_supervisor, @pool_server, __MODULE__, sup)
+
+          if verbose() do
+            Logger.info(fn ->
+              @base.banner(
+                """
+                #{__MODULE__} START_CHILDREN
+                Options: #{inspect options()}
+                worker_supervisor: #{@worker_supervisor}
+                worker_server: #{@pool_server}
+                """)
+            end)
+          end
+
+          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [], [])) do
+            {:ok, _pool_supervisor} ->
+
+              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor], [])) do
+                {:ok, pid} -> {:ok, pid}
+                {:error, {:already_started, process2_id}} ->
+                  Supervisor.restart_child(__MODULE__, process2_id)
+                error ->
+                  Logger.error(fn ->
+                    """
+
+                    #{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
+                    #{inspect error}
+                    """
+                  end)
+              end
+
+            {:error, {:already_started, process_id}} ->
+              case Supervisor.restart_child(__MODULE__, process_id) do
+                {:ok, pid} -> {:ok, pid}
+                error ->
+                  Logger.info(fn ->
+                    """
+
+                    #{__MODULE__}.start_children(3) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
+                    #{inspect error}
+                    """  end)
+              end
+
+            error ->
+              Logger.info(fn ->
+                """
+
+                #{__MODULE__}.start_children(4) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
+                #{inspect error}
+                """
+              end)
+          end
+
+          # Lazy Load Children Load Children
+          @pool_server.load(nil, nil)
+
+
         end
       end # end start_children
 

@@ -14,7 +14,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   @callback start_link(any) :: any
 
   @methods ([
-              :start_link, :init, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
+              :start_link, :init, :terminate!, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
               :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_start_transfer!, :worker_remove!, :worker_terminate!,
               :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!,
               :crash!, :health_check!, :save!, :reload!, :remove!
@@ -36,7 +36,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         default_timeout: %OptionValue{option: :default_timeout, default:  Application.get_env(:noizu_simple_pool, :default_timeout, @default_timeout)},
         shutdown_timeout: %OptionValue{option: :shutdown_timeout, default: Application.get_env(:noizu_simple_pool, :default_shutdown_timeout, @default_shutdown_timeout)},
         server_driver: %OptionValue{option: :server_driver, default: Application.get_env(:noizu_simple_pool, :default_server_driver, Noizu.SimplePool.ServerDriver.Default)},
-        worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.DefaultImplementation)},
+        worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.Default)},
         server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)},
         server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitor, Noizu.SimplePool.ServerMonitorBehaviour.DefaultImplementation)},
       }
@@ -79,7 +79,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         else
           :rpc.cast(host, m,f,a)
         end
-      o -> o
+      o ->
+        o
     end
   end
 
@@ -114,15 +115,18 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   # s_call unsafe implementations
   #-------------------------------------------------------------------------
   def default_s_call_unsafe(mod, ref, extended_call, context, options, timeout) do
+    timeout = options[:timeout] || timeout
     case mod.worker_pid!(ref, context, options) do
       {:ack, pid} ->
         case GenServer.call(pid, extended_call, timeout) do
           :s_retry ->
             case mod.worker_pid!(ref, context, options) do
-              {:ack, pid} -> GenServer.call(pid, extended_call, timeout)
+              {:ack, pid} ->
+                GenServer.call(pid, extended_call, timeout)
               error -> error
             end
-          v -> v
+          v ->
+            v
         end
       error ->
         error
@@ -132,7 +136,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   def default_s_cast_unsafe(mod, ref, extended_call, context, options) do
     case mod.worker_pid!(ref, context, options) do
       {:ack, pid} -> GenServer.cast(pid, extended_call)
-      error -> error
+      error ->
+        error
     end
   end
 
@@ -217,7 +222,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       ref ->
         try do
           options_b = put_in(options, [:spawn], true)
-          mod.cast_to_host(ref, {mod, :rs_cast!, [ref, call, context, options_b]}, context, options)
+          mod.cast_to_host(ref, {mod, :rs_cast!, [ref, call, context, options_b]}, context, options_b)
         catch
           :exit, e -> {:error, {:exit, e}}
         end
@@ -375,12 +380,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
     try do
       if link.handle && (link.expire == :infinity or link.expire > now_ts) do
-        r = GenServer.cast(link.handle, extended_call)
+        GenServer.cast(link.handle, extended_call)
         {:ok, link}
       else
         case mod.worker_pid!(link.ref, context, options_b) do
           {:ack, pid} ->
-            r = GenServer.cast(pid, extended_call)
+            GenServer.cast(pid, extended_call)
             rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
             {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
           {:error, details} ->
@@ -400,37 +405,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   end # end link_forward!
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  #=================================================================
+  #=================================================================
+  # @__using__
+  #=================================================================
+  #=================================================================
 
   defmacro __using__(options) do
     option_settings = prepare_options(options)
@@ -483,9 +462,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       @graceful_stop unquote(MapSet.member?(features, :graceful_stop))
 
-      def verbose() (
-            default_verbose(@base_verbose, @base)
-          )
+      def verbose() do
+        default_verbose(@base_verbose, @base)
+      end
 
       alias Noizu.SimplePool.Worker.Link
       def worker_state_entity, do: @worker_state_entity
@@ -566,6 +545,26 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end # end case
       end # endstart/3
 
+
+      def worker_sup_start(ref, context) do
+        childSpec = @worker_supervisor.child(ref, context)
+        case Supervisor.start_child(@worker_supervisor, childSpec) do
+          {:ok, pid} -> {:ack, pid}
+          {:error, {:already_started, pid}} ->
+            {:ack, pid}
+          {:error, :already_present} ->
+            # We may no longer simply restart child as it may have been initilized
+            # With transfer_state and must be restarted with the correct context.
+            Supervisor.delete_child(@worker_supervisor, ref)
+            case Supervisor.start_child(@worker_supervisor, childSpec) do
+              {:ok, pid} -> {:ack, pid}
+              error -> error
+            end
+          error -> error
+        end # end case
+      end # endstart/3
+
+
       def worker_sup_terminate(ref, sup, context, options \\ %{}) do
         Supervisor.terminate_child(@worker_supervisor, ref)
         Supervisor.delete_child(@worker_supervisor, ref)
@@ -589,11 +588,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # Startup: Lazy Loading/Async Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
       #-------------------------------------------------------------------------------
       if unquote(required.status) do
-        def status(context \\ nil), do: @server_provider.status(__MODULE__, context)
+        def status(context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: @server_provider.status(__MODULE__, context)
       end
 
       if unquote(required.load) do
-        def load(options \\ nil, context \\ nil), do: @server_provider.load(__MODULE__, options, context)
+        def load(context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: @server_provider.load(__MODULE__, context, options)
       end
 
       if unquote(required.load_complete) do
@@ -608,23 +607,23 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # Worker Process Management
       #-------------------------------------------------------------------------------
       if unquote(required.worker_add!) do
-        def worker_add!(ref, options \\ nil, context \\ nil) do
+        def worker_add!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           options_b = put_in(options, [:spawn], true)
           ref = worker_ref!(ref)
-          @worker_lookup_handler.process!(ref, mod, context, options_b)
+          @worker_lookup_handler.process!(ref, __MODULE__, context, options_b)
         end
       end
 
-      def run_on_host(mod, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
+      def run_on_host(ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
         default_run_on_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options, timeout)
       end
 
-      def cast_to_host(mod, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}) do
+      def cast_to_host(ref, {m,f,a}, context, options \\ %{}) do
         default_cast_to_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options)
       end
 
       if unquote(required.remove!) do
-        def remove!(ref, options, context) do
+        def remove!(ref, context, options) do
           run_on_host(ref, {__MODULE__, :r_remove!, [ref, context, options]}, context, options)
         end
 
@@ -638,7 +637,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.terminate!) do
-        def terminate!(ref, options, context) do
+        def terminate!(ref, context, options) do
           run_on_host(ref, {__MODULE__, :r_terminate!, [ref, context, options]}, context, options)
         end
 
@@ -652,7 +651,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.worker_start_transfer!) do
-        def worker_start_transfer!(ref, rebase, transfer_state, options \\ nil, context \\ nil) do
+        def worker_start_transfer!(ref, rebase, transfer_state, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           #if Node.ping(rebase) == :pong do
           #  if options[:async] do
           #    :rpc.cast(rebase, @server_provider, :offthread_worker_add!, [ref, transfer_state, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
@@ -667,7 +666,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.worker_migrate!) do
-        def worker_migrate!(ref, rebase, options \\ nil, context \\ nil) do
+        def worker_migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
 
           """
 
@@ -698,15 +697,15 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.worker_load!) do
-        def worker_load!(ref, options \\ nil, context \\ nil), do: s_cast!(ref, {:load, options}, context)
+        def worker_load!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(ref, {:load, options}, context)
       end
 
       if unquote(required.worker_ref!) do
-        def worker_ref!(identifier, _context \\ nil), do: @worker_state_entity.ref(identifier)
+        def worker_ref!(identifier, _context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: @worker_state_entity.ref(identifier)
       end
 
       if unquote(required.worker_pid!) do
-        def worker_pid!(ref, context \\ nil, options \\ %{}) do
+        def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           @worker_lookup_handler.process!(ref, __MODULE__, context, options)
         end
       end
@@ -716,7 +715,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @TODO add support for directing calls to specific nodes for load balancing purposes.
         @TODO add support for s_redirect
       """
-      def self_call(call, context \\ nil, timeout \\ @timeout) do
+      def self_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout) do
         case @server_monitor.supported_node(node(), @base, context) do
           :ack ->
             extended_call = {:s, call, context}
@@ -724,7 +723,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           v -> {:error, v}
         end
       end
-      def self_cast(call, context \\ nil) do
+      def self_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
         case @server_monitor.supported_node(node(), @base, context) do
           :ack ->
             extended_call = {:s, call, context}
@@ -733,7 +732,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
-      def internal_call(call, context \\ nil, timeout \\ @timeout) do
+      def internal_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout) do
         case @server_monitor.supported_node(node(), @base, context) do
           :ack ->
             extended_call = {:i, call, context}
@@ -742,7 +741,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
-      def internal_cast(call, context \\ nil) do
+      def internal_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
         case @server_monitor.supported_node(node(), @base, context) do
           :ack ->
             extended_call = {:i, call, context}
@@ -751,7 +750,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
-      def remote_call(remote_node, call, context \\ nil, timeout \\ @timeout) do
+      def remote_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout) do
         case @server_monitor.supported_node(remote_node, @base, context) do
           :ack ->
             extended_call = {:i, call, context}
@@ -764,7 +763,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
-      def remote_cast(remote_node, call, context \\ nil) do
+      def remote_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
         case @server_monitor.supported_node(remote_node, @base, context) do
           :ack ->
             extended_call = {:i, call, context}
@@ -841,32 +840,32 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # fetch
       #-------------------------------------------------------------------------
 
-      def fetch(identifier, options \\ :default, context \\ nil, timeout \\ @timeout), do: s_call!(identifier, {:fetch, options}, context, timeout)
+      def fetch(identifier, fetch_options \\ %{}, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_call!(identifier, {:fetch, fetch_options}, context, options)
 
       if unquote(required.save!) do
-        def save!(identifier, context \\ nil), do: s_call!(identifier, :save!, context)
-        def save_async!(identifier, context \\ nil), do: s_cast!(identifier, :save!, context)
+        def save!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: s_call!(identifier, :save!, context)
+        def save_async!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: s_cast!(identifier, :save!, context)
       end
 
       if unquote(required.reload!) do
-        def reload!(identifier, options \\ nil, context \\ nil), do: s_call!(identifier, {:reload!, options}, context)
-        def reload_async!(identifier, options \\ nil, context \\ nil), do: s_cast!(identifier, {:reload!, options}, context)
+        def reload!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_call!(identifier, {:reload!, options}, context)
+        def reload_async!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(identifier, {:reload!, options}, context)
       end
 
       if unquote(required.ping!) do
-        def ping!(identifier, context \\ nil, timeout \\ @timeout), do: s_call!(identifier, :ping!, context, timeout)
+        def ping!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout), do: s_call!(identifier, :ping!, context, timeout)
       end
 
       if unquote(required.kill!) do
-        def kill!(identifier, context \\ nil), do: s_cast!(identifier, :kill!, context)
+        def kill!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: s_cast!(identifier, :kill!, context)
       end
 
       if unquote(required.crash!) do
-        def crash!(identifier,  options \\ :default, context \\ nil), do: s_cast!(identifier, {:crash!, options}, context)
+        def crash!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ :%{}), do: s_cast!(identifier, {:crash!, options}, context)
       end
 
       if unquote(required.health_check!) do
-        def health_check!(identifier,  options \\ :default, context \\ nil, timeout \\ @timeout), do: s_call!(identifier, {:health_check!, options}, context, timeout)
+        def health_check!(identifier,  context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ :default, timeout \\ @timeout), do: s_call!(identifier, {:health_check!, options}, context, timeout)
       end
 
       #-------------------------------------------------------------------------
@@ -895,7 +894,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
-        def s_call!(identifier, call, context \\ nil, options \\ %{}, timeout \\ @timeout) do
+        def s_call!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
           default_crash_protection_s_call!(__MODULE__, identifier, call, context , options, timeout)
         end # end s_call!
 
@@ -907,30 +906,30 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @doc """
           Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
-        def s_cast!(identifier, call, context \\ nil, options \\ %{}) do
+        def s_cast!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           default_crash_protection_s_cast!(__MODULE__, identifier, call, context, options)
         end # end s_cast!
 
         def rs_call(identifier, call, context, options, timeout) do
-          default_crash_protection_rs_call({__MODULE__, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options, timeout)
+          default_crash_protection_rs_call({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
         end
 
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
-        def s_call(identifier, call, context \\ nil, options \\ %{}, timeout \\ @timeout) do
+        def s_call(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
           default_crash_protection_s_call(__MODULE__, identifier, call, context, options, timeout)
         end # end s_call!
 
         def rs_cast(identifier, call, context, options) do
-          default_crash_protection_rs_cast({__MODULE__, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options)
+          default_crash_protection_rs_cast({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
         end
 
 
         @doc """
           Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
-        def s_cast(identifier, call, context \\ nil, options \\ %{}) do
+        def s_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           default_crash_protection_s_cast(__MODULE__, identifier, call, context, options)
         end # end s_cast!
 
@@ -940,28 +939,28 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
-        def s_call!(identifier, call, context \\ nil, options \\ %{}, timeout \\ @timeout) do
+        def s_call!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
           default_nocrash_protection_s_call!({__MODULE__, @s_redirect_feature}, identifier, call, context, options, timeout)
         end # end s_call!
 
         @doc """
           Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
         """
-        def s_cast!(identifier, call, context \\ nil) do
+        def s_cast!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
           default_nocrash_protection_s_cast!({__MODULE__, @s_redirect_feature}, identifier, call, context, options)
         end # end s_cast!
 
         @doc """
           Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
-        def s_call(identifier, call, context \\ nil, timeout \\ @timeout) do
+        def s_call(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout) do
           default_nocrash_protection_s_call({__MODULE__, @s_redirect_feature}, identifier, call, context, options, timeout )
         end # end s_call!
 
         @doc """
           Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
         """
-        def s_cast(identifier, call, context \\ nil, optiosn \\ %{}) do
+        def s_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), optiosn \\ %{}) do
           default_nocrash_protection_s_cast({__MODULE__, @s_redirect_feature}, identifier, call, context, options)
         end # end s_cast!
       end # end if feature.crash_protection
@@ -970,7 +969,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         @doc """
           Crash Protection always enabled, for now.
         """
-        def link_forward!(%Link{handler: __MODULE__} = link, call, context \\ nil, options \\ %{}) do
+        def link_forward!(%Link{handler: __MODULE__} = link, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           default_link_forward!({__MODULE__, @base, @s_redirect_feature}, link, call, context, options)
         end # end link_forward!
       end # end if required link_forward!

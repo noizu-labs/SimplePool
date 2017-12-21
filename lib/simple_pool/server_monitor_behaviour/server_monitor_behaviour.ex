@@ -18,5 +18,5 @@ defmodule Noizu.SimplePool.ServerMonitorBehaviour do
 
   @callback join(server :: atom, settings :: Map.t, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
 
-  @callback select_node(ref :: any, server :: atom, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ack, atom} | {:nack, details :: any} | {:error, details :: any}
+  @callback select_host(ref :: any, server :: atom, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ack, atom} | {:nack, details :: any} | {:error, details :: any}
 end

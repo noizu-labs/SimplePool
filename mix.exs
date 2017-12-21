@@ -13,7 +13,8 @@ defmodule Noizu.SimplePool.Mixfile do
      package: package(),
      deps: deps(),
      description: "Noizu Simple Pool",
-     docs: docs()
+     docs: docs(),
+     elixirc_paths: elixirc_paths(Mix.env),
    ]
  end # end project
 
@@ -34,6 +35,7 @@ defmodule Noizu.SimplePool.Mixfile do
       {:ex_doc, "~> 0.16.2", only: [:dev, :test], optional: true}, # Documentation Provider
       {:markdown, github: "devinus/markdown", only: [:dev], optional: true}, # Markdown processor for ex_doc
       {:amnesia, git: "https://github.com/meh/amnesia.git", ref: "87d8b4f", optional: true}, # Mnesia Wrapper
+      {:noizu_mnesia_versioning, github: "noizu/MnesiaVersioning", tag: "0.1.8"},
       {:noizu_core, github: "noizu/ElixirCore", tag: "1.0.0"},
     ]
   end # end deps
@@ -44,4 +46,8 @@ defmodule Noizu.SimplePool.Mixfile do
       extras: ["README.md"]
     ]
   end # end docs
+
+  defp elixirc_paths(:test), do: ["lib","test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
 end

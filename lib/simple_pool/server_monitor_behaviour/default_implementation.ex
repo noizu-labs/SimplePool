@@ -7,27 +7,27 @@ defmodule Noizu.SimplePool.ServerMonitorBehaviour.DefaultImplementation do
   require Logger
   @behaviour Noizu.SimplePool.ServerMonitorBehaviour
 
-  def supported_node(server, component, context, options) do
+  def supported_node(_server, _component, _context, _options \\ %{}) do
     :ack
   end
 
-  def rebalance(input, output, components, context, options) do
-    {:ok, self()}
+  def rebalance(_input, _output, _components, _context, _options \\ %{}) do
+    {:ack, self()}
   end
 
-  def lock(servers, components, context, options) do
-    {:ok, self()}
+  def lock(_servers, _components, _context, _options \\ %{}) do
+    {:ack, self()}
   end
 
-  def release(servers, components, context, options) do
-    {:ok, self()}
+  def release(_servers, _components, _context, _options \\ %{}) do
+    {:ack, self()}
   end
 
-  def join(servers, settings, context, options) do
-    {:ok, self()}
+  def join(_servers, _settings, _context, _options \\ %{}) do
+    {:ack, self()}
   end
 
-  def select_node(ref, component, context, options) do
-    node()
+  def select_host(_ref, _component, _context, _options \\ %{}) do
+    {:ack, node()}
   end
 end

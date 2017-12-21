@@ -47,11 +47,11 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     # Internal Routing - internal_call_handler
     #---------------------------------------------------------------------------
-    def internal_call_handler({:load, options}, context, _from, %State{} = state), do: load_workers(options, context, state)
+    def internal_call_handler({:load, options}, context, _from, %State{} = state), do: load_workers(options, state, context)
 
-    def internal_call_handler({:worker_terminate!, ref, options}, context, _from, %State{} = state), do: worker_terminate!(ref, options, context, state)
-    def internal_call_handler({:worker_add!, ref, options}, context, _from, %State{} = state), do: worker_add!(ref, options, context, state)
-    def internal_call_handler({:worker_transfer!, ref, transfer_state, options}, context, _from, %State{} = state), do: worker_transfer!(ref, transfer_state, options, context, state)
+    def internal_call_handler({:worker_terminate!, ref, options}, context, _from, %State{} = state), do: worker_terminate!(ref, options, state, context)
+    def internal_call_handler({:worker_add!, ref, options}, context, _from, %State{} = state), do: worker_add!(ref, options, state, context)
+    def internal_call_handler({:worker_transfer!, ref, transfer_state, options}, context, _from, %State{} = state), do: worker_transfer!(ref, transfer_state, options, state, context)
     def internal_call_handler(call, context, _from, %State{} = state) do
       if context do
         Logger.error("#{Map.get(context, :token, :token_not_found)}: #{inspect state.server} unsupported call(#{inspect call})")
@@ -64,10 +64,10 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # Internal Routing - internal_cast_handler
     #---------------------------------------------------------------------------
     def internal_cast_handler({:worker_remove!, ref, options}, context, %State{} = state) do
-       worker_remove!(ref, options, context, state)
+       worker_remove!(ref, options, state, context)
     end
-    def internal_cast_handler({:worker_terminate!, ref, options}, context, %State{} = state), do: worker_terminate!(ref, options, context, state) |> as_cast()
-    def internal_cast_handler({:worker_transfer!, ref, transfer_state, options}, context, %State{} = state), do: worker_transfer!(ref, transfer_state, options, context, state) |> as_cast()
+    def internal_cast_handler({:worker_terminate!, ref, options}, context, %State{} = state), do: worker_terminate!(ref, options, state, context) |> as_cast()
+    def internal_cast_handler({:worker_transfer!, ref, transfer_state, options}, context, %State{} = state), do: worker_transfer!(ref, transfer_state, options, state, context) |> as_cast()
     def internal_cast_handler(call, context, %State{} = state) do
       if context do
         Logger.error("#{Map.get(context, :token, :token_not_found)}: #{inspect state.server} unsupported cast(#{inspect call, pretty: true})")
@@ -96,7 +96,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     # worker_add!()
     #------------------------------------------------
-    def worker_add!(ref, options, context, state) do
+    def worker_add!(ref, options, state, context) do
       if Enum.member?(state.options.effective_options.features, :async_load) do
         {:reply, state.server.worker_sup_start(ref, state.pool, context), state}
       else
@@ -140,7 +140,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     # worker_terminate!()
     #------------------------------------------------
-    def worker_terminate!(ref, _options, context, state) do
+    def worker_terminate!(ref, _options, state, context) do
       r = state.server.worker_sup_terminate(ref, state.pool, context)
       {:reply, r, state}
     end
@@ -148,7 +148,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     # worker_transfer!()
     #------------------------------------------------
-    def worker_transfer!(ref, transfer_state, _options, context, state) do
+    def worker_transfer!(ref, transfer_state, _options, state, context) do
       response = state.server.worker_sup_start(ref, transfer_state, state.pool, context)
       {:reply, response, state}
     end
@@ -156,7 +156,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     # worker_remove!
     #------------------------------------------------
-    def worker_remove!(ref, options, context, state) do
+    def worker_remove!(ref, _options, state, context) do
       state.server.worker_sup_remove(ref, state.pool, context)
       {:noreply, state}
     end
@@ -164,10 +164,10 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     # load_workers
     #------------------------------------------------
-    def load_workers(options, context, state) do
+    def load_workers(options, state, context) do
       if Enum.member?(state.options.effective_options.features, :async_load) do
         state.server.base().banner("Load Workers Async")
-        pid = spawn(fn -> load_workers_async(options, context, state) end)
+        pid = spawn(fn -> load_workers_async(options, state, context) end)
         status = %{state.status| loading: :in_progress, state: :initialization}
         state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid)}
         {:reply, {:ok, :loading}, state}
@@ -179,14 +179,14 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
           {:reply, {:ok, :loaded}, state}
         else
           state.server.base().banner("Load Workers")
-          :ok = load_workers_sync(options, context, state)
+          :ok = load_workers_sync(options, state, context)
           state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}
         end
       end
     end
 
-    def load_complete(_source, _context, state) do
+    def load_complete(_source, state, _context) do
       status = %{state.status| loading: :complete, state: :ready}
       state = %State{state| status: status, extended: Map.put(state.extended, :load_process, nil)}
       {:noreply, state}
@@ -195,36 +195,36 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     # load_workers_async
     #------------------------------------------------
-    def load_workers_async(options, context, state) do
+    def load_workers_async(options, state, context) do
       Amnesia.Fragment.transaction do
-        load_workers_async(state.server.worker_state_entity().worker_refs(options, context, state), options, context, state)
+        load_workers_async(state.server.worker_state_entity().worker_refs(options, state, context), options, state, context)
       end
     end
-    def load_workers_async(nil, _options, context, state), do: state.server.load_complete({self(), node()}, context, state)
-    def load_workers_async(sel, options, context, state) do
+    def load_workers_async(nil, _options, state, context), do: state.server.load_complete({self(), node()}, state, context)
+    def load_workers_async(sel, options, state, context) do
       values = Amnesia.Selection.values(sel)
       for value <- values do
         ref = state.server.ref(value)
-        worker_add!(ref, options, context, state)
+        worker_add!(ref, options, state, context)
       end
-      load_workers_async(Amnesia.Selection.next(sel), options, context, state)
+      load_workers_async(Amnesia.Selection.next(sel), options, state, context)
     end
 
     #------------------------------------------------
     # load_workers_sync
     #------------------------------------------------
-    def load_workers_sync(options, context, state) do
+    def load_workers_sync(options, state, context) do
       Amnesia.Fragment.transaction do
-        load_workers_sync(state.server.worker_state_entity().worker_refs(), options, context, state)
+        load_workers_sync(state.server.worker_state_entity().worker_refs(), options, state, context)
       end
     end
     def load_workers_sync(nil, _options, _context, _state), do: :ok
-    def load_workers_sync(sel, options, context, state) do
+    def load_workers_sync(sel, options, state, context) do
       values = Amnesia.Selection.values(sel)
       for value <- values do
         ref = state.server.ref(value)
-        worker_add!(ref, options, context, state)
+        worker_add!(ref, options, state, context)
       end
-      load_workers_sync(Amnesia.Selection.next(sel), options, context, state)
+      load_workers_sync(Amnesia.Selection.next(sel), options, state, context)
     end
 end

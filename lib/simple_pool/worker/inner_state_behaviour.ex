@@ -58,7 +58,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
     option_settings = prepare_options(options)
     options = option_settings.effective_options
     required = options.required
-    features = MapSet.new(options.features)
+    #features = MapSet.new(options.features)
     pool = options.pool
 
     quote do
@@ -78,7 +78,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.fetch)) do
-        def fetch(%__MODULE__{} = this, _options, context), do: {:reply, this, this}
+        def fetch(%__MODULE__{} = this, _fetch_options, _context), do: {:reply, this, this}
       end
 
       if (unquote(required.ping!)) do
@@ -86,8 +86,8 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.reload!)) do
-        def reload!(%Noizu.SimplePool.Worker.State{} = state, options, context) do
-          case load(state.worker_ref, options, context) do
+        def reload!(%Noizu.SimplePool.Worker.State{} = state, context, options) do
+          case load(state.worker_ref, context, options) do
             nil -> {:reply, :error, state}
             inner_state ->
               {:reply, :ok, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
@@ -100,20 +100,20 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.crash!)) do
-        def crash!(%__MODULE__{} = this, options, context) do
+        def crash!(%__MODULE__{} = this, context, options) do
            raise "#{__MODULE__} - Crash Forced: #{inspect context}, #{inspect options}"
         end
       end
 
       if (unquote(required.save!)) do
-        def save!(outer_state, _options, _context) do
+        def save!(outer_state, _context, _options) do
           Logger.warn("#{__MODULE__}.save method not implemented.")
           {:reply, {:error, :implementation_required}, outer_state}
         end
       end
 
       if (unquote(required.health_check!)) do
-        def health_check!(%__MODULE__{} = this, _options, context), do: {:reply, %{pending: true}, this}
+        def health_check!(%__MODULE__{} = this, context, _options), do: {:reply, %{pending: true}, this}
       end
 
       if (unquote(required.call_forwarding_catchall)) do
@@ -140,7 +140,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.shutdown)) do
-        def shutdown(%Noizu.SimplePool.Worker.State{} = state, _options \\ nil, _context \\ nil, _from \\ nil), do: {:ok, state}
+        def shutdown(%Noizu.SimplePool.Worker.State{} = state, _context \\ nil, options \\ nil, _from \\ nil), do: {:ok, state}
       end
 
       if (unquote(required.migrate_shutdown)) do
@@ -148,7 +148,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.on_migrate)) do
-        def on_migrate(_rebase, %Noizu.SimplePool.Worker.State{} = state, _options \\ nil, _context \\ nil), do: {:ok, state}
+        def on_migrate(_rebase, %Noizu.SimplePool.Worker.State{} = state, _context \\ nil, _options \\ nil), do: {:ok, state}
       end
 
       if (unquote(required.terminate_hook)) do
@@ -156,7 +156,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.worker_refs)) do
-        def worker_refs(_options, _context, _state), do: nil
+        def worker_refs(_context, _options, _state), do: nil
       end
 
       if (unquote(required.transfer)) do
@@ -174,11 +174,11 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       #-----------------------------------------------------------------------------
 
       def call_forwarding({:load, options}, context, _from, %__MODULE__{} = this) do
-        {:reply, :loaded, load(this, options, context)}
+        {:reply, :loaded, load(this, context, options)}
       end
       def call_forwarding(:ping!, context, _from, %__MODULE__{} = this), do: ping!(this, context)
-      def call_forwarding({:health_check!, options}, context, _from, %__MODULE__{} = this), do: health_check!(this, options, context)
-      def call_forwarding({:fetch, options}, context, _from, %__MODULE__{} = this), do: fetch(this, options, context)
+      def call_forwarding({:health_check!, options}, context, _from, %__MODULE__{} = this), do: health_check!(this, context, options)
+      def call_forwarding({:fetch, fetch_options}, context, _from, %__MODULE__{} = this), do: fetch(this, fetch_options,  context)
       def call_forwarding(call, context, _from, %__MODULE__{} = this) do
         if context do
           Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
@@ -191,10 +191,10 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       # call_forwarding - cast|info
       #-----------------------------------------------------------------------------
       def call_forwarding({:load, options}, context, %__MODULE__{} = this) do
-        {:noreply, load(this, options, context)}
+        {:noreply, load(this, context, options)}
       end
       def call_forwarding(:kill!, context, %__MODULE__{} = this), do: kill!(this, context)
-      def call_forwarding({:crash!, options}, context, %__MODULE__{} = this), do: crash!(this, options, context)
+      def call_forwarding({:crash!, options}, context, %__MODULE__{} = this), do: crash!(this, context, options)
       def call_forwarding(call, context, %__MODULE__{} = this) do
         if context do
           Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
