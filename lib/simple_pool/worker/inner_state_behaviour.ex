@@ -42,7 +42,8 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       {:shutdown, {:migrate, _ref, _, :to, _}} ->
         reason
       _ ->
-        server.worker_deregister!(state.worker_ref)
+        server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
+        server.worker_lookup_handler().record_event!(state.worker_ref, :terminate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         reason
     end
   end
@@ -51,8 +52,6 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   def as_cast({:noreply, state}), do: {:noreply, state}
   def as_cast({:stop, reason, _reply, state}), do: {:stop, reason, state}
   def as_cast({:stop, reason, state}), do: {:stop, reason, state}
-
-
 
   defmacro __using__(options) do
     option_settings = prepare_options(options)
@@ -113,7 +112,23 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       end
 
       if (unquote(required.health_check!)) do
-        def health_check!(%__MODULE__{} = this, context, _options), do: {:reply, %{pending: true}, this}
+        def health_check!(%__MODULE__{} = this, context, options) do
+          #TODO accept a health check strategy option
+          ref = Noizu.ERP.ref(this)
+          events = @server.worker_lookup_handler().events!(ref, context, options) || []
+          cut_off = :os.system_time(:seconds) - (60*60*15)
+          accum = events
+                  |> Enum.filter(fn(x) -> x.time > cut_off end)
+                  |> Enum.reduce(%{}, fn(x, acc) -> update_in(acc, [x.event], &( (&1 || 0) + 1)) end)
+          weights = %{exit: 0.5,  start: 0.75,  terminate: 1.00,  timeout: 0.25}
+          check = Enum.reduce(weights, 0, fn({k,w}, acc) -> acc + ((accum[k] || 0) * w) end)
+          status = cond do
+            check < 5 -> :online
+            check < 8 -> :degraded
+            true -> :critical
+          end
+          {:reply, %Noizu.SimplePool.Worker.HealthCheck{identifier: ref, status: status, event_frequency: accum, check: check, events: events}, this}
+        end
       end
 
       if (unquote(required.call_forwarding_catchall)) do

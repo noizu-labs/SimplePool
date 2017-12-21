@@ -9,7 +9,6 @@ defmodule Noizu.SimplePool.Support.TestWorkerEntity do
   #-----------------------------------------------------------------------------
   # aliases, imports, uses,
   #-----------------------------------------------------------------------------
-  alias Noizu.ElixirCore.CallingContext
   require Logger
 
   #-----------------------------------------------------------------------------
@@ -45,13 +44,13 @@ defmodule Noizu.SimplePool.Support.TestWorkerEntity do
   #-----------------------------------------------------------------------------
   # Implementation
   #-----------------------------------------------------------------------------
-  def test_s_call!(this, value, context) do
+  def test_s_call!(this, value, _context) do
     state = put_in(this, [Access.key(:data), :s_call!], value)
     {:reply, :s_call!, state}
   end
-  def test_s_call(this, value, context), do: {:reply, :s_call, put_in(this, [Access.key(:data), :s_call], value)}
-  def test_s_cast!(this, value, context), do: {:noreply,  put_in(this, [Access.key(:data), :s_cast!], value)}
-  def test_s_cast(this, value, context), do: {:noreply,  put_in(this, [Access.key(:data), :s_cast], value)}
+  def test_s_call(this, value, _context), do: {:reply, :s_call, put_in(this, [Access.key(:data), :s_call], value)}
+  def test_s_cast!(this, value, _context), do: {:noreply,  put_in(this, [Access.key(:data), :s_cast!], value)}
+  def test_s_cast(this, value, _context), do: {:noreply,  put_in(this, [Access.key(:data), :s_cast], value)}
 
   #-----------------------------------------------------------------------------
   # call_forwarding

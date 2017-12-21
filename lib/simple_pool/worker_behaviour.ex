@@ -46,13 +46,12 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     end
   end
 
-  def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, {:migrate, ref, {:transfer, initial_state}}) do
+  def default_init({mod, server, base, worker_state_entity, inactivity_check, _lazy_load}, {:migrate, ref, {:transfer, initial_state}}) do
     if (mod.verbose()) do
       Logger.info(fn -> base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }") end)
     end
-
-    server.worker_lookup_handler().register!(ref, Noizu.ElixirCore.CallingContext.system(%{}))
-
+    server.worker_lookup_handler().register!(ref, Noizu.ElixirCore.Callin)
+    server.worker_lookup_handler().record_event!(ref, :start, :migrate, Noizu.ElixirCore.CallingContext.system(%{}), %{})
     {initialized, inner_state} = worker_state_entity.transfer(ref, initial_state.inner_state)
 
 
@@ -70,7 +69,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       Logger.info(fn -> base.banner("INIT/1 #{__MODULE__} (#{inspect ref }") end)
     end
     server.worker_lookup_handler().register!(ref, Noizu.ElixirCore.CallingContext.system(%{}))
-
+    server.worker_lookup_handler().record_event!(ref, :start, :normal, Noizu.ElixirCore.CallingContext.system(%{}), %{})
     {initialized, inner_state} = if lazy_load do
       case worker_state_entity.load(ref) do
         nil -> {false, nil}
@@ -386,6 +385,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             Logger.info(fn -> @base.banner("TERMINATE #{__MODULE__} (#{inspect state.worker_ref}\n Reason: #{inspect reason}") end)
           end
           @worker_state_entity.terminate_hook(reason, clear_inactivity_check(state))
+          @server.worker_lookup_handler().record_event!(state.worker_ref, :terminate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         end
       end # end start_link
 
@@ -465,11 +465,11 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         end
 
         def handle_cast({:s, {:save!, options}, context} = call, %Noizu.SimplePool.Worker.State{} = state) do
-          @worker_state_entity.save!(state, options, context) |> @worker_state_entity.as_cast()
+          @worker_state_entity.save!(state, options, context) |> Noizu.SimplePool.InnerStateBehaviour.as_cast()
         end
 
         def handle_info({:s, {:save!, options}, context} = call, %Noizu.SimplePool.Worker.State{} = state) do
-          @worker_state_entity.save!(state, options, context) |> @worker_state_entity.as_cast()
+          @worker_state_entity.save!(state, options, context) |> Noizu.SimplePool.InnerStateBehaviour.as_cast()
         end
       end
 
@@ -489,11 +489,11 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         end
 
         def handle_cast({:s, {:reload!, options}, context} = call, %Noizu.SimplePool.Worker.State{} = state) do
-          @worker_state_entity.reload!(state, options, context) |> @worker_state_entity.as_cast()
+          @worker_state_entity.reload!(state, options, context) |> Noizu.SimplePool.InnerStateBehaviour.as_cast()
         end
 
         def handle_info({:s, {:reload!, options}, context} = call, %Noizu.SimplePool.Worker.State{} = state) do
-          @worker_state_entity.reload!(state, options, context) |> @worker_state_entity.as_cast()
+          @worker_state_entity.reload!(state, options, context) |> Noizu.SimplePool.InnerStateBehaviour.as_cast()
         end
       end
 

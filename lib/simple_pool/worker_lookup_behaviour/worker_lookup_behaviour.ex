@@ -8,6 +8,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
 
   @callback host!(ref :: tuple, server :: module, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ok, atom} | {:spawn, atom} | {:error, details :: any} | {:restricted, atom}
   @callback record_event!(ref :: tuple, event :: atom, details :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: any
+  @callback events!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: list
 
   @callback register!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: any
   @callback unregister!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: any
@@ -57,7 +58,11 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     def default_record_event!({_mod, _d, m,_sm, _r}, ref, event, details, context, options \\ %{}) do
       Logger.info(fn -> {"#{inspect %{ref: ref, event: event, details: details}}", CallingContext.metadata(context)} end)
       m.new(ref, event, details, context, options)
-      |> m.create!()
+      |> m.create!(context, options)
+    end
+
+    def default_events!({_mod, _d, m, _sm, _r}, ref, context, _options \\ %{}) do
+      m.get!(ref, context)
     end
 
     def default_register!({mod, _d, _m, _sm, r}, ref, context, _options \\ %{}) do
@@ -131,7 +136,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
       end
     end
 
-    @methods [:host!, :record_event!, :register!, :unregister!, :obtain_lock!, :release_lock!, :process!]
+    @methods [:host!, :record_event!, :register!, :unregister!, :obtain_lock!, :release_lock!, :process!, :events!]
     def prepare_options(options) do
       settings = %OptionSettings{
         option_settings: %{
@@ -174,6 +179,11 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
         if unquote(required.record_event!) do
           def record_event!(ref, event, details, context), do: default_record_event!(@pass_thru, ref, event, details, context)
           def record_event!(ref, event, details, context, options), do: default_record_event!(@pass_thru, ref, event, details, context, options)
+        end
+
+        if unquote(required.events!) do
+          def events!(ref, context), do: default_events!(@pass_thru, ref, context)
+          def events!(ref, context, options), do: default_events!(@pass_thru, ref, context, options)
         end
 
         if unquote(required.register!) do

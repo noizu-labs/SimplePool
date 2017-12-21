@@ -8,13 +8,13 @@ defmodule Noizu.SimplePool.Support.TestPool do
   use Noizu.SimplePool.Behaviour,
       default_modules: [:pool_supervisor, :worker_supervisor],
       worker_state_entity: Noizu.SimplePool.Support.TestWorkerEntity,
-      verbose: true
+      verbose: false
 
   defmodule Worker do
     @vsn 1.0
     use Noizu.SimplePool.WorkerBehaviour,
         worker_state_entity: Noizu.SimplePool.Support.TestWorkerEntity,
-        verbose: true
+        verbose: false
     require Logger
   end # end worker
 
@@ -25,7 +25,7 @@ defmodule Noizu.SimplePool.Support.TestPool do
     @vsn 1.0
     use Noizu.SimplePool.ServerBehaviour,
         worker_state_entity: Noizu.SimplePool.Support.TestWorkerEntity
-    alias Noizu.SimplePool.Support.TestWorkerEntity
+    #alias Noizu.SimplePool.Support.TestWorkerEntity
 
     #---------------------------------------------------------------------------
     # Convenience Methods

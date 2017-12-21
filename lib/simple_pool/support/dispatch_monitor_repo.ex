@@ -52,4 +52,19 @@ defmodule Noizu.SimplePool.Dispatch.MonitorRepo do
     Noizu.SimplePool.Database.Dispatch.MonitorTable.delete(entity)
     entity
   end
+
+  defimpl Inspect, for: Noizu.SimplePool.Database.Dispatch.MonitorTable do
+    import Inspect.Algebra
+    def inspect(entity, opts) do
+      heading = "#WorkerEvent(#{entity.event},#{entity.time})"
+      {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
+      inner = cond do
+        opts.limit == :infinity ->
+          concat(["<#{seperator}", to_doc(Map.from_struct(entity), opts), "#{seperator}>"])
+        true -> "<>"
+      end
+      concat [heading, inner]
+    end # end inspect/2
+  end # end defimpl
+
 end

@@ -125,8 +125,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 GenServer.call(pid, extended_call, timeout)
               error -> error
             end
-          v ->
-            v
+          v -> v
         end
       error ->
         error
@@ -497,11 +496,15 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end # end terminate
 
       def enable_server!(elixir_node) do
-        @worker_lookup_handler.enable_server!(@base, elixir_node)
+        #@TODO reimplement pri1
+        #@server_monitor.enable_server!(@base, elixir_node)
+        :pending
       end
 
       def disable_server!(elixir_node) do
-        @worker_lookup_handler.disable_server!(@base, elixir_node)
+        #@TODO reimplement pri1
+        #@server_monitor.disable_server!(@base, elixir_node)
+        :pending
       end
 
       def worker_sup_start(ref, transfer_state, sup, context) do
@@ -571,7 +574,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end # end remove/3
 
       def worker_sup_remove(ref, sup, context, options \\ %{}) do
-        g = if Map.has_key(options, :graceful_stop), do: options[:graceful_stop], else: @graceful_stop
+        g = if Map.has_key?(options, :graceful_stop), do: options[:graceful_stop], else: @graceful_stop
         if g do
           s_call(ref, {:shutdown, [force: true]}, context, @shutdown_timeout)
         end
@@ -865,7 +868,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.health_check!) do
-        def health_check!(identifier,  context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ :default, timeout \\ @timeout), do: s_call!(identifier, {:health_check!, options}, context, timeout)
+        def health_check!(identifier, %Noizu.ElixirCore.CallingContext{} = context), do: s_call!(identifier, {:health_check!, %{}}, context, %{})
+        def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: s_call!(identifier, {:health_check!, health_check_options}, context, %{})
+        def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: s_call!(identifier, {:health_check!, health_check_options}, context, options)
+        def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: s_call!(identifier, {:health_check!, health_check_options}, context, options)
       end
 
       #-------------------------------------------------------------------------

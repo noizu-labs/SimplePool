@@ -9,3 +9,5 @@ Application.ensure_all_started(:bypass)
 Registry.start_link(keys: :unique, name: Noizu.SimplePool.DispatchRegister)
 
 Noizu.SimplePool.Support.TestPool.PoolSupervisor.start_link
+
+Logger.configure(level: :warn)
