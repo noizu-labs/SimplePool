@@ -46,7 +46,7 @@ initial = %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{
 #Noizu.EnvironmentManagerPool.Server.register(node(), initial, context)
 #Noizu.EnvironmentManagerPool.Server.initialize(node(), context)
 
-Noizu.MonitoringFramework.EnvironmentPool.PoolSupervisor.start_link(context)
+Noizu.MonitoringFramework.EnvironmentPool.PoolSupervisor.start_link(context, %Noizu.SimplePool.MonitoringFramework.Service.Definition{})
 Noizu.MonitoringFramework.EnvironmentPool.Server.register(initial, context)
 Noizu.MonitoringFramework.EnvironmentPool.Server.start_services(context)
 

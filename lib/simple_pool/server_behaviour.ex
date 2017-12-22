@@ -487,24 +487,34 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(required.worker_state_entity)) do
         def worker_state_entity, do: @worker_state_entity
       end
+
+
+
+      def handle_call({:m, {:status, options}, context}, _from, state) do
+        {:reply, {:ack, state.entity.status}, state}
+      end
+
+
+
       #=========================================================================
       # Genserver Lifecycle
       #=========================================================================
       if unquote(required.start_link) do
-        def start_link(sup, context) do
+        def start_link(sup, context, definition) do
+          #PRI1 @TODO if definition == :default load from config
           if verbose() do
             Logger.info(fn -> {@base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
-          GenServer.start_link(__MODULE__, [@worker_supervisor, context], name: __MODULE__)
+          GenServer.start_link(__MODULE__, [@worker_supervisor, context, definition], name: __MODULE__)
         end
       end # end start_link
 
       if (unquote(required.init)) do
-        def init([sup, context] = args) do
+        def init([sup, context, definition] = args) do
           if verbose() do
-            Logger.info(fn -> {@base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+            Logger.info(fn -> {@base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})\n args: #{inspect args, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end
-          @server_provider.init(__MODULE__, @worker_supervisor, option_settings(), context)
+          @server_provider.init(__MODULE__, @worker_supervisor, definition, option_settings(), context)
         end
       end # end init
 
@@ -752,6 +762,97 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           @worker_lookup_handler.process!(ref, __MODULE__, context, options)
         end
       end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      def status_wait(target_state, context, timeout \\ :infinity)
+      def status_wait(target_state, context, timeout) when is_atom(target_state) do
+        status_wait(MapSet.new([target_state]), context, timeout)
+      end
+
+      def status_wait(target_state, context, timeout) when is_list(target_state) do
+        status_wait(MapSet.new(target_state), context, timeout)
+      end
+
+      def status_wait(%MapSet{} = target_state, context, timeout) do
+        if timeout == :infinity do
+          case entity_status(context) do
+            {:ack, state} -> if MapSet.member?(target_state, state), do: state, else: status_wait(target_state, context, timeout)
+            _ -> status_wait(target_state, context, timeout)
+          end
+        else
+          ts = :os.system_time(:millisecond)
+          case entity_status(context, %{timeout: timeout}) do
+
+            {:ack, state} ->
+              if MapSet.member?(target_state, state) do
+                state
+              else
+                t = timeout - (:os.system_time(:millisecond) - ts)
+                if t > 0 do
+                  status_wait(target_state, context, t)
+                else
+                  {:timeout, state}
+                end
+              end
+            v ->
+              t = timeout - (:os.system_time(:millisecond) - ts)
+              if t > 0 do
+                status_wait(target_state, context, t)
+              else
+                {:timeout, v}
+              end
+          end
+        end
+      end
+
+
+      def entity_status(context, options \\ %{}) do
+        timeout = options[:timeout] || 5_000
+        try do
+          GenServer.call(__MODULE__, {:m, {:status, options}, context}, timeout)
+        catch
+          :exit, e ->
+            case e do
+              {:timeout, c} -> {:timeout, c}
+            end
+        end # end try
+      end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
       if (unquote(required.self_call)) do

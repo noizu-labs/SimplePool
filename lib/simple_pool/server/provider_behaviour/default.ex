@@ -10,13 +10,14 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     # GenServer Lifecycle
     #---------------------------------------------------------------------------
-    def init(server, sup, options, context) do
+    def init(server, sup, definition, options, context) do
       #server.enable_server!(node())
       state = %State{
           pool: sup,
           server: server,
           status_details: :pending,
           extended: %{},
+          entity: %{definition: definition, effective: nil, status: :init},
           options: options
         }
       {:ok, state}
@@ -96,18 +97,18 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
         Logger.info( fn -> {state.server.base().banner("Load Workers Async"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
         pid = spawn(fn -> load_workers_async(options, context, state) end)
         status = %{state.status| loading: :in_progress, state: :initialization}
-        state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid)}
+        state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid), entity: %{state.entity| status: :loading}}
         {:reply, {:ok, :loading}, state}
       else
         if Enum.member?(state.options.effective_options.features, :lazy_load) do
-          Logger.info(fn -> {state.server.base().banner("Lazy Load Workers"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+          Logger.info(fn -> {state.server.base().banner("Lazy Load Workers #{inspect state.entity}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           # nothing to do,
-          state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
+          state = %State{state| status: %{state.status| loading: :complete, state: :ready}, entity: %{state.entity| status: :online}}
           {:reply, {:ok, :loaded}, state}
         else
           Logger.info(fn -> {state.server.base().banner("Load Workers"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           :ok = load_workers_sync(options, context, state)
-          state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
+          state = %State{state| status: %{state.status| loading: :complete, state: :ready}, entity: %{state.entity| status: :online}}
           {:reply, {:ok, :loaded}, state}
         end
       end
@@ -115,7 +116,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
 
     def load_complete(_source, state, _context) do
       status = %{state.status| loading: :complete, state: :ready}
-      state = %State{state| status: status, extended: Map.put(state.extended, :load_process, nil)}
+      state = %State{state| status: status, extended: Map.put(state.extended, :load_process, nil), entity: %{state.entity| status: :online}}
       {:noreply, state}
     end
 
