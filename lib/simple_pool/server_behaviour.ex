@@ -14,10 +14,17 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   @callback start_link(any) :: any
 
   @methods ([
-              :start_link, :init, :terminate!, :terminate, :load, :status, :worker_pid!, :worker_ref!, :worker_clear!,
-              :worker_deregister!, :worker_register!, :worker_load!, :worker_migrate!, :worker_start_transfer!, :worker_remove!, :worker_terminate!,
-              :worker_add!, :get_direct_link!, :link_forward!, :load_complete, :ref, :ping!, :kill!,
-              :crash!, :health_check!, :save!, :reload!, :remove!
+              :verbose, :worker_state_entity, :option_settings, :options, :start_link, :init,
+              :terminate, :enable_server!, :disable_server!, :worker_sup_start,
+              :worker_sup_terminate, :worker_sup_remove, :worker_lookup_handler, :base,
+              :status, :load, :load_complete, :ref, :worker_add!, :run_on_host,
+              :cast_to_host, :remove!, :r_remove!, :terminate!, :r_terminate!,
+              :worker_start_transfer!, :worker_migrate!, :worker_load!, :worker_ref!,
+              :worker_pid!, :self_call, :self_cast, :internal_call, :internal_cast,
+              :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :kill!, :crash!,
+              :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
+              :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
+              :link_forward!
             ])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -437,6 +444,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     quote do
       require Logger
       import unquote(__MODULE__)
+      alias Noizu.SimplePool.Worker.Link
       @behaviour Noizu.SimplePool.ServerBehaviour
       use GenServer
       @base (Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat)
@@ -464,15 +472,21 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       @graceful_stop unquote(MapSet.member?(features, :graceful_stop))
 
-      def verbose() do
-        default_verbose(@base_verbose, @base)
+      if (unquote(required.verbose)) do
+        def verbose(), do: default_verbose(@base_verbose, @base)
       end
 
-      alias Noizu.SimplePool.Worker.Link
-      def worker_state_entity, do: @worker_state_entity
-      def option_settings, do: @option_settings
-      def options, do: @options
+      if (unquote(required.option_settings)) do
+        def option_settings(), do: @option_settings
+      end
 
+      if (unquote(required.options)) do
+        def options(), do: @options
+      end
+
+      if (unquote(required.worker_state_entity)) do
+        def worker_state_entity, do: @worker_state_entity
+      end
       #=========================================================================
       # Genserver Lifecycle
       #=========================================================================
@@ -498,98 +512,116 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def terminate(reason, state), do: @server_provider.terminate(reason, state)
       end # end terminate
 
-      def enable_server!(elixir_node) do
-        #@TODO reimplement pri1
-        #@server_monitor.enable_server!(@base, elixir_node)
-        :pending
-      end
-
-      def disable_server!(elixir_node) do
-        #@TODO reimplement pri1
-        #@server_monitor.disable_server!(@base, elixir_node)
-        :pending
-      end
-
-      def worker_sup_start(ref, transfer_state, sup, context) do
-        childSpec = @worker_supervisor.child(ref, transfer_state, context)
-        case Supervisor.start_child(@worker_supervisor, childSpec) do
-          {:ok, pid} -> {:ack, pid}
-          {:error, {:already_started, pid}} ->
-            timeout = @timeout
-            call = {:transfer_state, transfer_state}
-            extended_call = if @s_redirect_feature, do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
-            GenServer.cast(pid, extended_call)
-            Logger.warn(fn ->"#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}" end)
-            {:ack, pid}
-          {:error, :already_present} ->
-            # We may no longer simply restart child as it may have been initilized
-            # With transfer_state and must be restarted with the correct context.
-            Supervisor.delete_child(@worker_supervisor, ref)
-            case Supervisor.start_child(@worker_supervisor, childSpec) do
-              {:ok, pid} -> {:ack, pid}
-              error -> error
-            end
-          error -> error
-        end # end case
-      end # endstart/3
-
-      def worker_sup_start(ref, sup, context) do
-        childSpec = @worker_supervisor.child(ref, context)
-        case Supervisor.start_child(@worker_supervisor, childSpec) do
-          {:ok, pid} -> {:ack, pid}
-          {:error, {:already_started, pid}} ->
-            {:ack, pid}
-          {:error, :already_present} ->
-            # We may no longer simply restart child as it may have been initilized
-            # With transfer_state and must be restarted with the correct context.
-            Supervisor.delete_child(@worker_supervisor, ref)
-            case Supervisor.start_child(@worker_supervisor, childSpec) do
-              {:ok, pid} -> {:ack, pid}
-              error -> error
-            end
-          error -> error
-        end # end case
-      end # endstart/3
-
-
-      def worker_sup_start(ref, context) do
-        childSpec = @worker_supervisor.child(ref, context)
-        case Supervisor.start_child(@worker_supervisor, childSpec) do
-          {:ok, pid} -> {:ack, pid}
-          {:error, {:already_started, pid}} ->
-            {:ack, pid}
-          {:error, :already_present} ->
-            # We may no longer simply restart child as it may have been initilized
-            # With transfer_state and must be restarted with the correct context.
-            Supervisor.delete_child(@worker_supervisor, ref)
-            case Supervisor.start_child(@worker_supervisor, childSpec) do
-              {:ok, pid} -> {:ack, pid}
-              error -> error
-            end
-          error -> error
-        end # end case
-      end # endstart/3
-
-
-      def worker_sup_terminate(ref, sup, context, options \\ %{}) do
-        Supervisor.terminate_child(@worker_supervisor, ref)
-        Supervisor.delete_child(@worker_supervisor, ref)
-      end # end remove/3
-
-      def worker_sup_remove(ref, sup, context, options \\ %{}) do
-        g = if Map.has_key?(options, :graceful_stop), do: options[:graceful_stop], else: @graceful_stop
-        if g do
-          s_call(ref, {:shutdown, [force: true]}, context, @shutdown_timeout)
+      if (unquote(required.enable_server!)) do
+        def enable_server!(elixir_node) do
+          #@TODO reimplement pri1
+          #@server_monitor.enable_server!(@base, elixir_node)
+          :pending
         end
-        Supervisor.terminate_child(@worker_supervisor, ref)
-        Supervisor.delete_child(@worker_supervisor, ref)
-      end # end remove/3
+      end
+
+      if (unquote(required.disable_server!)) do
+        def disable_server!(elixir_node) do
+          #@TODO reimplement pri1
+          #@server_monitor.disable_server!(@base, elixir_node)
+          :pending
+        end
+      end
+
+      if (unquote(required.worker_sup_start)) do
+
+        def worker_sup_start(ref, transfer_state, sup, context) do
+          childSpec = @worker_supervisor.child(ref, transfer_state, context)
+          case Supervisor.start_child(@worker_supervisor, childSpec) do
+            {:ok, pid} -> {:ack, pid}
+            {:error, {:already_started, pid}} ->
+              timeout = @timeout
+              call = {:transfer_state, transfer_state}
+              extended_call = if @s_redirect_feature, do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
+              GenServer.cast(pid, extended_call)
+              Logger.warn(fn ->"#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}" end)
+              {:ack, pid}
+            {:error, :already_present} ->
+              # We may no longer simply restart child as it may have been initilized
+              # With transfer_state and must be restarted with the correct context.
+              Supervisor.delete_child(@worker_supervisor, ref)
+              case Supervisor.start_child(@worker_supervisor, childSpec) do
+                {:ok, pid} -> {:ack, pid}
+                error -> error
+              end
+            error -> error
+          end # end case
+        end # endstart/3
+
+        def worker_sup_start(ref, sup, context) do
+          childSpec = @worker_supervisor.child(ref, context)
+          case Supervisor.start_child(@worker_supervisor, childSpec) do
+            {:ok, pid} -> {:ack, pid}
+            {:error, {:already_started, pid}} ->
+              {:ack, pid}
+            {:error, :already_present} ->
+              # We may no longer simply restart child as it may have been initilized
+              # With transfer_state and must be restarted with the correct context.
+              Supervisor.delete_child(@worker_supervisor, ref)
+              case Supervisor.start_child(@worker_supervisor, childSpec) do
+                {:ok, pid} -> {:ack, pid}
+                error -> error
+              end
+            error -> error
+          end # end case
+        end # endstart/3
+
+
+        def worker_sup_start(ref, context) do
+          childSpec = @worker_supervisor.child(ref, context)
+          case Supervisor.start_child(@worker_supervisor, childSpec) do
+            {:ok, pid} -> {:ack, pid}
+            {:error, {:already_started, pid}} ->
+              {:ack, pid}
+            {:error, :already_present} ->
+              # We may no longer simply restart child as it may have been initilized
+              # With transfer_state and must be restarted with the correct context.
+              Supervisor.delete_child(@worker_supervisor, ref)
+              case Supervisor.start_child(@worker_supervisor, childSpec) do
+                {:ok, pid} -> {:ack, pid}
+                error -> error
+              end
+            error -> error
+          end # end case
+        end # endstart/3
+      end
+
+
+      if (unquote(required.worker_sup_terminate)) do
+
+        def worker_sup_terminate(ref, sup, context, options \\ %{}) do
+          Supervisor.terminate_child(@worker_supervisor, ref)
+          Supervisor.delete_child(@worker_supervisor, ref)
+        end # end remove/3
+      end
+
+      if (unquote(required.worker_sup_remove)) do
+        def worker_sup_remove(ref, sup, context, options \\ %{}) do
+          g = if Map.has_key?(options, :graceful_stop), do: options[:graceful_stop], else: @graceful_stop
+          if g do
+            s_call(ref, {:shutdown, [force: true]}, context, options, @shutdown_timeout)
+          end
+          Supervisor.terminate_child(@worker_supervisor, ref)
+          Supervisor.delete_child(@worker_supervisor, ref)
+        end # end remove/3
+      end
 
       #=========================================================================
       #
       #=========================================================================
-      def worker_lookup_handler(), do: @worker_lookup_handler
-      def base(), do: @base
+      if (unquote(required.worker_lookup_handler)) do
+        def worker_lookup_handler(), do: @worker_lookup_handler
+      end
+
+      if (unquote(required.base)) do
+        def base(), do: @base
+      end
+
       #-------------------------------------------------------------------------------
       # Startup: Lazy Loading/Async Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
       #-------------------------------------------------------------------------------
@@ -602,7 +634,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.load_complete) do
-        def load_complete(process, context, state), do: @server_provider.load_complete(process, context, state)
+        def load_complete(process, state, context), do: @server_provider.load_complete(process, state, context)
       end
 
       if unquote(required.ref) do
@@ -620,12 +652,17 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
-      def run_on_host(ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
-        default_run_on_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options, timeout)
+
+      if (unquote(required.run_on_host)) do
+        def run_on_host(ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
+          default_run_on_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options, timeout)
+        end
       end
 
-      def cast_to_host(ref, {m,f,a}, context, options \\ %{}) do
-        default_cast_to_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options)
+      if (unquote(required.cast_to_host)) do
+        def cast_to_host(ref, {m,f,a}, context, options \\ %{}) do
+          default_cast_to_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options)
+        end
       end
 
       if unquote(required.remove!) do
@@ -716,70 +753,90 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
-      @doc """
-        Forward a call to the appropriate GenServer instance for this __MODULE__.
-        @TODO add support for directing calls to specific nodes for load balancing purposes.
-        @TODO add support for s_redirect
-      """
-      def self_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout) do
-        case @server_monitor.supported_node(node(), @base, context) do
-          :ack ->
-            extended_call = {:s, call, context}
-            GenServer.call(__MODULE__, extended_call, timeout)
-          v -> {:error, v}
-        end
-      end
-      def self_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
-        case @server_monitor.supported_node(node(), @base, context) do
-          :ack ->
-            extended_call = {:s, call, context}
-            GenServer.cast(__MODULE__, extended_call)
-          v -> {:error, v}
-        end
-      end
 
-      def internal_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout) do
-        case @server_monitor.supported_node(node(), @base, context) do
-          :ack ->
-            extended_call = {:i, call, context}
-            GenServer.call(__MODULE__, extended_call, timeout)
-          v -> {:error, v}
-        end
-      end
-
-      def internal_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
-        case @server_monitor.supported_node(node(), @base, context) do
-          :ack ->
-            extended_call = {:i, call, context}
-            GenServer.cast(__MODULE__, extended_call)
-          v -> {:error, v}
-        end
-      end
-
-      def remote_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout) do
-        case @server_monitor.supported_node(remote_node, @base, context) do
-          :ack ->
-            extended_call = {:i, call, context}
-            if remote_node == node() do
+      if (unquote(required.self_call)) do
+        @doc """
+          Forward a call to the appropriate GenServer instance for this __MODULE__.
+          @TODO add support for directing calls to specific nodes for load balancing purposes.
+          @TODO add support for s_redirect
+        """
+        def self_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          case @server_monitor.supported_node(node(), @base, context) do
+            :ack ->
+              extended_call = {:s, call, context}
+              timeout = options[:timeout] || @timeout
               GenServer.call(__MODULE__, extended_call, timeout)
-            else
-              GenServer.call({__MODULE__, remote_node}, extended_call, timeout)
-            end
-          v -> {:error, v}
+            v -> {:error, v}
+          end
         end
       end
 
-      def remote_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
-        case @server_monitor.supported_node(remote_node, @base, context) do
-          :ack ->
-            extended_call = {:i, call, context}
-            extended_call = {:i, call, context}
-            if remote_node == node() do
+      if (unquote(required.self_cast)) do
+
+        def self_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+          case @server_monitor.supported_node(node(), @base, context) do
+            :ack ->
+              extended_call = {:s, call, context}
               GenServer.cast(__MODULE__, extended_call)
-            else
-              GenServer.cast({__MODULE__, remote_node}, extended_call)
-            end
-          v -> {:error, v}
+            v -> {:error, v}
+          end
+        end
+      end
+
+
+      if (unquote(required.internal_call)) do
+        def internal_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          case @server_monitor.supported_node(node(), @base, context) do
+            :ack ->
+              extended_call = {:i, call, context}
+              timeout = options[:timeout] || @timeout
+              GenServer.call(__MODULE__, extended_call, timeout)
+            v -> {:error, v}
+          end
+        end
+      end
+
+
+      if (unquote(required.internal_cast)) do
+        def internal_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+          case @server_monitor.supported_node(node(), @base, context) do
+            :ack ->
+              extended_call = {:i, call, context}
+              GenServer.cast(__MODULE__, extended_call)
+            v -> {:error, v}
+          end
+        end
+      end
+      if (unquote(required.remote_call)) do
+
+        def remote_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          timeout = options[:timeout] || @timeout
+          case @server_monitor.supported_node(remote_node, @base, context) do
+            :ack ->
+              extended_call = {:i, call, context}
+              if remote_node == node() do
+                GenServer.call(__MODULE__, extended_call, timeout)
+              else
+                GenServer.call({__MODULE__, remote_node}, extended_call, timeout)
+              end
+            v -> {:error, v}
+          end
+        end
+      end
+
+      if (unquote(required.remote_cast)) do
+        def remote_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+          case @server_monitor.supported_node(remote_node, @base, context) do
+            :ack ->
+              extended_call = {:i, call, context}
+              extended_call = {:i, call, context}
+              if remote_node == node() do
+                GenServer.cast(__MODULE__, extended_call)
+              else
+                GenServer.cast({__MODULE__, remote_node}, extended_call)
+              end
+            v -> {:error, v}
+          end
         end
       end
 
@@ -845,133 +902,161 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       #-------------------------------------------------------------------------
       # fetch
       #-------------------------------------------------------------------------
-
-      def fetch(identifier, fetch_options \\ %{}, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_call!(identifier, {:fetch, fetch_options}, context, options)
+      if (unquote(required.fetch)) do
+        def fetch(identifier, fetch_options \\ %{}, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_call!(identifier, {:fetch, fetch_options}, context, options)
+      end
 
       if unquote(required.save!) do
-        def save!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: s_call!(identifier, :save!, context)
+        def save!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_call!(identifier, :save!, context, options)
         def save_async!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: s_cast!(identifier, :save!, context)
       end
 
       if unquote(required.reload!) do
-        def reload!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_call!(identifier, {:reload!, options}, context)
-        def reload_async!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(identifier, {:reload!, options}, context)
+        def reload!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_call!(identifier, {:reload!, options}, context, options)
+        def reload_async!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(identifier, {:reload!, options}, context, options)
       end
 
       if unquote(required.ping!) do
-        def ping!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout), do: s_call(identifier, :ping!, context, %{},  timeout)
+        def ping!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          timeout = options[:timeout] || @timeout
+          s_call(identifier, :ping!, context, options, timeout)
+        end
       end
 
       if unquote(required.kill!) do
-        def kill!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: s_cast!(identifier, :kill!, context)
+        def kill!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(identifier, :kill!, context, options)
       end
 
       if unquote(required.crash!) do
-        def crash!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ :%{}), do: s_cast!(identifier, {:crash!, options}, context)
+        def crash!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(identifier, {:crash!, options}, context, options)
       end
 
       if unquote(required.health_check!) do
-        def health_check!(identifier, %Noizu.ElixirCore.CallingContext{} = context), do: s_call!(identifier, {:health_check!, %{}}, context, %{})
-        def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: s_call!(identifier, {:health_check!, health_check_options}, context, %{})
-        def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: s_call!(identifier, {:health_check!, health_check_options}, context, options)
+        def health_check!(identifier, %Noizu.ElixirCore.CallingContext{} = context), do: s_call!(identifier, {:health_check!, %{}}, context)
+        def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: s_call!(identifier, {:health_check!, health_check_options}, context)
         def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: s_call!(identifier, {:health_check!, health_check_options}, context, options)
       end
 
       #-------------------------------------------------------------------------
       # get_direct_link!
       #-------------------------------------------------------------------------
-      def get_direct_link!(ref, context, options \\ %{spawn: false}) do
-        default_get_direct_link!(__MODULE__, ref, context, options)
+      if (unquote(required.get_direct_link!)) do
+        def get_direct_link!(ref, context, options \\ %{spawn: false}) do
+          default_get_direct_link!(__MODULE__, ref, context, options)
+        end
       end
 
       #-------------------------------------------------------------------------
       # s_call unsafe implementations
       #-------------------------------------------------------------------------
-      def s_call_unsafe(ref, extended_call, context, options, timeout \\ @timeout) do
-        default_s_call_unsafe(__MODULE__, ref, extended_call, context, options, timeout)
-      end #end s_call_unsafe
+      if (unquote(required.s_call_unsafe)) do
+        def s_call_unsafe(ref, extended_call, context, options \\ %{}, timeout \\ @timeout) do
+          default_s_call_unsafe(__MODULE__, ref, extended_call, context, options, timeout)
+        end #end s_call_unsafe
+      end
 
-      def s_cast_unsafe(ref, extended_call, context, options) do
-        default_s_cast_unsafe(__MODULE__, ref, extended_call, context, options)
+      if (unquote(required.s_cast_unsafe)) do
+        def s_cast_unsafe(ref, extended_call, context, options \\ %{}) do
+          default_s_cast_unsafe(__MODULE__, ref, extended_call, context, options)
+        end
       end
 
       if unquote(MapSet.member?(features, :crash_protection)) do
-        def rs_call!(identifier, call, context, options, timeout) do
-          default_crash_protection_rs_call!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
+
+
+        if (unquote(required.rs_call!)) do
+          def rs_call!(identifier, call, context, options, timeout) do
+            default_crash_protection_rs_call!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
+          end
         end
 
-        @doc """
-          Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
-        """
-        def s_call!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
-          default_crash_protection_s_call!(__MODULE__, identifier, call, context , options, timeout)
-        end # end s_call!
+        if (unquote(required.s_call!)) do
 
-
-        def rs_cast!(identifier, call, context, options) do
-          default_crash_protection_rs_cast!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
+          @doc """
+            Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
+          """
+          def s_call!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
+            default_crash_protection_s_call!(__MODULE__, identifier, call, context , options, timeout)
+          end # end s_call!
+        end
+        if (unquote(required.rs_cast!)) do
+          def rs_cast!(identifier, call, context, options) do
+            default_crash_protection_rs_cast!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
+          end
+        end
+        if (unquote(required.s_cast!)) do
+          @doc """
+            Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
+          """
+          def s_cast!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+            default_crash_protection_s_cast!(__MODULE__, identifier, call, context, options)
+          end # end s_cast!
+        end
+        if (unquote(required.rs_call)) do
+          def rs_call(identifier, call, context, options, timeout) do
+            default_crash_protection_rs_call({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
+          end
+        end
+        if (unquote(required.s_call)) do
+          @doc """
+            Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
+          """
+          def s_call(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
+            timeout = options[:timeout] || @timeout
+            default_crash_protection_s_call(__MODULE__, identifier, call, context, options, timeout)
+          end # end s_call!
+        end
+        if (unquote(required.rs_cast)) do
+          def rs_cast(identifier, call, context, options) do
+            default_crash_protection_rs_cast({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
+          end
         end
 
-        @doc """
-          Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
-        """
-        def s_cast!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-          default_crash_protection_s_cast!(__MODULE__, identifier, call, context, options)
-        end # end s_cast!
-
-        def rs_call(identifier, call, context, options, timeout) do
-          default_crash_protection_rs_call({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
+        if (unquote(required.s_cast)) do
+          @doc """
+            Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
+          """
+          def s_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+            default_crash_protection_s_cast(__MODULE__, identifier, call, context, options)
+          end # end s_cast!
         end
-
-        @doc """
-          Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
-        """
-        def s_call(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
-          default_crash_protection_s_call(__MODULE__, identifier, call, context, options, timeout)
-        end # end s_call!
-
-        def rs_cast(identifier, call, context, options) do
-          default_crash_protection_rs_cast({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
-        end
-
-
-        @doc """
-          Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
-        """
-        def s_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-          default_crash_protection_s_cast(__MODULE__, identifier, call, context, options)
-        end # end s_cast!
-
 
       else # no crash_protection
+        if (unquote(required.s_call!)) do
+          @doc """
+            Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
+          """
+          def s_call!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+            timeout = options[:timeout] || @timeout
+            default_nocrash_protection_s_call!({__MODULE__, @s_redirect_feature}, identifier, call, context, options, timeout)
+          end # end s_call!
+        end
+        if (unquote(required.s_cast!)) do
 
-        @doc """
-          Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
-        """
-        def s_call!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
-          default_nocrash_protection_s_call!({__MODULE__, @s_redirect_feature}, identifier, call, context, options, timeout)
-        end # end s_call!
-
-        @doc """
-          Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
-        """
-        def s_cast!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
-          default_nocrash_protection_s_cast!({__MODULE__, @s_redirect_feature}, identifier, call, context, options)
-        end # end s_cast!
-
-        @doc """
-          Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
-        """
-        def s_call(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), timeout \\ @timeout) do
-          default_nocrash_protection_s_call({__MODULE__, @s_redirect_feature}, identifier, call, context, options, timeout )
-        end # end s_call!
-
-        @doc """
-          Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
-        """
-        def s_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), optiosn \\ %{}) do
-          default_nocrash_protection_s_cast({__MODULE__, @s_redirect_feature}, identifier, call, context, options)
-        end # end s_cast!
+          @doc """
+            Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
+          """
+          def s_cast!(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+            default_nocrash_protection_s_cast!({__MODULE__, @s_redirect_feature}, identifier, call, context, options)
+          end # end s_cast!
+        end
+        if (unquote(required.s_call)) do
+          @doc """
+            Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
+          """
+          def s_call(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+            timeout = options[:timeout] || @timeout
+            default_nocrash_protection_s_call({__MODULE__, @s_redirect_feature}, identifier, call, context, options, timeout )
+          end # end s_call!
+        end
+        if (unquote(required.s_cast)) do
+          @doc """
+            Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
+          """
+          def s_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), optiosn \\ %{}) do
+            default_nocrash_protection_s_cast({__MODULE__, @s_redirect_feature}, identifier, call, context, options)
+          end # end s_cast!
+        end
       end # end if feature.crash_protection
 
       if unquote(required.link_forward!) do

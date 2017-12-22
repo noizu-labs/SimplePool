@@ -8,7 +8,8 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   alias Noizu.ElixirCore.OptionValue
   alias Noizu.ElixirCore.OptionList
   require Logger
-  @methods ([:start_link, :init, :terminate, :fetch, :save!, :reload!])
+
+  @methods ([:verbose, :options, :option_settings, :start_link, :terminate, :init, :schedule_migrate_shutdown, :clear_migrate_shutdown, :schedule_inactivity_check, :clear_inactivity_check, :save!, :fetch, :reload!])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
 
@@ -349,16 +350,21 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       @inactivity_check unquote(MapSet.member?(features, :inactivity_check))
       @lazy_load unquote(MapSet.member?(features, :lazy_load))
       @base_verbose (unquote(verbose))
-      def verbose() do
-        default_verbose(@base_verbose, @base)
+
+
+      @option_settings unquote(Macro.escape(option_settings))
+      @options unquote(Macro.escape(options))
+
+      if (unquote(required.verbose)) do
+        def verbose(), do: default_verbose(@base_verbose, @base)
       end
 
-      def options do
-        unquote(Macro.escape(options))
+      if (unquote(required.option_settings)) do
+        def option_settings(), do: @option_settings
       end
 
-      def option_settings do
-        unquote(Macro.escape(option_settings))
+      if (unquote(required.options)) do
+        def options(), do: @options
       end
 
       # @start_link
@@ -428,14 +434,16 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       #-------------------------------------------------------------------------
       # Inactivity Check Handling Feature Section
       #-------------------------------------------------------------------------
-      def schedule_migrate_shutdown(context, state) do
-        default_schedule_migrate_shutdown(@migrate_shutdown_interval_ms, context, state)
+      if (unquote(required.schedule_migrate_shutdown)) do
+        def schedule_migrate_shutdown(context, state) do
+          default_schedule_migrate_shutdown(@migrate_shutdown_interval_ms, context, state)
+        end
       end
-
-      def clear_migrate_shutdown(state) do
-        default_clear_migrate_shutdown(state)
+      if (unquote(required.clear_migrate_shutdown)) do
+        def clear_migrate_shutdown(state) do
+          default_clear_migrate_shutdown(state)
+        end
       end
-
       def handle_info({:i, {:migrate_shutdown, ref}, context} = call, %Noizu.SimplePool.Worker.State{migrating: status} = state) do
         default_handle_migrate_shutdown(__MODULE__, @server, @worker_state_entity, @inactivity_check, call, state)
       end # end handle_info/:activity_check
@@ -443,12 +451,16 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       #-------------------------------------------------------------------------
       # Inactivity Check Handling Feature Section
       #-------------------------------------------------------------------------
-      def schedule_inactivity_check(context, state) do
-        default_schedule_inactivity_check(@check_interval_ms, context, state)
-      end
 
-      def clear_inactivity_check(state) do
-        default_clear_inactivity_check(state)
+      if (unquote(required.schedule_inactivity_check)) do
+        def schedule_inactivity_check(context, state) do
+          default_schedule_inactivity_check(@check_interval_ms, context, state)
+        end
+      end
+      if (unquote(required.clear_inactivity_check)) do
+        def clear_inactivity_check(state) do
+          default_clear_inactivity_check(state)
+        end
       end
 
       def handle_info({:i, {:activity_check, ref}, context} = call, %Noizu.SimplePool.Worker.State{initialized: _i} = state) do

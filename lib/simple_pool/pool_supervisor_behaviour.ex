@@ -12,7 +12,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
   @callback start_link() :: any
   @callback start_children(any) :: any
 
-  @methods ([:start_link, :start_children, :init])
+  @methods ([:start_link, :start_children, :init, :verbose, :options, :option_settings])
 
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -70,19 +70,22 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       @worker_supervisor Module.concat([@base, "WorkerSupervisor"])
       @pool_server Module.concat([@base, "Server"])
       @base_verbose unquote(verbose)
+      @options unquote(Macro.escape(options))
+      @option_settings unquote(Macro.escape(option_settings))
       import unquote(__MODULE__)
 
-      def verbose() do
-        default_verbose(@base_verbose, @base)
+      if (unquote(required.verbose)) do
+        def verbose(), do: default_verbose(@base_verbose, @base)
       end
 
-      def options do
-        unquote(Macro.escape(options))
+      if (unquote(required.option_settings)) do
+        def option_settings(), do: @option_settings
       end
 
-      def option_settings do
-        unquote(Macro.escape(option_settings))
+      if (unquote(required.options)) do
+        def options(), do: @options
       end
+
 
       # @start_link
       if (unquote(required.start_link)) do
@@ -107,11 +110,11 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       # @start_children
       if (unquote(required.start_children)) do
         def start_children(sup) do
-
           if verbose() do
             Logger.info(fn ->
               @base.banner(
                 """
+
                 #{__MODULE__} START_CHILDREN
                 Options: #{inspect options()}
                 worker_supervisor: #{@worker_supervisor}
@@ -161,8 +164,6 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
           # Lazy Load Children Load Children
           @pool_server.load(nil, nil)
-
-
         end
       end # end start_children
 

@@ -17,7 +17,7 @@ defmodule Noizu.SimplePool.Behaviour do
 
   @modules ([:worker, :server, :worker_supervisor, :pool_supervisor])
   @default_modules ([:worker_supervisor, :pool_supervisor])
-  @methods ([])
+  @methods ([:banner, :options, :option_settings])
 
   @default_worker_options ([])
   @default_server_options ([])
@@ -91,7 +91,7 @@ defmodule Noizu.SimplePool.Behaviour do
   defmacro __using__(options) do
     option_settings = prepare_options(options)
     options = option_settings.effective_options
-    #required = options.required
+    required = options.required
     #features = options.features
     default_modules = options.default_modules
     quote do
@@ -100,12 +100,19 @@ defmodule Noizu.SimplePool.Behaviour do
       @mod_name ("#{__MODULE__}")
       @worker_state_entity (expand_worker_state_entity(__MODULE__, unquote(options.worker_state_entity)))
 
-      def banner(msg) do
-        banner(@mod_name, msg)
+      @options unquote(Macro.escape(options))
+      @option_settings unquote(Macro.escape(option_settings))
+
+      if (unquote(required.banner)) do
+        def banner(msg), do: banner(@mod_name, msg)
       end
 
-      def option_settings do
-        unquote(Macro.escape(option_settings))
+      if (unquote(required.option_settings)) do
+      def option_settings(), do: @option_settings
+      end
+
+      if (unquote(required.options)) do
+        def options(), do: @options
       end
 
       if (unquote(default_modules.worker)) do
@@ -133,12 +140,6 @@ defmodule Noizu.SimplePool.Behaviour do
         end
       end
 
-      @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__
-
-  defmacro __before_compile__(_env) do
-    quote do
-    end # end quote
-  end # end __before_compile__
 end

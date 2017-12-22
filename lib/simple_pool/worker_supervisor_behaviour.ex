@@ -13,10 +13,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
   @callback child(any, any) :: any
   @callback init(any) :: any
 
-  @methods ([:start_link, :child, :init])
-
-  @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
-  @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
+  @methods ([:start_link, :child, :init, :verbose, :options, :option_settings])
 
   @default_max_seconds (5)
   @default_max_restarts (1000)
@@ -25,7 +22,6 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
   def prepare_options(options) do
     settings = %OptionSettings{
       option_settings: %{
-        features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
         verbose: %OptionValue{option: :verbose, default: :auto},
@@ -73,31 +69,31 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       import unquote(__MODULE__)
       require Logger
 
-
       @strategy unquote(strategy)
       @max_restarts unquote(max_restarts)
       @max_seconds unquote(max_seconds)
 
-
       @base_verbose (unquote(verbose))
-      def verbose() do
-        default_verbose(@base_verbose, @base)
+      @option_settings unquote(Macro.escape(option_settings))
+      @options unquote(Macro.escape(options))
+
+      if (unquote(required.verbose)) do
+        def verbose(), do: default_verbose(@base_verbose, @base)
       end
 
-      def options do
-        unquote(Macro.escape(options))
+      if (unquote(required.option_settings)) do
+        def option_settings(), do: @option_settings
       end
 
-      def option_settings do
-        unquote(Macro.escape(option_settings))
+      if (unquote(required.options)) do
+        def options(), do: @options
       end
-
 
       # @start_link
       if (unquote(required.start_link)) do
         def start_link do
           if verbose() do
-             Logger.info(fn -> @base.banner("#{__MODULE__}.start_link")  end)
+            Logger.info(fn -> @base.banner("#{__MODULE__}.start_link")  end)
           end
           Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}])
         end
