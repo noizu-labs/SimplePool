@@ -201,6 +201,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert updated_link.handle == nil
   end
 
+  # @TODO - test process forwarding/process alive checking
   # @TODO - test migrate
   # @TODO - test reload
   # @TODO - test lazy load pool
