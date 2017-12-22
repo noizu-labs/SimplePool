@@ -3,11 +3,11 @@
 # Copyright (C) 2017 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.ServerMonitorBehaviour.DefaultImplementation do
+defmodule Noizu.SimplePool.MonitoringFramework.MonitorBehaviour.Default do
   require Logger
-  @behaviour Noizu.SimplePool.ServerMonitorBehaviour
+  @behaviour Noizu.SimplePool.MonitoringFramework.MonitorBehaviour
 
-  def supported_node(_server, _component, _context, _options \\ %{}) do
+  def supports_service?(_server, _component, _context, _options \\ %{}) do
     :ack
   end
 
@@ -27,7 +27,27 @@ defmodule Noizu.SimplePool.ServerMonitorBehaviour.DefaultImplementation do
     {:ack, self()}
   end
 
+  def leave(_servers, _settings, _context, _options \\ %{}) do
+    {:ack, self()}
+  end
+
   def select_host(_ref, _component, _context, _options \\ %{}) do
     {:ack, node()}
   end
+
+  def report_service_health(server, service, health, context, options \\ %{}) do
+    :ack
+  end
+
+  def report_server_health(server, health, context, options \\ %{}) do
+    :ack
+  end
+
+
+  def record_server_event(server, event, details, context, options \\ %{}), do: :ack
+  def record_service_event(server, service, event, details, context, options \\ %{}), do: :ack
+
+  def refresh_hints(service, context, options \\ %{}), do: :ack
+
+
 end

@@ -45,7 +45,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         server_driver: %OptionValue{option: :server_driver, default: Application.get_env(:noizu_simple_pool, :default_server_driver, Noizu.SimplePool.ServerDriver.Default)},
         worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.Default)},
         server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)},
-        server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitor, Noizu.SimplePool.ServerMonitorBehaviour.DefaultImplementation)},
+        server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitor, Noizu.SimplePool.MonitoringFramework.MonitorBehaviour.Default)},
       }
     }
 
@@ -761,7 +761,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           @TODO add support for s_redirect
         """
         def self_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-          case @server_monitor.supported_node(node(), @base, context) do
+          case @server_monitor.supports_service?(node(), @base, context) do
             :ack ->
               extended_call = {:s, call, context}
               timeout = options[:timeout] || @timeout
@@ -774,7 +774,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(required.self_cast)) do
 
         def self_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
-          case @server_monitor.supported_node(node(), @base, context) do
+          case @server_monitor.supports_service?(node(), @base, context) do
             :ack ->
               extended_call = {:s, call, context}
               GenServer.cast(__MODULE__, extended_call)
@@ -786,7 +786,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.internal_call)) do
         def internal_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-          case @server_monitor.supported_node(node(), @base, context) do
+          case @server_monitor.supports_service?(node(), @base, context) do
             :ack ->
               extended_call = {:i, call, context}
               timeout = options[:timeout] || @timeout
@@ -799,7 +799,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.internal_cast)) do
         def internal_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
-          case @server_monitor.supported_node(node(), @base, context) do
+          case @server_monitor.supports_service?(node(), @base, context) do
             :ack ->
               extended_call = {:i, call, context}
               GenServer.cast(__MODULE__, extended_call)
@@ -811,7 +811,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
         def remote_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           timeout = options[:timeout] || @timeout
-          case @server_monitor.supported_node(remote_node, @base, context) do
+          case @server_monitor.supports_service?(remote_node, @base, context) do
             :ack ->
               extended_call = {:i, call, context}
               if remote_node == node() do
@@ -826,7 +826,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.remote_cast)) do
         def remote_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
-          case @server_monitor.supported_node(remote_node, @base, context) do
+          case @server_monitor.supports_service?(remote_node, @base, context) do
             :ack ->
               extended_call = {:i, call, context}
               extended_call = {:i, call, context}
