@@ -91,30 +91,30 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
 
       # @start_link
       if (unquote(required.start_link)) do
-        def start_link do
+        def start_link(context) do
           if verbose() do
-            Logger.info(fn -> @base.banner("#{__MODULE__}.start_link")  end)
+            Logger.info(fn -> {@base.banner("#{__MODULE__}.start_link"), Noizu.ElixirCore.metadata(context)} end)
           end
-          Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}])
+          Supervisor.start_link(__MODULE__, context, [{:name, __MODULE__}])
         end
       end # end start_link
 
       # @child
       if (unquote(required.child)) do
-        def child(ref, _context) do
-          worker(@worker, [ref], [id: ref])
+        def child(ref, context) do
+          worker(@worker, [ref, context], [id: ref])
         end
 
         def child(ref, params, context) do
-          worker(@worker, [ref, params], [id: ref])
+          worker(@worker, [ref, params, context], [id: ref])
         end
       end # end child
 
       # @init
       if (unquote(required.init)) do
-        def init(any) do
+        def init(context) do
           if verbose() do
-            Logger.info(fn -> Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect any}") end)
+            Logger.info(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect context}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end
           supervise([], [{:strategy,  @strategy}, {:max_restarts, @max_restarts}, {:max_seconds, @max_seconds}])
         end

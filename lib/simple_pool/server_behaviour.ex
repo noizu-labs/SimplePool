@@ -491,20 +491,20 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # Genserver Lifecycle
       #=========================================================================
       if unquote(required.start_link) do
-        def start_link(sup) do
+        def start_link(sup, context) do
           if verbose() do
-            Logger.info(fn -> @base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}") end)
+            Logger.info(fn -> {@base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
-          GenServer.start_link(__MODULE__, @worker_supervisor, name: __MODULE__)
+          GenServer.start_link(__MODULE__, [@worker_supervisor, context], name: __MODULE__)
         end
       end # end start_link
 
       if (unquote(required.init)) do
-        def init(sup) do
+        def init([sup, context] = args) do
           if verbose() do
-            Logger.info(fn -> @base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})") end)
+            Logger.info(fn -> {@base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end
-          @server_provider.init(__MODULE__, @worker_supervisor, option_settings())
+          @server_provider.init(__MODULE__, @worker_supervisor, option_settings(), context)
         end
       end # end init
 
@@ -711,7 +711,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.worker_migrate!) do
         def worker_migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
 
-          """
+          _t = """
 
           ref = worker_ref!(ref)
           case worker_pid!(ref, nil, context) do

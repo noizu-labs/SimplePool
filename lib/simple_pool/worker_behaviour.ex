@@ -47,13 +47,13 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     end
   end
 
-  def default_init({mod, server, base, worker_state_entity, inactivity_check, _lazy_load}, {:migrate, ref, {:transfer, initial_state}}) do
+  def default_init({mod, server, base, worker_state_entity, inactivity_check, _lazy_load}, {:migrate, ref, {:transfer, initial_state}, context}) do
     if (mod.verbose()) do
-      Logger.info(fn -> base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }") end)
+      Logger.info(fn -> {base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
     end
-    server.worker_lookup_handler().register!(ref, Noizu.ElixirCore.Callin)
-    server.worker_lookup_handler().record_event!(ref, :start, :migrate, Noizu.ElixirCore.CallingContext.system(%{}), %{})
-    {initialized, inner_state} = worker_state_entity.transfer(ref, initial_state.inner_state)
+    server.worker_lookup_handler().register!(ref, context)
+    server.worker_lookup_handler().record_event!(ref, :start, :migrate, context, %{})
+    {initialized, inner_state} = worker_state_entity.transfer(ref, initial_state.inner_state, context)
 
 
     if inactivity_check do
@@ -65,14 +65,14 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     end
   end
 
-  def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, ref) do
+  def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, {ref, context}) do
     if (mod.verbose()) do
-      Logger.info(fn -> base.banner("INIT/1 #{__MODULE__} (#{inspect ref }") end)
+      Logger.info(fn -> {base.banner("INIT/1 #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
     end
-    server.worker_lookup_handler().register!(ref, Noizu.ElixirCore.CallingContext.system(%{}))
-    server.worker_lookup_handler().record_event!(ref, :start, :normal, Noizu.ElixirCore.CallingContext.system(%{}), %{})
+    server.worker_lookup_handler().register!(ref, context)
+    server.worker_lookup_handler().record_event!(ref, :start, :normal, context, %{})
     {initialized, inner_state} = if lazy_load do
-      case worker_state_entity.load(ref) do
+      case worker_state_entity.load(ref, context) do
         nil -> {false, nil}
         inner_state -> {true, inner_state}
       end
@@ -369,18 +369,18 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
 
       # @start_link
       if (unquote(required.start_link)) do
-        def start_link(args) do
+        def start_link(args, context) do
           if (verbose()) do
             Logger.info(fn -> @base.banner("START_LINK/1 #{__MODULE__} (#{inspect args})") end)
           end
-          GenServer.start_link(__MODULE__, args)
+          GenServer.start_link(__MODULE__, {args, context})
         end
 
-        def start_link(ref, args) do
+        def start_link(ref, args, context) do
           if (verbose()) do
             Logger.info(fn -> @base.banner("START_LINK/2.migrate #{__MODULE__} (#{inspect args})") end)
           end
-          GenServer.start_link(__MODULE__, {:migrate, ref, args})
+          GenServer.start_link(__MODULE__, {:migrate, ref, args, context})
         end
       end # end start_link
 

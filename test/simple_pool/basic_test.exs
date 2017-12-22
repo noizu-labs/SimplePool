@@ -204,12 +204,9 @@ defmodule Noizu.SimplePool.BasicTest do
     assert updated_link.handle == nil
   end
 
-  # @TODO - get rid of @timeout parameter, pass in options if desired.
-  # @TODO - update behaviour definitions
   # @TODO - flesh out server monitor and related functionality
   # @TODO - multi-node testing, migrate, s_call
   # @TODO - pass through context
-
 
   #--------------------------
   # helpers

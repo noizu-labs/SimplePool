@@ -89,19 +89,19 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
       # @start_link
       if (unquote(required.start_link)) do
-        def start_link do
+        def start_link(context) do
           if verbose() do
-            Logger.info(fn -> @base.banner("#{__MODULE__}.start_link") end)
+            Logger.info(fn -> {@base.banner("#{__MODULE__}.start_link"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
 
-          case Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}]) do
+          case Supervisor.start_link(__MODULE__, [context], [{:name, __MODULE__}]) do
             {:ok, sup} ->
               Logger.info(fn ->  "#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}" end)
-              start_children(__MODULE__)
+              start_children(__MODULE__, context)
               {:ok, sup}
             {:error, {:already_started, sup}} ->
               Logger.info(fn -> "#{__MODULE__}.start_link Supervisor Already Started. Handling unexected state.  #{inspect sup}"  end)
-              start_children(__MODULE__)
+              start_children(__MODULE__, context)
               {:ok, sup}
           end
         end
@@ -109,9 +109,9 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
       # @start_children
       if (unquote(required.start_children)) do
-        def start_children(sup) do
+        def start_children(sup, context) do
           if verbose() do
-            Logger.info(fn ->
+            Logger.info(fn ->{
               @base.banner(
                 """
 
@@ -119,14 +119,16 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
                 Options: #{inspect options()}
                 worker_supervisor: #{@worker_supervisor}
                 worker_server: #{@pool_server}
-                """)
+                """),
+                               Noizu.ElixirCore.CallingContext.metadata(context)
+                             }
             end)
           end
 
-          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [], [])) do
+          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [context], [])) do
             {:ok, _pool_supervisor} ->
 
-              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor], [])) do
+              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, context], [])) do
                 {:ok, pid} -> {:ok, pid}
                 {:error, {:already_started, process2_id}} ->
                   Supervisor.restart_child(__MODULE__, process2_id)
@@ -170,9 +172,9 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
       # @init
       if (unquote(required.init)) do
-        def init(arg) do
-          if verbose() do
-            Logger.info(fn -> Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect arg}") end)
+        def init([context] = arg) do
+          if verbose() || true do
+            Logger.warn(fn -> Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect arg}") end)
           end
           supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])
         end

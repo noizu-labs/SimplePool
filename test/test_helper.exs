@@ -8,5 +8,7 @@ Application.ensure_all_started(:bypass)
 
 Registry.start_link(keys: :unique, name: Noizu.SimplePool.DispatchRegister)
 
-Noizu.SimplePool.Support.TestPool.PoolSupervisor.start_link
+
+context = Noizu.ElixirCore.CallingContext.system(%{})
+Noizu.SimplePool.Support.TestPool.PoolSupervisor.start_link(context)
 
