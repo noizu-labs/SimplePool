@@ -12,3 +12,8 @@ config :noizu_mnesia_versioning,
        topology_provider: Noizu.SimplePool.Support.TopologyProvider,
        schema_provider: Noizu.SimplePool.Support.SchemaProvider,
        mnesia_migrate_on_start: false
+
+
+config :logger, :console,
+       format: "$time $metadata[$level] $message\n",
+       metadata: [:context_token]

@@ -96,11 +96,11 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
           case Supervisor.start_link(__MODULE__, [context], [{:name, __MODULE__}]) do
             {:ok, sup} ->
-              Logger.info(fn ->  "#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}" end)
+              Logger.info(fn ->  {"#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}", Noizu.ElixirCore.CallingContext.metadata(context)} end)
               start_children(__MODULE__, context)
               {:ok, sup}
             {:error, {:already_started, sup}} ->
-              Logger.info(fn -> "#{__MODULE__}.start_link Supervisor Already Started. Handling unexected state.  #{inspect sup}"  end)
+              Logger.info(fn -> {"#{__MODULE__}.start_link Supervisor Already Started. Handling unexected state.  #{inspect sup}" , Noizu.ElixirCore.CallingContext.metadata(context)} end)
               start_children(__MODULE__, context)
               {:ok, sup}
           end
@@ -111,7 +111,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       if (unquote(required.start_children)) do
         def start_children(sup, context) do
           if verbose() do
-            Logger.info(fn ->{
+            Logger.info(fn -> {
               @base.banner(
                 """
 
@@ -134,11 +134,12 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
                   Supervisor.restart_child(__MODULE__, process2_id)
                 error ->
                   Logger.error(fn ->
+                         {
                     """
 
                     #{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
                     #{inspect error}
-                    """
+                    """, Noizu.ElixirCore.CallingContext.metadata(context)}
                   end)
               end
 
@@ -146,26 +147,27 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
               case Supervisor.restart_child(__MODULE__, process_id) do
                 {:ok, pid} -> {:ok, pid}
                 error ->
-                  Logger.info(fn ->
+                  Logger.info(fn ->{
                     """
 
                     #{__MODULE__}.start_children(3) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
                     #{inspect error}
-                    """  end)
+                    """, Noizu.ElixirCore.CallingContext.metadata(context)}
+                                                                    end)
               end
 
             error ->
-              Logger.info(fn ->
+              Logger.info(fn -> {
                 """
 
                 #{__MODULE__}.start_children(4) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
                 #{inspect error}
-                """
+                """, Noizu.ElixirCore.CallingContext.metadata(context)}
               end)
           end
 
           # Lazy Load Children Load Children
-          @pool_server.load(nil, nil)
+          @pool_server.load(context, nil)
         end
       end # end start_children
 
@@ -174,7 +176,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       if (unquote(required.init)) do
         def init([context] = arg) do
           if verbose() || true do
-            Logger.warn(fn -> Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect arg}") end)
+            Logger.warn(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect arg}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
           supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])
         end

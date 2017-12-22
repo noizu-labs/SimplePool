@@ -630,7 +630,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.load) do
-        def load(context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: @server_provider.load(__MODULE__, context, options)
+        def load(context \\ Noizu.ElixirCore.CallingContext.system(%{}), settings \\ %{}), do: @server_provider.load(__MODULE__, settings, context)
       end
 
       if unquote(required.load_complete) do
@@ -851,49 +851,49 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def handle_call({:redirect, {_type, {__MODULE__, _ref}, call}}, from, state), do: handle_call(call, from, state)
 
         def handle_cast({:s_cast, {call_server, ref}, {:s, _inner, context} = call}, state) do
-          Logger.warn fn -> "Redirecting Cast #{inspect call, pretty: true}\n\n"  end
+          Logger.warn fn -> {"Redirecting Cast #{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)}  end
           call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:noreply, state}
         end # end handle_cast/:s_cast
 
         def handle_cast({:s_cast!, {call_server, ref}, {:s, _inner, context} = call}, state) do
-          Logger.warn fn -> "Redirecting Cast #{inspect call, pretty: true}\n\n"  end
+          Logger.warn fn -> {"Redirecting Cast #{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
           call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:noreply, state}
         end # end handle_cast/:s_cast!
 
         def handle_call({:s_call, {call_server, ref, timeout}, {:s, _inner, context} = call}, from, state) do
-          Logger.warn fn -> "Redirecting Call #{inspect call, pretty: true}\n\n"  end
+          Logger.warn fn -> {"Redirecting Call #{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
           call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:reply, :s_retry, state}
         end # end handle_call/:s_call
 
         def handle_call({:s_call!, {call_server, ref, timeout}, {:s, _inner, context}} = call, from, state) do
-          Logger.warn "Redirecting Call #{inspect call, pretty: true}\n\n"
+          Logger.warn fn -> {"Redirecting Call #{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
           call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:reply, :s_retry, state}
         end # end handle_call/:s_call!
 
         def handle_cast({:redirect,  {:s_cast, {call_server, ref}, {:s, _inner, context} = call}} = fc, state) do
-          Logger.error "Redirecting Cast Failed! #{inspect fc, pretty: true}\n\n"
+          Logger.error fn -> {"Redirecting Cast Failed! #{inspect fc, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
           call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:noreply, state}
         end # end handle_cast/:s_cast
 
         def handle_cast({:redirect,  {:s_cast!, {call_server, ref}, {:s, _inner, context} = call}} = fc, state) do
-          Logger.error "Redirecting Cast Failed! #{inspect fc, pretty: true}\n\n"
+          Logger.error fn -> {"Redirecting Cast Failed! #{inspect fc, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
           call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:noreply, state}
         end # end handle_cast/:s_cast!
 
         def handle_call({:redirect, {:s_call, {call_server, ref, timeout}, {:s, _inner, context} = call}} = fc, from, state) do
-          Logger.error "Redirecting Call Failed! #{inspect fc, pretty: true}\n\n"
+          Logger.error fn -> {"Redirecting Call Failed! #{inspect fc, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
           call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:reply, :s_retry, state}
         end # end handle_call/:s_call
 
         def handle_call({:redirect, {:s_call!, {call_server, ref, timeout}, {:s, _inner, context} = call}} = fc, from, state) do
-          Logger.error "Redirecting Call Failed! #{inspect fc, pretty: true}\n\n"
+          Logger.error fn -> { "Redirecting Call Failed! #{inspect fc, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
           call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:reply, :s_retry, state}
         end # end handle_call/:s_call!

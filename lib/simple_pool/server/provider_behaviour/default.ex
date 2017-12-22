@@ -49,22 +49,14 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     def internal_call_handler({:load, options}, context, _from, %State{} = state), do: load_workers(options, context, state)
     def internal_call_handler(call, context, _from, %State{} = state) do
-      if context do
-        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{inspect state.server} unsupported call(#{inspect call})")
-      else
-        Logger.error(" #{inspect state.server} unsupported call(#{inspect call})")
-      end
+        Logger.error(fn -> {" #{inspect state.server} unsupported call(#{inspect call})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
       {:reply, {:error, {:unsupported, call}}, state}
     end
     #---------------------------------------------------------------------------
     # Internal Routing - internal_cast_handler
     #---------------------------------------------------------------------------
     def internal_cast_handler(call, context, %State{} = state) do
-      if context do
-        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{inspect state.server} unsupported cast(#{inspect call, pretty: true})")
-      else
-        Logger.error(" #{inspect state.server} unsupported cast(#{inspect call, pretty: true})")
-      end
+      Logger.error(fn -> {" #{inspect state.server} unsupported cast(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
       {:noreply, state}
     end
 
@@ -72,11 +64,8 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # Internal Routing - internal_info_handler
     #---------------------------------------------------------------------------
     def internal_info_handler(call, context, %State{} = state) do
-      if context do
-        Logger.error("#{Map.get(context, :token, :token_not_found)}: #{inspect state.server} unsupported info(#{inspect call, pretty: true})")
-      else
-        Logger.error(" #{inspect state.server} unsupported info(#{inspect call, pretty: true})")
-      end
+        Logger.error(fn -> {" #{inspect state.server} unsupported info(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+
       {:noreply, state}
     end
 
@@ -104,19 +93,19 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     def load_workers(options, context, state) do
       if Enum.member?(state.options.effective_options.features, :async_load) do
-        Logger.info( fn -> state.server.base().banner("Load Workers Async")  end)
+        Logger.info( fn -> {state.server.base().banner("Load Workers Async"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
         pid = spawn(fn -> load_workers_async(options, context, state) end)
         status = %{state.status| loading: :in_progress, state: :initialization}
         state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid)}
         {:reply, {:ok, :loading}, state}
       else
         if Enum.member?(state.options.effective_options.features, :lazy_load) do
-          Logger.info(fn -> state.server.base().banner("Lazy Load Workers")  end)
+          Logger.info(fn -> {state.server.base().banner("Lazy Load Workers"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           # nothing to do,
           state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}
         else
-          Logger.info(fn -> state.server.base().banner("Load Workers") end)
+          Logger.info(fn -> {state.server.base().banner("Load Workers"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           :ok = load_workers_sync(options, context, state)
           state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}

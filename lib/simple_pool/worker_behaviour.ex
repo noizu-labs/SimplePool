@@ -69,6 +69,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     if (mod.verbose()) do
       Logger.info(fn -> {base.banner("INIT/1 #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
     end
+    Noizu.ElixirCore.CallingContext.meta_update(context)
     server.worker_lookup_handler().register!(ref, context)
     server.worker_lookup_handler().record_event!(ref, :start, :normal, context, %{})
     {initialized, inner_state} = if lazy_load do

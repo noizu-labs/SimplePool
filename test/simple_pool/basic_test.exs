@@ -113,7 +113,6 @@ defmodule Noizu.SimplePool.BasicTest do
 
   end
 
-
   @tag capture_log: true
   test "basic_functionality health check - degraded" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -134,7 +133,6 @@ defmodule Noizu.SimplePool.BasicTest do
     assert r.event_frequency.terminate == 2
     assert r.event_frequency.exit >= 2
   end
-
 
   @tag capture_log: true
   test "basic_functionality health check - critical" do
@@ -182,7 +180,6 @@ defmodule Noizu.SimplePool.BasicTest do
     assert link.state == :valid
   end
 
-
   @tag capture_log: true
   test "basic_functionality - link_forward!" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -204,6 +201,8 @@ defmodule Noizu.SimplePool.BasicTest do
     assert updated_link.handle == nil
   end
 
+  # @TODO - test migrate
+  # @TODO - test reload
   # @TODO - test lazy load pool
   # @TODO - test immediate load pool
   # @TODO - flesh out server monitor and related functionality
@@ -232,8 +231,5 @@ defmodule Noizu.SimplePool.BasicTest do
       r = {_r, _p, _s} -> r
     end
   end
-
-
-
 
 end
