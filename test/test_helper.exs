@@ -1,8 +1,30 @@
 ExUnit.start()
 
 Amnesia.start
-Noizu.SimplePool.Database.DispatchTable.create()
-Noizu.SimplePool.Database.Dispatch.MonitorTable.create()
+
+# Test Schema Setup
+:ok = Noizu.SimplePool.Database.DispatchTable.create()
+:ok = Noizu.SimplePool.Database.Dispatch.MonitorTable.create()
+
+:ok = Noizu.SimplePool.Database.MonitoringFramework.SettingTable.create()
+:ok = Noizu.SimplePool.Database.MonitoringFramework.NodeTable.create()
+:ok = Noizu.SimplePool.Database.MonitoringFramework.ServiceTable.create()
+:ok = Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.create()
+
+:ok = Noizu.SimplePool.Database.MonitoringFramework.Node.EventTable.create()
+:ok = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.create()
+
+
+
+
+
+
+
+
+
+
+
+
 
 Application.ensure_all_started(:bypass)
 
@@ -29,6 +51,7 @@ initial = %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{
     definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
       identifier: {node(), Noizu.SimplePool.Support.TestPool},
       server: node(),
+      pool: Noizu.SimplePool.Support.TestPool.Server,
       supervisor: Noizu.SimplePool.Support.TestPool.PoolSupervisor,
       time_stamp: DateTime.utc_now(),
       hard_limit: 200,

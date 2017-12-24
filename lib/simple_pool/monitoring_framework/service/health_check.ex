@@ -13,7 +13,7 @@ defmodule  Noizu.SimplePool.MonitoringFramework.Service.HealthCheck do
                status: :online | :degraded | :critical | :offline,
                directive: :free | :locked | :maintenance,
                definition: Definition.t,
-               allocated: integer,
+               allocated: Map.t,
                health_index: float,
                events: [LifeCycleEvent.t],
                vsn: any
@@ -25,7 +25,7 @@ defmodule  Noizu.SimplePool.MonitoringFramework.Service.HealthCheck do
     status: :offline,
     directive: :locked,
     definition: nil,
-    allocated: 0,
+    allocated: nil,
     health_index: 0.0,
     events: [],
     vsn: @vsn

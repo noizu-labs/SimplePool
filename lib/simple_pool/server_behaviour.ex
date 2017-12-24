@@ -16,13 +16,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   @methods ([
               :verbose, :worker_state_entity, :option_settings, :options, :start_link, :init,
               :terminate, :enable_server!, :disable_server!, :worker_sup_start,
-              :worker_sup_terminate, :worker_sup_remove, :worker_lookup_handler, :base,
+              :worker_sup_terminate, :worker_sup_remove, :worker_lookup_handler, :base, :pool_supervisor,
               :status, :load, :load_complete, :ref, :worker_add!, :run_on_host,
               :cast_to_host, :remove!, :r_remove!, :terminate!, :r_terminate!,
               :worker_start_transfer!, :worker_migrate!, :worker_load!, :worker_ref!,
               :worker_pid!, :self_call, :self_cast, :internal_call, :internal_cast,
               :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :kill!, :crash!,
-              :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
+              :server_health_check!, :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
               :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
               :link_forward!
             ])
@@ -42,6 +42,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
         default_timeout: %OptionValue{option: :default_timeout, default:  Application.get_env(:noizu_simple_pool, :default_timeout, @default_timeout)},
         shutdown_timeout: %OptionValue{option: :shutdown_timeout, default: Application.get_env(:noizu_simple_pool, :default_shutdown_timeout, @default_shutdown_timeout)},
+        default_definition: %OptionValue{option: :default_definition, default: :auto},
         server_driver: %OptionValue{option: :server_driver, default: Application.get_env(:noizu_simple_pool, :default_server_driver, Noizu.SimplePool.ServerDriver.Default)},
         worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.Default)},
         server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)},
@@ -469,6 +470,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @option_settings unquote(Macro.escape(option_settings))
       @options unquote(Macro.escape(options))
       @s_redirect_feature unquote(MapSet.member?(features, :s_redirect))
+      @default_definition @options.default_definition
 
       @graceful_stop unquote(MapSet.member?(features, :graceful_stop))
 
@@ -488,22 +490,44 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def worker_state_entity, do: @worker_state_entity
       end
 
-
-
       def handle_call({:m, {:status, options}, context}, _from, state) do
         {:reply, {:ack, state.entity.status}, state}
       end
 
-
+      def default_definition() do
+        case @default_definition do
+          :auto ->
+            a = %Noizu.SimplePool.MonitoringFramework.Service.Definition{
+              identifier: {node(), base()},
+              server: node(),
+              pool: @server,
+              supervisor: @pool_supervisor,
+              time_stamp: DateTime.utc_now(),
+              hard_limit: 0,
+              soft_limit: 0,
+              target: 0,
+            }
+            Application.get_env(:noizu_simple_pool, :definitions, %{})[base()] || a
+          v -> v
+        end
+      end
 
       #=========================================================================
       # Genserver Lifecycle
       #=========================================================================
       if unquote(required.start_link) do
         def start_link(sup, context, definition) do
-          #PRI1 @TODO if definition == :default load from config
-          if verbose() do
-            Logger.info(fn -> {@base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+          definition = if definition == :default do
+            auto = default_definition()
+            if verbose() do
+              Logger.info(fn -> {@base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}\ndefinition: #{inspect definition}\ndefault: #{inspect auto}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+            end
+            auto
+          else
+            if verbose() do
+              Logger.info(fn -> {@base.banner("START_LINK #{__MODULE__} (#{inspect @worker_supervisor})@#{inspect self()}\ndefinition: #{inspect definition}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+            end
+            definition
           end
           GenServer.start_link(__MODULE__, [@worker_supervisor, context, definition], name: __MODULE__)
         end
@@ -630,6 +654,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.base)) do
         def base(), do: @base
+      end
+
+      if (unquote(required.pool_supervisor)) do
+        def pool_supervisor(), do: @pool_supervisor
       end
 
       #-------------------------------------------------------------------------------
@@ -1030,6 +1058,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if unquote(required.crash!) do
         def crash!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(identifier, {:crash!, options}, context, options)
+      end
+
+      if unquote(required.server_health_check!) do
+        def server_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, %{}}, context)
+        def server_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, health_check_options}, context)
+        def server_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: internal_call({:health_check!, health_check_options}, context, options)
       end
 
       if unquote(required.health_check!) do

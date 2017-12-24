@@ -8,6 +8,7 @@ defmodule  Noizu.SimplePool.MonitoringFramework.Service.Definition do
   @type t :: %__MODULE__{
                identifier: any,
                server: atom,
+               pool: module,
                supervisor: module,
                time_stamp: DateTime.t,
                hard_limit: integer,
@@ -19,6 +20,7 @@ defmodule  Noizu.SimplePool.MonitoringFramework.Service.Definition do
   defstruct [
     identifier: nil,
     server: nil,
+    pool: nil,
     supervisor: nil,
     time_stamp: nil,
     hard_limit: 0,

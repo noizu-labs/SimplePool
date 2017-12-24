@@ -12,12 +12,22 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     def init(server, sup, definition, options, context) do
       #server.enable_server!(node())
+
+      # TODO load real effective
+      effective = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
+        identifier: {node(), server.base()},
+        time_stamp: DateTime.utc_now(),
+        status: :offline,
+        directive: :init,
+        definition: definition,
+      }
+
       state = %State{
           pool: sup,
           server: server,
           status_details: :pending,
           extended: %{},
-          entity: %{definition: definition, effective: nil, status: :init},
+          entity: %{definition: definition, effective: effective, status: :init},
           options: options
         }
       {:ok, state}
@@ -43,11 +53,86 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     # Internal Routing
     #---------------------------------------------------------------------------
-    # Final steps: @TODO support for load, status, add_worker!, remove_worker!
+
+    def get_health_check(state, context, options) do
+      allocated = Supervisor.count_children(state.server.pool_supervisor())
+      events = lifecycle_events(state, MapSet.new([:start, :exit, :terminate, :timeout]), context, options)
+      state = update_health_check(state, allocated, events, context, options)
+
+      response = if options[:events] do
+        state.entity.effective
+          |> put_in([Access.key(:events)], events)
+      else
+        state.entity.effective
+      end
+
+      {:reply, response, state}
+    end
+
+    def lifecycle_events(state, filter, context, options) do
+      events = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.read!({state.entity.effective.identifier}) || []
+      Enum.reduce(events, [], fn(x, acc) ->
+        if MapSet.member?(filter, x.event) do
+          acc ++ [x.entity]
+        else
+          acc
+        end
+      end)
+    end
+
+    def update_health_check(state, allocated, events, context, options) do
+      status = state.entity.effective.status
+      current_time = options[:current_time] || :os.system_time(:seconds)
+      {health_index, l_index, e_index} = health_tuple(state.entity.effective.definition, allocated, events, current_time)
+      cond do
+        Enum.member?([:online, :degraded, :critical], status) ->
+          updated_status = cond do
+            e_index > 12.0 -> :critical
+            e_index > 6.0 -> :degraded
+            l_index > 5.0 -> :degraded
+            health_index > 12.0 -> :critical
+            health_index > 9.0 -> :degraded
+            true -> :online
+          end
+          state = state
+                  |> put_in([Access.key(:entity), :effective, Access.key(:status)], updated_status)
+                  |> put_in([Access.key(:entity), :effective, Access.key(:health_index)], health_index)
+                  |> put_in([Access.key(:entity), :effective, Access.key(:allocated)], allocated)
+        true ->
+          state = state
+                  |> put_in([Access.key(:entity), :effective, Access.key(:health_index)], health_index)
+                  |> put_in([Access.key(:entity), :effective, Access.key(:allocated)], allocated)
+      end
+    end
+
+    def health_tuple(definition, allocated, events, current_time) do
+      t_factor = if (allocated.active > definition.target), do: 1.0, else: 0.0
+      s_factor = if (allocated.active > definition.soft_limit), do: 3.0, else: 0.0
+      h_factor = if (allocated.active > definition.hard_limit), do: 8.0, else: 0.0
+      e_factor = Enum.reduce(events, 0.0, fn(x, acc) ->
+        event_time = DateTime.to_unix(x.time_stamp)
+        age = current_time - event_time
+        if (age) >= 600 do
+          weight = :math.pow((age / 600), 2)
+          case x.identifier do
+            :start -> acc + (1.0 * weight)
+            :exit -> acc + (0.75 * weight)
+            :terminate -> acc + (1.5 * weight)
+            :timeout -> acc + (0.35 * weight)
+            _ -> acc
+          end
+        else
+          acc
+        end
+      end)
+      l_factor = t_factor + s_factor + h_factor
+      {l_factor + e_factor, l_factor, e_factor}
+    end
 
     #---------------------------------------------------------------------------
     # Internal Routing - internal_call_handler
     #---------------------------------------------------------------------------
+    def internal_call_handler({:health_check!, health_check_options}, context, _from, %State{} = state), do: get_health_check(state, context, health_check_options)
     def internal_call_handler({:load, options}, context, _from, %State{} = state), do: load_workers(options, context, state)
     def internal_call_handler(call, context, _from, %State{} = state) do
         Logger.error(fn -> {" #{inspect state.server} unsupported call(#{inspect call})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
@@ -97,18 +182,31 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
         Logger.info( fn -> {state.server.base().banner("Load Workers Async"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
         pid = spawn(fn -> load_workers_async(options, context, state) end)
         status = %{state.status| loading: :in_progress, state: :initialization}
-        state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid), entity: %{state.entity| status: :loading}}
+
+        state = state
+                |> put_in([Access.key(:entity), :effective, Access.key(:status)], :loading)
+                |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :loading)
+
+        state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid)}
         {:reply, {:ok, :loading}, state}
       else
         if Enum.member?(state.options.effective_options.features, :lazy_load) do
           Logger.info(fn -> {state.server.base().banner("Lazy Load Workers #{inspect state.entity}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           # nothing to do,
-          state = %State{state| status: %{state.status| loading: :complete, state: :ready}, entity: %{state.entity| status: :online}}
+          state = state
+                  |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
+                  |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :online)
+
+          state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}
         else
           Logger.info(fn -> {state.server.base().banner("Load Workers"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           :ok = load_workers_sync(options, context, state)
-          state = %State{state| status: %{state.status| loading: :complete, state: :ready}, entity: %{state.entity| status: :online}}
+          state = state
+                  |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
+                  |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :online)
+
+          state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}
         end
       end
@@ -116,7 +214,11 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
 
     def load_complete(_source, state, _context) do
       status = %{state.status| loading: :complete, state: :ready}
-      state = %State{state| status: status, extended: Map.put(state.extended, :load_process, nil), entity: %{state.entity| status: :online}}
+      state = state
+        |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
+        |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :online)
+
+      state = %State{state| status: status, extended: Map.put(state.extended, :load_process, nil)}
       {:noreply, state}
     end
 
