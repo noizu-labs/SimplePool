@@ -28,5 +28,22 @@ defmodule  Noizu.SimplePool.MonitoringFramework.Service.Definition do
     target: 0,
     vsn: @vsn
   ]
+
+  defimpl Inspect, for: Noizu.SimplePool.MonitoringFramework.Service.Definition do
+    import Inspect.Algebra
+    def inspect(entity, opts) do
+      heading = "#Service.Definition(#{inspect entity.identifier})"
+      {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
+      inner = cond do
+        opts.limit == :infinity ->
+          concat(["<#{seperator}", to_doc(Map.from_struct(entity), opts), "#{seperator}>"])
+        opts.limit > 100 ->
+          bare = %{hard_limit: entity.hard_limit, soft_limit: entity.soft_limit, target: entity.target}
+          concat(["<#{seperator}", to_doc(bare, opts), "#{seperator}>"])
+        true -> "<>"
+      end
+      concat [heading, inner]
+    end # end inspect/2
+  end # end defimpl
 end
 

@@ -22,4 +22,23 @@ defmodule  Noizu.SimplePool.Worker.HealthCheck do
     events: [],
     vsn: @vsn
   ]
+
+
+
+  defimpl Inspect, for: Noizu.SimplePool.Worker.HealthCheck do
+    import Inspect.Algebra
+    def inspect(entity, opts) do
+      heading = "#Worker.HealthCheck(#{inspect entity.identifier})"
+      {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
+      inner = cond do
+        opts.limit == :infinity ->
+          concat(["<#{seperator}", to_doc(Map.from_struct(entity), opts), "#{seperator}>"])
+        opts.limit > 100 ->
+          bare = %{status: entity.status}
+          concat(["<#{seperator}", to_doc(bare, opts), "#{seperator}>"])
+        true -> "<>"
+      end
+      concat [heading, inner]
+    end # end inspect/2
+  end # end defimpl
 end

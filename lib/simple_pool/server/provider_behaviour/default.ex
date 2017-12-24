@@ -62,8 +62,10 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       response = if options[:events] do
         state.entity.effective
           |> put_in([Access.key(:events)], events)
+          |> put_in([Access.key(:process)], self())
       else
         state.entity.effective
+          |> put_in([Access.key(:process)], self())
       end
 
       {:reply, response, state}
@@ -129,6 +131,12 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       {l_factor + e_factor, l_factor, e_factor}
     end
 
+    def server_kill!(state, context, options) do
+        raise "FORCE_KILL"
+    end
+
+
+
     #---------------------------------------------------------------------------
     # Internal Routing - internal_call_handler
     #---------------------------------------------------------------------------
@@ -141,6 +149,10 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     # Internal Routing - internal_cast_handler
     #---------------------------------------------------------------------------
+    def internal_cast_handler({:server_kill!, options}, context, %State{} = state) do
+      server_kill!(state, context, options)
+    end
+
     def internal_cast_handler(call, context, %State{} = state) do
       Logger.error(fn -> {" #{inspect state.server} unsupported cast(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
       {:noreply, state}

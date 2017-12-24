@@ -21,7 +21,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :cast_to_host, :remove!, :r_remove!, :terminate!, :r_terminate!,
               :worker_start_transfer!, :worker_migrate!, :worker_load!, :worker_ref!,
               :worker_pid!, :self_call, :self_cast, :internal_call, :internal_cast,
-              :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :kill!, :crash!,
+              :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :server_kill!, :kill!, :crash!,
               :service_health_check!, :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
               :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
               :link_forward!
@@ -1055,6 +1055,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def kill!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(identifier, :kill!, context, options)
       end
 
+      if unquote(required.server_kill!) do
+        def server_kill!(context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: internal_cast({:server_kill!, options}, context)
+      end
+
+
       if unquote(required.crash!) do
         def crash!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(identifier, {:crash!, options}, context, options)
       end
@@ -1208,7 +1213,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
   defmacro __before_compile__(_env) do
     quote do
-
 
       #-------------------------------------------------------------------------------
       # Internal Forwarding

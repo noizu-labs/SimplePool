@@ -148,4 +148,22 @@ defmodule Noizu.SimplePool.Support.TestWorkerEntity do
     end # end defimpl EntityReferenceProtocol, for: Tuple
   end
 
+
+  #-----------------------------------------------------------------------------
+  # Inspect Protocol
+  #-----------------------------------------------------------------------------
+  defimpl Inspect, for: Noizu.SimplePool.Support.TestWorkerEntity do
+    import Inspect.Algebra
+    def inspect(entity, opts) do
+      heading = "#TestWorkerEntity(#{inspect entity.identifier})"
+      {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
+      inner = cond do
+        opts.limit == :infinity ->
+          concat(["<#{seperator}", to_doc(Map.from_struct(entity), opts), "#{seperator}>"])
+        true -> "<>"
+      end
+      concat [heading, inner]
+    end # end inspect/2
+  end # end defimpl
+
 end # end defmacro

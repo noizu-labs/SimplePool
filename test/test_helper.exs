@@ -24,6 +24,8 @@ Amnesia.start
 #-----------------------------------------------
 # Registry and Environment Manager Setup
 #-----------------------------------------------
+#context = Noizu.ElixirCore.CallingContext.system(%{})
+
 Registry.start_link(keys: :unique, name: Noizu.SimplePool.DispatchRegister,  partitions: System.schedulers_online())
 
 initial = %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{
@@ -56,3 +58,5 @@ Noizu.MonitoringFramework.EnvironmentPool.PoolSupervisor.start_link(context, %No
 Noizu.MonitoringFramework.EnvironmentPool.Server.start_services(context)
 :online = Noizu.MonitoringFramework.EnvironmentPool.Server.status_wait([:online, :degraded], context)
 
+
+#Noizu.SimplePool.Support.TestPool.Server.server_kill!

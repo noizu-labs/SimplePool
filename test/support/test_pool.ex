@@ -46,5 +46,10 @@ defmodule Noizu.SimplePool.Support.TestPool do
       s_cast(identifier, {:test_s_cast, value}, context)
     end
 
+
+
+
   end # end defmodule GoldenRatio.Components.Gateway.Server
+
+
 end # end defmodule GoldenRatio.Components.Gateway
