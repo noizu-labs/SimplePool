@@ -1,8 +1,14 @@
 ExUnit.start()
 
-Amnesia.start
 
+
+Application.ensure_all_started(:bypass)
+context = Noizu.ElixirCore.CallingContext.system(%{})
+
+#-----------------------------------------------
 # Test Schema Setup
+#-----------------------------------------------
+Amnesia.start
 :ok = Noizu.SimplePool.Database.DispatchTable.create()
 :ok = Noizu.SimplePool.Database.Dispatch.MonitorTable.create()
 
@@ -15,31 +21,14 @@ Amnesia.start
 :ok = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.create()
 
 
-
-
-
-
-
-
-
-
-
-
-
-Application.ensure_all_started(:bypass)
-
+#-----------------------------------------------
+# Registry and Environment Manager Setup
+#-----------------------------------------------
 Registry.start_link(keys: :unique, name: Noizu.SimplePool.DispatchRegister,  partitions: System.schedulers_online())
-
-context = Noizu.ElixirCore.CallingContext.system(%{})
-
-
-
-
-
 
 initial = %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{
   identifier: node(),
-  master_node: true,
+  master_node: :self,
   time_stamp: DateTime.utc_now(),
   status: :offline,
   directive: :init,
@@ -62,16 +51,8 @@ initial = %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{
   entry_point: :pending
 }
 
-
-
-#Noizu.EnvironmentManagerPool.PoolSupervisor.start_link(context)
-
-#Noizu.EnvironmentManagerPool.Server.register(node(), initial, context)
-#Noizu.EnvironmentManagerPool.Server.initialize(node(), context)
-
 Noizu.MonitoringFramework.EnvironmentPool.PoolSupervisor.start_link(context, %Noizu.SimplePool.MonitoringFramework.Service.Definition{})
-Noizu.MonitoringFramework.EnvironmentPool.Server.register(initial, context)
+{:ack, _} = Noizu.MonitoringFramework.EnvironmentPool.Server.register(initial, context)
 Noizu.MonitoringFramework.EnvironmentPool.Server.start_services(context)
+:online = Noizu.MonitoringFramework.EnvironmentPool.Server.status_wait([:online, :degraded], context)
 
-s = Noizu.MonitoringFramework.EnvironmentPool.Server.status_wait([:online, :degraded], context)
-IO.puts "STATE = #{inspect s}"

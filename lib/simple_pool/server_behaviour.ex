@@ -22,7 +22,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :worker_start_transfer!, :worker_migrate!, :worker_load!, :worker_ref!,
               :worker_pid!, :self_call, :self_cast, :internal_call, :internal_cast,
               :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :kill!, :crash!,
-              :server_health_check!, :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
+              :service_health_check!, :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
               :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
               :link_forward!
             ])
@@ -958,7 +958,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           case @server_monitor.supports_service?(remote_node, @base, context) do
             :ack ->
               extended_call = {:i, call, context}
-              extended_call = {:i, call, context}
               if remote_node == node() do
                 GenServer.cast(__MODULE__, extended_call)
               else
@@ -1060,10 +1059,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def crash!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: s_cast!(identifier, {:crash!, options}, context, options)
       end
 
-      if unquote(required.server_health_check!) do
-        def server_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, %{}}, context)
-        def server_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, health_check_options}, context)
-        def server_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: internal_call({:health_check!, health_check_options}, context, options)
+      if unquote(required.service_health_check!) do
+        def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, %{}}, context)
+        def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, health_check_options}, context)
+        def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: internal_call({:health_check!, health_check_options}, context, options)
       end
 
       if unquote(required.health_check!) do
