@@ -129,8 +129,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       # 1. Grab nodes
       servers = Amnesia.Fragment.async(fn ->
         Noizu.SimplePool.Database.MonitoringFramework.NodeTable.where(1 == 1)
-        |> Amnesia.selection.values
+          |> Amnesia.Selection.values
       end)
+
 
       state = update_effective(state, context, options)
 
@@ -148,8 +149,8 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end)
 
       servers = Enum.reduce(tasks, %{}, fn (task, acc) ->
-         {k, {:ack, v}} = Task.await(task)
-         Map.put(acc, k, v)
+        {k, {:ack, v}} = Task.await(task)
+        Map.put(acc, k, v)
       end)
 
       # 3. Calculate Hints
@@ -157,13 +158,16 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       valid_status_weight = %{online: 1, degraded: 2, critical: 3}
 
       update = Map.keys(effective.services)
+
+
       Enum.reduce(update, true, fn(service, acc) ->
-        candidates = Enum.reduce(servers, [], fn (server, acc2) ->
-        s = server.services[service]
+        candidates = Enum.reduce(servers, [], fn ({server_id, server}, acc2) ->
+          s = server.services[service]
           cond do
             MapSet.member?(valid_status, server.status) && s && MapSet.member?(valid_status, s.status) ->
               acc2 ++ [%{identifier: s.identifier, server_status: server.status, server_index: server.health_index, service_status: s.status, service_index: s.health_index, index: server.health_index + s.health_index}]
-            true -> acc2
+            true ->
+              acc2
           end
         end)
 
@@ -180,20 +184,8 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         end)
 
 
+
         # 1. add a minimum of 3 nodes, plus any good nodes
-        IO.puts "length 1 - #{inspect candidates}
-
-
-
-
-
-
-
-
-
-
-
-        "
         candidate_pool_size = length(candidates)
         min_bar = candidate_pool_size / 3
         hint = Enum.reduce(candidates, [], fn(x,acc3) ->
@@ -215,10 +207,15 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
         hints = Enum.reduce(hint, %{}, fn(x,acc) -> Map.put(acc, x.identifier, x.index) end)
 
+
+
+
         %Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable{identifier: service, hint: hints, time_stamp: DateTime.utc_now, status: hint_status}
           |> Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.write!()
+          |> IO.inspect
         :ok
       end)
+
 
       # 3. Update Service Hints.
       {:noreply, state}
@@ -253,6 +250,15 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         if master == node() do
           effective = Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(node()) || initial
           effective = put_in(effective, [Access.key(:master_node)], master)
+
+          %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
+                identifier: effective.identifier,
+                status: effective.status,
+                directive: effective.directive,
+                health_index: effective.health_index,
+                entity: effective
+          } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
+
           state = state
                   |> put_in([Access.key(:entity), :effective], effective)
                   |> put_in([Access.key(:entity), :default], initial)
@@ -289,12 +295,20 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         put_in(acc, [Access.key(:services), k], v)
       end)
 
-      # @TODO update hints
-      update_hints(effective, context, options)
-
       state = state
               |> put_in([Access.key(:entity), :effective], effective)
+              |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
               |> put_in([Access.key(:entity), :status], :online)
+
+      %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
+        identifier: state.entity.effective.identifier,
+        status: state.entity.effective.status,
+        directive: state.entity.effective.directive,
+        health_index: state.entity.effective.health_index,
+        entity: state.entity.effective
+      } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
+
+      update_hints(effective, context, options)
 
       {:noreply, state}
     end
