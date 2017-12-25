@@ -6,6 +6,8 @@
 defmodule Noizu.SimplePool.WorkerLookupBehaviour do
   @type lock_response :: {:ack, record :: any} | {:nack, {details :: any, record :: any}} | {:nack, details :: any} | {:error, details :: any}
 
+  @callback workers!(any, any, any, any) :: {:ack, list} | any
+
   @callback host!(ref :: tuple, server :: module, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ok, atom} | {:spawn, atom} | {:error, details :: any} | {:restricted, atom}
   @callback record_event!(ref :: tuple, event :: atom, details :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: any
   @callback events!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: list
@@ -28,6 +30,11 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     alias Noizu.ElixirCore.OptionValue
     alias Noizu.ElixirCore.OptionList
     alias Noizu.ElixirCore.CallingContext
+
+
+    def default_workers!({_mod, d, _m, sm, _r}, host, service_entity, context, options \\ %{}) do
+      d.workers!(host, service_entity, context, options)
+    end
 
     def default_host!({_mod, d, _m, sm, _r}, ref, server, context, options \\ %{spawn: true}) do
       case d.get!(ref, context, options) do
@@ -184,7 +191,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
       end
     end
 
-    @methods [:host!, :record_event!, :register!, :unregister!, :obtain_lock!, :release_lock!, :process!, :events!]
+    @methods [:host!, :record_event!, :register!, :unregister!, :obtain_lock!, :release_lock!, :process!, :events!, :workers!]
     def prepare_options(options) do
       settings = %OptionSettings{
         option_settings: %{
@@ -218,6 +225,11 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
         @server_monitor unquote(server_monitor)
         @registry unquote(registry)
         @pass_thru {__MODULE__, @dispatch, @dispatch_monitor, @server_monitor, @registry}
+
+        if unquote(required.workers!) do
+          def workers!(host, service_entity, context), do: default_workers!(@pass_thru, host, service_entity, context)
+          def workers!(host, service_entity, context, options), do: default_workers!(@pass_thru, host, service_entity, context, options)
+        end
 
         if unquote(required.host!) do
           def host!(ref, server, context), do: default_host!(@pass_thru, ref, server, context)

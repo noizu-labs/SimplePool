@@ -19,7 +19,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :worker_sup_terminate, :worker_sup_remove, :worker_lookup_handler, :base, :pool_supervisor,
               :status, :load, :load_complete, :ref, :worker_add!, :run_on_host,
               :cast_to_host, :remove!, :r_remove!, :terminate!, :r_terminate!,
-              :worker_start_transfer!, :worker_migrate!, :worker_load!, :worker_ref!,
+              :workers!, :worker_migrate!, :worker_load!, :worker_ref!,
               :worker_pid!, :self_call, :self_cast, :internal_call, :internal_cast,
               :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :server_kill!, :kill!, :crash!,
               :service_health_check!, :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
@@ -712,21 +712,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
-      if unquote(required.worker_start_transfer!) do
-        def worker_start_transfer!(ref, rebase, transfer_state, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-          #if Node.ping(rebase) == :pong do
-          #  if options[:async] do
-          #    :rpc.cast(rebase, @server_provider, :offthread_worker_add!, [ref, transfer_state, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
-          #  else
-          #    :rpc.call(rebase, @server_provider, :offthread_worker_add!, [ref, transfer_state, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
-          #  end
-          #else
-          #  {:error, {:pang, rebase}}
-          #end
-          raise "pri-1"
-        end
-      end
-
       if unquote(required.worker_migrate!) do
         def worker_migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           if options[:sync] do
@@ -1117,6 +1102,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           def rs_cast(identifier, call, context, options) do
             default_crash_protection_rs_cast({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
           end
+        end
+
+        if (unquote(required.workers!)) do
+          def workers!(context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+            @worker_lookup_handler.workers!(node(), @worker_state_entity, context, options)
+          end # end s_cast!
         end
 
         if (unquote(required.s_cast)) do

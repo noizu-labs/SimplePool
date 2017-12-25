@@ -83,6 +83,12 @@ defmodule Noizu.SimplePool.DispatchRepo do
     end
   end
 
+  def workers!(host, service_entity, _context, options \\ %{}) do
+    v = Noizu.SimplePool.Database.DispatchTable.match!([identifier: {:ref, service_entity, :_}, server: host])
+        |> Amnesia.Selection.values
+    {:ack, v}
+  end
+
   #-------------------------
   #
   #-------------------------
