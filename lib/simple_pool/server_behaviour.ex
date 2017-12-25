@@ -14,7 +14,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   @callback start_link(any) :: any
 
   @methods ([
-              :verbose, :worker_state_entity, :option_settings, :options, :start_link, :init,
+              :accept_transfer!, :verbose, :worker_state_entity, :option_settings, :options, :start_link, :init,
               :terminate, :enable_server!, :disable_server!, :worker_sup_start,
               :worker_sup_terminate, :worker_sup_remove, :worker_lookup_handler, :base, :pool_supervisor,
               :status, :load, :load_complete, :ref, :worker_add!, :run_on_host,
@@ -564,7 +564,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.worker_sup_start)) do
 
-        def worker_sup_start(ref, transfer_state, sup, context) do
+        def worker_sup_start(ref, transfer_state, context) do
           childSpec = @worker_supervisor.child(ref, transfer_state, context)
           case Supervisor.start_child(@worker_supervisor, childSpec) do
             {:ok, pid} -> {:ack, pid}
@@ -586,25 +586,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             error -> error
           end # end case
         end # endstart/3
-
-        def worker_sup_start(ref, sup, context) do
-          childSpec = @worker_supervisor.child(ref, context)
-          case Supervisor.start_child(@worker_supervisor, childSpec) do
-            {:ok, pid} -> {:ack, pid}
-            {:error, {:already_started, pid}} ->
-              {:ack, pid}
-            {:error, :already_present} ->
-              # We may no longer simply restart child as it may have been initilized
-              # With transfer_state and must be restarted with the correct context.
-              Supervisor.delete_child(@worker_supervisor, ref)
-              case Supervisor.start_child(@worker_supervisor, childSpec) do
-                {:ok, pid} -> {:ack, pid}
-                error -> error
-              end
-            error -> error
-          end # end case
-        end # endstart/3
-
 
         def worker_sup_start(ref, context) do
           childSpec = @worker_supervisor.child(ref, context)
@@ -748,32 +729,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if unquote(required.worker_migrate!) do
         def worker_migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-
-          _t = """
-
-          ref = worker_ref!(ref)
-          case worker_pid!(ref, nil, context) do
-            {:ok, pid} ->
-              if options[:async] do
-                s_cast!(ref, {:migrate!, ref, rebase, options}, context)
-              else
-                s_call!(ref, {:migrate!, ref, rebase, options}, context, options[:timeout] || 60_000)
-              end
-            o ->
-              if (Node.ping(rebase) == :pong) do
-                if options[:async] do
-                  :rpc.cast(rebase, @server_provider, :offthread_worker_add!, [ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
-                  #remote_cast(rebase, {:worker_add!, ref, options}, context)
-                else
-                  :rpc.call(rebase, @server_provider, :offthread_worker_add!, [ref, options, context, @pool_async_load, __MODULE__, @pool_supervisor])
-                  #remote_call(rebase, {:worker_add!, ref, options}, context, options[:timeout] || 60_000)
-                end
-              else
-                {:error, {:pang, rebase}}
-              end
+          if options[:sync] do
+            s_call!(ref, {:migrate!, ref, rebase, options}, context, options, options[:timeout] || 60_000)
+          else
+            s_cast!(ref, {:migrate!, ref, rebase, options}, context)
           end
-          """
-          raise "pri-1"
         end
       end
 
@@ -788,6 +748,23 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.worker_pid!) do
         def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           @worker_lookup_handler.process!(ref, __MODULE__, context, options)
+        end
+      end
+
+      if unquote(required.accept_transfer!) do
+        def accept_transfer!(ref, state, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          options_b = options
+            |> put_in([:lock], %{type: :transfer})
+          case @worker_lookup_handler.obtain_lock!(ref, context, options_b) do
+            {:ack, lock} ->
+              case worker_sup_start(ref, state, context) do
+                {:ok, pid} ->
+                  @worker_lookup_handler.register!(ref, context, options)
+                  {:ack, pid}
+                o -> {:nack, o}
+              end
+             o -> o
+          end
         end
       end
 
@@ -937,33 +914,24 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
       if (unquote(required.remote_call)) do
-
         def remote_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           timeout = options[:timeout] || @timeout
-          case @server_monitor.supports_service?(remote_node, @base, context) do
-            :ack ->
-              extended_call = {:i, call, context}
-              if remote_node == node() do
-                GenServer.call(__MODULE__, extended_call, timeout)
-              else
-                GenServer.call({__MODULE__, remote_node}, extended_call, timeout)
-              end
-            v -> {:error, v}
+          extended_call = {:i, call, context}
+          if remote_node == node() do
+            GenServer.call(__MODULE__, extended_call, timeout)
+          else
+            GenServer.call({__MODULE__, remote_node}, extended_call, timeout)
           end
         end
       end
 
       if (unquote(required.remote_cast)) do
         def remote_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
-          case @server_monitor.supports_service?(remote_node, @base, context) do
-            :ack ->
-              extended_call = {:i, call, context}
-              if remote_node == node() do
-                GenServer.cast(__MODULE__, extended_call)
-              else
-                GenServer.cast({__MODULE__, remote_node}, extended_call)
-              end
-            v -> {:error, v}
+          extended_call = {:i, call, context}
+          if remote_node == node() do
+            GenServer.cast(__MODULE__, extended_call)
+          else
+            GenServer.cast({__MODULE__, remote_node}, extended_call)
           end
         end
       end

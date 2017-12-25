@@ -17,17 +17,13 @@ defmodule Noizu.SimplePool.MonitoringFramework.MonitorBehaviour do
   @callback lock(input :: server_group, components :: component_group, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
   @callback release(input :: server_group, components :: component_group, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
 
-  @callback join(server :: atom, settings :: Map.t, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
-  @callback leave(server :: atom, settings :: Map.t, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
+  #@callback join(server :: atom, settings :: Map.t, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
+  #@callback leave(server :: atom, settings :: Map.t, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
 
   @callback select_host(ref :: any, server :: atom, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ack, atom} | {:nack, details :: any} | {:error, details :: any}
-
-  @callback report_service_health(server :: atom, service :: module,  health :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: :ack | :nack | {:error, details :: any}
-  @callback report_server_health(server :: atom, health :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: :ack | :nack | {:error, details :: any}
 
   @callback record_server_event(server :: atom, event :: atom, details :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: :ack | :nack | {:error, details :: any}
   @callback record_service_event(server :: atom, service :: module, event :: atom, details :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: :ack | :nack | {:error, details :: any}
 
-  @callback refresh_hints(service :: module, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
 
 end

@@ -27,6 +27,239 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
   defmodule Server do
     @vsn 1.0
 
+    def handle_cast({:i, {:update_hints, options}, context}, state) do
+      internal_update_hints(state.entity.effective, context, options)
+      {:noreply, state}
+    end
+
+    def handle_call({:i, {:node_health_check!, options}, context}, _from, state) do
+      state = update_effective(state, context, options)
+      {:reply, {:ack, state.effective}, state}
+    end
+
+    def handle_call({:i, {:lock, components, options}, context}, _from, state) do
+      c = MapSet.t_list(components)
+      state = Enum.reduce(c, state, fn(component, acc) ->
+        if state.effective.services[component] do
+          state = state
+            |> put_in([Access.key(:entity), :effective, Access.key(:services), component, Access.key(:directive)], :maintenance)
+            |> put_in([Access.key(:entity), :effective, Access.key(:services), component, Access.key(:status)], :locked)
+        else
+          acc
+        end
+      end)
+
+      %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
+        identifier: state.entity.effective.identifier,
+        status: state.entity.effective.status,
+        directive: state.entity.effective.directive,
+        health_index: state.entity.effective.health_index,
+        entity: state.entity.effective
+      } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
+
+      case options[:update_hints] do
+        nil -> internal_update_hints(state.entity.effective, context, options)
+        true -> internal_update_hints(state.entity.effective, context, options)
+        false -> :skip
+      end
+
+      {:reply, :ack, state}
+    end
+
+
+
+    def handle_call({:i, {:release, components, options}, context}, _from, state) do
+      c = MapSet.t_list(components)
+      state = Enum.reduce(c, state, fn(component, acc) ->
+        if state.effective.services[component] do
+          state = state
+                  |> put_in([Access.key(:entity), :effective, Access.key(:services), component, Access.key(:directive)], :active)
+                  |> put_in([Access.key(:entity), :effective, Access.key(:services), component, Access.key(:status)], :online)
+        else
+          acc
+        end
+      end)
+
+      %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
+        identifier: state.entity.effective.identifier,
+        status: state.entity.effective.status,
+        directive: state.entity.effective.directive,
+        health_index: state.entity.effective.health_index,
+        entity: state.entity.effective
+      } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
+
+      case options[:update_hints] do
+        nil -> internal_update_hints(state.entity.effective, context, options)
+        true -> internal_update_hints(state.entity.effective, context, options)
+        false -> :skip
+      end
+
+      {:reply, :ack, state}
+    end
+
+
+    #----------------------------------------------------------------------------
+    # START| Noizu.SimplePool.MonitoringFramework.MonitorBehaviour
+    #----------------------------------------------------------------------------
+    @behaviour Noizu.SimplePool.MonitoringFramework.MonitorBehaviour
+
+    def supports_service?(server, component, _context, _options \\ %{}) do
+      effective = case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(server) do
+        nil -> :nack
+        v ->
+          if v.entity.effective.services[component] do
+            case v.entity.effective.services[component].status do
+              :online -> :ack
+              :degraded -> :ack
+              :critical -> :ack
+              _ -> :nack
+            end
+          else
+            :nack
+          end
+      end
+    end
+
+    def rebalance(input, output, components, context, options \\ %{}) do
+
+      server_list = MapSet.to_list(input)
+      component_list = MapSet.to_list(components)
+
+      all_tasks = Enum.reduce(component_list, [], fn(component, acc) ->
+        cs = (Module.concat([component, "Server"]))
+
+        tasks = Enum.reduce(server_list, [], fn(server, acc2) ->
+          acc2 ++ [Task.async(fn ->  {server, cs.workers!(server, context, options)} end)]
+        end)
+
+        workers = Enum.reduce(tasks, %{}, fn(task, acc3) ->
+          {s, {:ack, workers}} = Task.await(task)
+          Map.put(acc3, s, workers)
+        end)
+
+        total_workers = Enum.reduce(workers, 0, fn({s,v}, acc4) -> acc4 + length(v) end)
+        oc = MapSet.size(output)
+        wps = div(total_workers, oc)
+
+        p_one = Enum.reduce(workers, {%{}, []}, fn({k,v}, {om, ol}) ->
+          if MapSet.member?(output, k) do
+            {a,b} = Enum.split(v, wps)
+            {Map.put(om, k, a), ol ++ b}
+          else
+            {om, ol ++ v}
+          end
+        end)
+
+        output_list = MapSet.to_list(output)
+        {p_two, r_p} = Enum.reduce(output_list, p_one, fn(s, {om, ol}) ->
+          if om[s] do
+            oml = length(om[s])
+            {a, b} = Enum.split(ol, wps - oml)
+            {put_in(om, [s], om[s] ++ a), b}
+          else
+            {a, b} = Enum.split(ol, wps)
+            {put_in(om, [s], a), b}
+          end
+        end)
+
+        remap_tasks = Enum.reduce(p_two, [], fn({s,p}, acc5) ->
+          Enum.reduce(p, acc5, fn(process, acc6) ->
+            {source, ref} = process
+            acc6 ++ [Task.async(fn -> cs.worker_migrate!(ref, s, context, options) end)]
+          end)
+        end)
+        acc ++ remap_tasks
+      end)
+
+
+      for t <- all_tasks do
+        Task.await(t)
+      end
+
+      :ack
+    end
+
+    def lock(servers, components, context, options \\ %{}) do
+      options_b = put_in(options, [:update_hints], false)
+      locks = for server <- servers do
+        Task.async(fn -> remote_call(server, {:lock, components, options}, context, options_b) end)
+      end
+
+      for lock <- locks do
+        Task.await(lock)
+      end
+
+      # Update Hints
+      case options[:update_hints] do
+        nil -> internal_update_hints(components, context, options)
+        true -> internal_update_hints(components, context, options)
+        false -> :skip
+      end
+
+      :ack
+    end
+
+    def release(servers, components, context, options \\ %{}) do
+      options_b = put_in(options, [:update_hints], false)
+      locks = for server <- servers do
+        Task.async(fn -> remote_call(server, {:release, components, options}, context, options_b) end)
+      end
+
+      for lock <- locks do
+        Task.await(lock)
+      end
+
+      # Update Hints
+      case options[:update_hints] do
+        nil -> internal_update_hints(components, context, options)
+        true -> internal_update_hints(components, context, options)
+        false -> :skip
+      end
+
+      :ack
+    end
+
+    def select_host(_ref, component, _context, _options \\ %{}) do
+      case Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.read!(component) do
+        nil -> {:nack, :hint_required}
+        v ->
+          if v.status === %{} do
+            {:nack, :none_available}
+          else
+            {k, v} = Enum.random(v.hint)
+            {:ack, k}
+          end
+      end
+    end
+
+    def record_server_event(server, event, details, context, options \\ %{}) do
+      time = options[:time] || DateTime.utc_now()
+      entity = %Noizu.SimplePool.MonitoringFramework.LifeCycleEvent{
+        identifier: event,
+        time_stamp: time,
+        details: details
+      }
+      %Noizu.SimplePool.Database.MonitoringFramework.Node.EventTable{identifier: server, event: event, time_stamp: DateTime.to_unix(time), entity: entity}
+      |> Noizu.SimplePool.Database.MonitoringFramework.Node.EventTable.write!()
+      :ack
+    end
+
+    def record_service_event(server, service, event, details, context, options \\ %{}) do
+      time = options[:time] || DateTime.utc_now()
+      entity = %Noizu.SimplePool.MonitoringFramework.LifeCycleEvent{
+        identifier: event,
+        time_stamp: time,
+        details: details
+      }
+      %Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable{identifier: {server, service}, event: event, time_stamp: DateTime.to_unix(time), entity: entity}
+      |> Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.write!()
+      :ack
+    end
+
+    #----------------------------------------------------------------------------
+    # END| Noizu.SimplePool.MonitoringFramework.MonitorBehaviour
+    #----------------------------------------------------------------------------
+
     def handle_info({:DOWN, ref, :process, process, msg} = event, state) do
       IO.puts "LINK MONITOR: #{inspect event, pretty: true}"
       monitors = Enum.reduce(state.entity.monitors, %{}, fn({k,v}, acc) ->
@@ -61,7 +294,6 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         definition: definition,
       }
 
-
       state = %State{
         pool: Noizu.MonitoringFramework.EnvironmentPool.WorkerSupervisor,
         server: Noizu.MonitoringFramework.EnvironmentPool.Server,
@@ -85,7 +317,11 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       GenServer.cast(__MODULE__, {:m, {:start_services, options}, context})
     end
 
-    def update_hints(effective, context, options \\ %{}) do
+    def update_hints!(context, options \\ %{}) do
+      internal_cast({:update_hints, options}, context)
+    end
+
+    def internal_update_hints(effective, context, options \\ %{}) do
       remote_cast(effective.master_node, {:hint_update, effective, options}, context)
     end
 
@@ -113,10 +349,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       {:reply, effective, state}
     end
 
-    def handle_call({:i, {:node_health_check!, options}, context}, _from, state) do
-      state = update_effective(state, context, options)
-      {:reply, {:ack, state.effective}, state}
-    end
+
 
 
     def update_effective(state, context, options) do
@@ -330,7 +563,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         entity: state.entity.effective
       } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
 
-      update_hints(state.entity.effective, context, options)
+      internal_update_hints(state.entity.effective, context, options)
 
       {:noreply, state}
     end

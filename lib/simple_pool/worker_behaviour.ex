@@ -208,49 +208,22 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   def default_handle_cast_migrate(mod, server, worker_state_entity, migrate_shutdown, {:s, {:migrate!, ref, rebase, options}, context}, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
     cond do
       (rebase == node() && ref == state.worker_ref) -> {:noreply, state}
-      Node.ping(rebase) == :pang -> {:noreply, state}
       true ->
-        # TODO support for delay/halt hooks.
-        {:ok, state} = worker_state_entity.on_migrate(rebase, state, options, context)
-        server.worker_start_transfer!(ref, rebase, state, options, context)
-
-        state = %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :migrate_start, DateTime.utc_now()), migrating: true}
-        state = if migrate_shutdown do
-          mod.schedule_migrate_shutdown(context, state)
-        else
-          spawn fn() ->
-            Process.sleep(500)
-            server.worker_terminate!(ref, nil, context)
-          end
-          state
+        case :rpc.call(rebase, server, :accept_transfer!, [ref, state, context, options], options[:timeout] || 60_000) do
+          {:ack, pid} -> {:noreply, state}
+          r -> {:noreply, state}
         end
-        {:noreply, state}
-    end  #end cond do
+    end
   end
 
   def default_handle_call_migrate(mod, server, worker_state_entity, migrate_shutdown, {:s, {:migrate!, ref, rebase, options}, context}, _from,  %Noizu.SimplePool.Worker.State{initialized: true} = state) do
-    # @TODO use rpc calls with timeout
     cond do
       (rebase == node() && ref == state.worker_ref) -> {:reply, {:ok, self()}, state}
-      Node.ping(rebase) == :pang -> {:reply, {:error, {:pang, rebase}}, state}
       true ->
-        # TODO support for delay/halt hooks.
-        {:ok, state} = worker_state_entity.on_migrate(rebase, state, context)
-        response = server.worker_start_transfer!(ref, rebase, state, options, context)
-        state = case response do
-          {:ok, _p} ->
-            state = %Noizu.SimplePool.Worker.State{state| extended: Map.put(state.extended, :migrate_start, DateTime.utc_now()), migrating: true}
-            if migrate_shutdown do
-              mod.schedule_migrate_shutdown(context, state)
-            else
-              spawn fn() ->
-                Process.sleep(500)
-                server.worker_terminate!(ref, nil, context)
-              end
-              state
-            end
+        case :rpc.call(rebase, server, :accept_transfer!, [ref, state, context, options], options[:timeout] || 60_000) do
+          {:ack, pid} -> {:reply, {:ack, pid}, state}
+          r -> {:reply, {:error, r}, state}
         end
-        {:reply, response, state}
     end
   end
 
