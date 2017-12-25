@@ -3,7 +3,7 @@ ExUnit.start()
 
 
 Application.ensure_all_started(:bypass)
-context = Noizu.ElixirCore.CallingContext.system(%{})
+
 
 #-----------------------------------------------
 # Test Schema Setup
@@ -20,43 +20,15 @@ Amnesia.start
 :ok = Noizu.SimplePool.Database.MonitoringFramework.Node.EventTable.create()
 :ok = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.create()
 
+Node.connect(:"second@127.0.0.1")
+:rpc.call(:"second@127.0.0.1", Amnesia, :start, [])
+{:ok, [:"second@127.0.0.1"]} = :mnesia.change_config(:extra_db_nodes, [:"second@127.0.0.1"])
+
 
 #-----------------------------------------------
-# Registry and Environment Manager Setup
+# Registry and Environment Manager Setup - Local
 #-----------------------------------------------
-#context = Noizu.ElixirCore.CallingContext.system(%{})
-
-Registry.start_link(keys: :unique, name: Noizu.SimplePool.DispatchRegister,  partitions: System.schedulers_online())
-
-initial = %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{
-  identifier: node(),
-  master_node: :self,
-  time_stamp: DateTime.utc_now(),
-  status: :offline,
-  directive: :init,
-  services: %{Noizu.SimplePool.Support.TestPool => %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
-    identifier: {node(), Noizu.SimplePool.Support.TestPool},
-    time_stamp: DateTime.utc_now(),
-    status: :offline,
-    directive: :init,
-    definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
-      identifier: {node(), Noizu.SimplePool.Support.TestPool},
-      server: node(),
-      pool: Noizu.SimplePool.Support.TestPool.Server,
-      supervisor: Noizu.SimplePool.Support.TestPool.PoolSupervisor,
-      time_stamp: DateTime.utc_now(),
-      hard_limit: 200,
-      soft_limit: 150,
-      target: 100,
-    },
-  }},
-  entry_point: :pending
-}
-
-Noizu.MonitoringFramework.EnvironmentPool.PoolSupervisor.start_link(context, %Noizu.SimplePool.MonitoringFramework.Service.Definition{})
-{:ack, _} = Noizu.MonitoringFramework.EnvironmentPool.Server.register(initial, context)
-Noizu.MonitoringFramework.EnvironmentPool.Server.start_services(context)
-:online = Noizu.MonitoringFramework.EnvironmentPool.Server.status_wait([:online, :degraded], context)
-
-
-#Noizu.SimplePool.Support.TestPool.Server.server_kill!
+Noizu.SimplePool.TestHelpers.setup_first()
+IO.puts "c"
+:rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :setup_second, [])
+IO.puts "d"

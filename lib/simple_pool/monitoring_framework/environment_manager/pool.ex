@@ -328,7 +328,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     #---------------------------------------------------------------------------
     # Handlers
     #---------------------------------------------------------------------------
-    def perform_join(state, server, from, initial, context, options) do
+    def perform_join(state, server, {pid, ref}, initial, context, options) do
 
       effective = case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(node()) do
         nil -> initial
@@ -344,7 +344,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         entity: effective
       } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
 
-      monitor_ref = Process.monitor(from)
+      monitor_ref = Process.monitor(pid)
       put_in(state, [Access.key(:extended), :monitors, server], monitor_ref)
       {:reply, effective, state}
     end
