@@ -7,7 +7,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
   defmacro __using__(options) do
     #process_identifier = Dict.get(options, :process_identifier)
-    max_restarts = Dict.get(options, :max_restarts, 10000)
+    max_restarts = Dict.get(options, :max_restarts, 50_000)
     max_seconds = Dict.get(options, :max_seconds, 5)
     strategy = Dict.get(options, :strategy, :one_for_one)
     global_verbose = Dict.get(options, :verbose, false)
