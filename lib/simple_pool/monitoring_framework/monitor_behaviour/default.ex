@@ -28,7 +28,7 @@ defmodule Noizu.SimplePool.MonitoringFramework.MonitorBehaviour.Default do
   end
 
 
-  def record_server_event(server, event, details, context, options \\ %{}), do: :ack
-  def record_service_event(server, service, event, details, context, options \\ %{}), do: :ack
+  def record_server_event!(server, event, details, context, options \\ %{}), do: :ack
+  def record_service_event!(server, service, event, details, context, options \\ %{}), do: :ack
 
 end

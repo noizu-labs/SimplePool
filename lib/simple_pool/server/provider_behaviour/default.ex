@@ -30,11 +30,15 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
           entity: %{definition: definition, effective: effective, status: :init},
           options: options
         }
+
+
+      server.record_service_event!(:start, %{definition: definition, options: options}, context, %{})
       {:ok, state}
     end
 
-    def terminate(reason, %State{} = state) do
-      Logger.warn( fn -> state.server.base().banner("Terminate #{inspect state, pretty: true}\nReason: #{inspect reason}") end)
+    def terminate(server, reason, %State{} = state, context, options) do
+      server.record_service_event!(:terminate, %{reason: reason}, context, options)
+      Logger.warn( fn -> server.base().banner("Terminate #{inspect state, pretty: true}\nReason: #{inspect reason}") end)
       #state.server.disable_server!(node())
       :ok
     end

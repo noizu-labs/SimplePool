@@ -252,7 +252,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end
     end
 
-    def record_server_event(server, event, details, context, options \\ %{}) do
+    def record_server_event!(server, event, details, context, options \\ %{}) do
       time = options[:time] || DateTime.utc_now()
       entity = %Noizu.SimplePool.MonitoringFramework.LifeCycleEvent{
         identifier: event,
@@ -264,7 +264,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       :ack
     end
 
-    def record_service_event(server, service, event, details, context, options \\ %{}) do
+    def record_service_event!(server, service, event, details, context, options \\ %{}) do
       time = options[:time] || DateTime.utc_now()
       entity = %Noizu.SimplePool.MonitoringFramework.LifeCycleEvent{
         identifier: event,

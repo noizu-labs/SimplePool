@@ -24,7 +24,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :server_kill!, :kill!, :crash!,
               :service_health_check!, :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
               :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
-              :link_forward!
+              :link_forward!, :record_service_event!
             ])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -546,7 +546,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end # end init
 
       if (unquote(required.terminate)) do
-        def terminate(reason, state), do: @server_provider.terminate(reason, state)
+        def terminate(reason, state), do: @server_provider.terminate(__MODULE__, reason, state, nil, %{})
       end # end terminate
 
       if (unquote(required.enable_server!)) do
@@ -1177,7 +1177,14 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end # end link_forward!
       end # end if required link_forward!
 
-      @before_compile unquote(__MODULE__)
+
+      if unquote(required.record_service_event!) do
+          def record_service_event!(event, details, context, options) do
+              @server_monitor.record_service_event!(node(), @base, event, details, context, options)
+          end
+      end
+
+        @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__
 
