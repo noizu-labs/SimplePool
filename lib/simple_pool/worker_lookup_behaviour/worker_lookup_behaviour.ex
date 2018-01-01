@@ -131,7 +131,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
       record = options[:dispatch_record] || d.get!(ref, context, options)
       case record do
         nil ->
-          case mod.host!(ref, base, server, context, options) do
+          case mod.host!(ref, server, context, options) do
             {:ack, host} ->
               if host == node() do
                 case Registry.lookup(r, {:worker, ref}) do
@@ -179,7 +179,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
           cond do
             host == :pending ->
               if options[:spawn] do
-                 host2 = mod.host!(ref, base, server, context, options)
+                 host2 = mod.host!(ref, server, context, options)
                  if host2 == node() do
                    options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
                      case x do
@@ -283,8 +283,8 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
         end
 
         if unquote(required.host!) do
-          def host!(ref, base, server, context), do: default_host!(@pass_thru, ref, base, server, context)
-          def host!(ref, base, server, context, options), do: default_host!(@pass_thru, ref, base, server, context, options)
+          def host!(ref, server, context), do: default_host!(@pass_thru, ref, server.base(), server, context)
+          def host!(ref, server, context, options), do: default_host!(@pass_thru, ref, server.base(), server, context, options)
         end
 
         if unquote(required.record_event!) do

@@ -48,7 +48,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # Blocking/Lazy Initialization, Loading Strategy.
     #---------------------------------------------------------------------------
     def status(server, context), do: server.internal_call(:status, context)
-    def load(server, settings, context), do: server.internal_call({:load, settings}, context, %{initializing: true})
+    def load(server, settings, context), do: server.internal_system_call({:load, settings}, context, %{})
 
     def as_cast({:reply, _reply, state}), do: {:noreply, state}
     def as_cast({:noreply, state}), do: {:noreply, state}
@@ -140,10 +140,28 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     end
 
 
+    def lock!(state, context, options) do
+      # TODO obtain lock, etc. - record event?
+      state = state
+        |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :maintenance)
+        |> put_in([Access.key(:entity), :effective, Access.key(:status)], :locked)
+      {:reply, {:ack, state.entity.effective}, state}
+    end
+
+    def release!(state, context, options) do
+      # TODO obtain lock, etc. - record event?
+      state = state
+              |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :active)
+              |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
+      {_, e, state} = get_health_check(state, context, options)
+      {:reply, {:ack, e}, state}
+    end
 
     #---------------------------------------------------------------------------
     # Internal Routing - internal_call_handler
     #---------------------------------------------------------------------------
+    def internal_call_handler({:lock!, options}, context, _from, %State{} = state), do: lock!(state, context, options)
+    def internal_call_handler({:release!, options}, context, _from, %State{} = state), do: release!(state, context, options)
     def internal_call_handler({:health_check!, health_check_options}, context, _from, %State{} = state), do: get_health_check(state, context, health_check_options)
     def internal_call_handler({:load, options}, context, _from, %State{} = state), do: load_workers(options, context, state)
     def internal_call_handler(call, context, _from, %State{} = state) do

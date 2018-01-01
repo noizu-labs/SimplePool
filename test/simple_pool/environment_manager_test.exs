@@ -1,5 +1,5 @@
 defmodule Noizu.SimplePool.EnvironmentManagerTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureLog
   require Logger
@@ -147,13 +147,51 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
     #assert true == false
   end
 
+  @tag :lock
   @tag capture_log: true
   test "lock server" do
-    #assert true == false
+    ref = Noizu.SimplePool.TestHelpers.unique_ref(:two)
+    pre_lock = TestTwoPool.Server.test_s_call!(ref, :bannana, @context)
+    assert pre_lock == :s_call!
+    Noizu.MonitoringFramework.EnvironmentPool.Server.lock_server(:"second@127.0.0.1", :all, @context, %{})
+    Process.sleep(150)
+    ref2 = Noizu.SimplePool.TestHelpers.unique_ref(:two)
+    post_lock = TestTwoPool.Server.test_s_call!(ref2, :bannana, @context)
+    Noizu.MonitoringFramework.EnvironmentPool.Server.release_server(:"second@127.0.0.1", :all, @context, %{})
+    assert post_lock == {:error, {:host_pick, {:nack, :none_available}}}
+    :ok = wait_hint_update(ref2, TestTwoPool.Server, @context)
+  end
+
+
+  def wait_hint_update(ref, server, context, timeout \\ 60_000) do
+    t = :os.system_time(:millisecond)
+    Process.sleep(100)
+    case Noizu.SimplePool.WorkerLookupBehaviour.Dynamic.host!(ref, server, context) do
+      {:ack, _h} -> :ok
+      j ->
+        t2 = :os.system_time(:millisecond)
+        t3 = timeout - (t2 - t)
+        if t3 > 0 do
+          wait_hint_update(ref, server, context, t3)
+        else
+          :timeout
+        end
+
+    end
   end
 
   @tag capture_log: true
   test "release server" do
+    #assert true == false
+  end
+
+  @tag capture_log: true
+  test "lock service" do
+    #assert true == false
+  end
+
+  @tag capture_log: true
+  test "release service" do
     #assert true == false
   end
 

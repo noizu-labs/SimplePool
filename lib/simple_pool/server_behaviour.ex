@@ -20,11 +20,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :status, :load, :load_complete, :ref, :worker_add!, :run_on_host,
               :cast_to_host, :remove!, :r_remove!, :terminate!, :r_terminate!,
               :workers!, :worker_migrate!, :worker_load!, :worker_ref!,
-              :worker_pid!, :self_call, :self_cast, :internal_call, :internal_cast,
-              :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :server_kill!, :kill!, :crash!,
+              :worker_pid!, :self_call, :self_cast, :internal_call, :internal_cast,  :internal_system_call, :internal_system_cast,
+              :remote_system_call, :remote_system_cast, :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :server_kill!, :kill!, :crash!,
               :service_health_check!, :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
               :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
-              :link_forward!, :record_service_event!
+              :link_forward!, :record_service_event!, :lock!, :release!, :status_wait, :entity_status
             ])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -68,7 +68,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   end
 
   def default_run_on_host(mod, base, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
-    case worker_lookup_handler.host!(ref, base, context, options) do
+    case worker_lookup_handler.host!(ref, mod, context, options) do
       {:ack, host} ->
         #IO.puts "AAAAAAAAAAAAAAAAAAAAAAAAAA #{inspect {m,f,a} } - HOST = #{inspect host}"
         if host == node() do
@@ -83,7 +83,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   end
 
   def default_cast_to_host(mod, base, worker_lookup_handler, ref, {m,f,a}, context, options) do
-    case worker_lookup_handler.host!(ref, base, context, options) do
+    case worker_lookup_handler.host!(ref, mod, context, options) do
       {:ack, host} ->
         if host == node() do
           apply(m,f,a)
@@ -756,22 +756,15 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
+      if unquote(required.lock!) do
+        def lock!(context, options \\ %{}), do: internal_system_call({:lock!, options}, context, options)
+      end
 
+      if unquote(required.release!) do
+        def release!(context, options \\ %{}), do: internal_system_call({:release!, options}, context, options)
+      end
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      if unquote(required.status_wait) do
       def status_wait(target_state, context, timeout \\ :infinity)
       def status_wait(target_state, context, timeout) when is_atom(target_state) do
         status_wait(MapSet.new([target_state]), context, timeout)
@@ -812,7 +805,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end
         end
       end
+      end
 
+      if unquote(required.entity_status) do
 
       def entity_status(context, options \\ %{}) do
         timeout = options[:timeout] || 5_000
@@ -826,7 +821,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end # end try
       end
 
-
+      end
 
 
 
@@ -868,9 +863,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.self_cast)) do
 
-        def self_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+        def self_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           #IO.puts "#{__MODULE__}.self_cast #{inspect call}"
-          case @server_monitor.supports_service?(node(), @base, context) do
+          case @server_monitor.supports_service?(node(), @base, context, options) do
             :ack ->
               extended_call = {:s, call, context}
               GenServer.cast(__MODULE__, extended_call)
@@ -879,6 +874,20 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
+      if (unquote(required.internal_system_call)) do
+        def internal_system_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          options = put_in(options, [:system_call], true)
+          internal_call(call, context, options)
+        end
+      end
+
+
+      if (unquote(required.internal_system_cast)) do
+        def internal_system_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          options = put_in(options, [:system_call], true)
+          internal_cast(call, context, options)
+        end
+      end
 
       if (unquote(required.internal_call)) do
         def internal_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
@@ -893,11 +902,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
-
       if (unquote(required.internal_cast)) do
-        def internal_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+        def internal_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           #IO.puts "#{__MODULE__}.internal_cast #{inspect call}"
-          case @server_monitor.supports_service?(node(), @base, context) do
+          case @server_monitor.supports_service?(node(), @base, context, options) do
             :ack ->
               extended_call = {:i, call, context}
               GenServer.cast(__MODULE__, extended_call)
@@ -905,6 +913,21 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end
         end
       end
+
+      if (unquote(required.remote_system_call)) do
+        def remote_system_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          options = put_in(options, [:system_call], true)
+          remote_call(remote_node, call, context, options)
+        end
+      end
+
+      if (unquote(required.remote_system_cast)) do
+        def remote_system_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          options = put_in(options, [:system_call], true)
+          remote_cast(remote_node, call, context, options)
+        end
+      end
+
       if (unquote(required.remote_call)) do
         def remote_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           #IO.puts "#{__MODULE__}.remote_call #{inspect call}"
@@ -919,7 +942,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if (unquote(required.remote_cast)) do
-        def remote_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+        def remote_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           #IO.puts "#{__MODULE__}.remote_cast #{inspect call}"
           extended_call = {:i, call, context}
           if remote_node == node() do
@@ -1027,10 +1050,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.service_health_check!) do
-        def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, %{}}, context)
-        def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, health_check_options}, context)
+        def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: internal_system_call({:health_check!, %{}}, context)
+        def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: internal_system_call({:health_check!, health_check_options}, context)
         def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options) do
-          internal_call({:health_check!, health_check_options}, context, options)
+          internal_system_call({:health_check!, health_check_options}, context, options)
           end
       end
 

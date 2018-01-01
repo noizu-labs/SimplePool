@@ -40,19 +40,26 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
     def handle_call({:i, {:node_health_check!, options}, context}, _from, state) do
+      pstate = state
       state = update_effective(state, context, options)
       {:reply, {:ack, state.entity.effective}, state}
     end
 
-    def handle_call({:i, {:lock, components, options}, context}, _from, state) do
-      c = MapSet.to_list(components)
-      state = Enum.reduce(c, state, fn(component, acc) ->
-        if state.effective.services[component] do
-          state = state
-                  |> put_in([Access.key(:entity), :effective, Access.key(:services), component, Access.key(:directive)], :maintenance)
-                  |> put_in([Access.key(:entity), :effective, Access.key(:services), component, Access.key(:status)], :locked)
+    def handle_call({:i, {:lock_server, components, options}, context}, _from, state) do
+      c = components == :all && Map.keys(state.entity.effective.services) || MapSet.to_list(components)
+
+      tasks = Enum.reduce(c, [], fn(service, acc) ->
+        if state.entity.effective.services[service] do
+          acc ++ [Task.async(fn -> {service, state.entity.effective.services[service].definition.pool.lock!(context, options)} end)]
         else
           acc
+        end
+      end)
+
+      state = Enum.reduce(tasks, state, fn(task, acc) ->
+        case Task.await(task) do
+          {k, {:ack, s}} -> put_in(acc, [Access.key(:entity), :effective, Access.key(:services), k], s)
+          _ -> acc
         end
       end)
 
@@ -64,26 +71,29 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         entity: state.entity.effective
       } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
 
-      case options[:update_hints] do
-        nil -> internal_update_hints(state.entity.effective, context, options)
-        true -> internal_update_hints(state.entity.effective, context, options)
-        false -> :skip
+      if Map.get(options, :update_hints, true) do
+        internal_update_hints(state.entity.effective, context, options)
       end
-
       {:reply, :ack, state}
     end
 
 
 
-    def handle_call({:i, {:release, components, options}, context}, _from, state) do
-      c = MapSet.to_list(components)
-      state = Enum.reduce(c, state, fn(component, acc) ->
-        if state.effective.services[component] do
-          state = state
-                  |> put_in([Access.key(:entity), :effective, Access.key(:services), component, Access.key(:directive)], :active)
-                  |> put_in([Access.key(:entity), :effective, Access.key(:services), component, Access.key(:status)], :online)
+    def handle_call({:i, {:release_server, components, options}, context}, _from, state) do
+      c = components == :all && Map.keys(state.entity.effective.services) || MapSet.to_list(components)
+
+      tasks = Enum.reduce(c, [], fn(service, acc) ->
+        if state.entity.effective.services[service] do
+          acc ++ [Task.async(fn -> {service, state.entity.effective.services[service].definition.pool.release!(context, options)} end)]
         else
           acc
+        end
+      end)
+
+      state = Enum.reduce(tasks, state, fn(task, acc) ->
+        case Task.await(task) do
+          {k, {:ack, s}} -> put_in(acc, [Access.key(:entity), :effective, Access.key(:services), k], s)
+          _ -> acc
         end
       end)
 
@@ -95,12 +105,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         entity: state.entity.effective
       } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
 
-      case options[:update_hints] do
-        nil -> internal_update_hints(state.entity.effective, context, options)
-        true -> internal_update_hints(state.entity.effective, context, options)
-        false -> :skip
+      if Map.get(options, :update_hints, true) do
+        internal_update_hints(state.entity.effective, context, options)
       end
-
       {:reply, :ack, state}
     end
 
@@ -119,21 +126,14 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
               :online -> :ack
               :degraded -> :ack
               :critical -> :ack
-              :offline ->
-                if options[:initializing] do
+              s ->
+                if options[:system_call] do
                   :ack
                 else
-                  IO.puts "supports_service? nack 2 :offline - #{inspect {server, component, options}}"
                   :nack
                 end
-
-
-              s ->
-                IO.puts "supports_service? nack 3 #{inspect s} - #{inspect {server, component, options}}"
-                :nack
             end
           else
-            IO.puts "supports_service? nack 4"
             :nack
           end
       end
@@ -190,51 +190,33 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         acc ++ remap_tasks
       end)
 
-
-      for t <- all_tasks do
-        Task.await(t)
-      end
-
+      for t <- all_tasks, do: Task.await(t)
       :ack
     end
 
-    def lock(servers, components, context, options \\ %{}) do
-      options_b = put_in(options, [:update_hints], false)
-      locks = for server <- servers do
-        Task.async(fn -> remote_call(server, {:lock, components, options}, context, options_b) end)
-      end
+    def lock_server(context), do: lock_servers([node()], :all, context, %{})
+    def lock_server(context, options), do: lock_servers([node()], :all, context, options)
+    def lock_server(components, context, options), do: lock_servers([node()], components, context, options)
+    def lock_server(server, components, context, options), do: lock_servers([server], components, context, options)
 
-      for lock <- locks do
-        Task.await(lock)
-      end
-
-      # Update Hints
-      case options[:update_hints] do
-        nil -> internal_update_hints(components, context, options)
-        true -> internal_update_hints(components, context, options)
-        false -> :skip
-      end
-
+    def lock_servers(servers, components, context, options \\ %{}) do
+      options_b = Map.has_key?(options, :update_hints) && options || put_in(options, [:update_hints], false)
+      locks = for server <- servers, do:  Task.async(fn -> remote_call(server, {:lock_server, components, options_b}, context, options_b) end)
+      for lock <- locks, do: Task.await(lock)
+      if Map.get(options, :update_hints, true), do: internal_update_hints(components, context, options)
       :ack
     end
 
-    def release(servers, components, context, options \\ %{}) do
-      options_b = put_in(options, [:update_hints], false)
-      locks = for server <- servers do
-        Task.async(fn -> remote_call(server, {:release, components, options}, context, options_b) end)
-      end
+    def release_server(context), do: release_servers([node()], :all, context, %{})
+    def release_server(context, options), do: release_servers([node()], :all, context, options)
+    def release_server(components, context, options), do: release_servers([node()], components, context, options)
+    def release_server(server, components, context, options), do: release_servers([server], components, context, options)
 
-      for lock <- locks do
-        Task.await(lock)
-      end
-
-      # Update Hints
-      case options[:update_hints] do
-        nil -> internal_update_hints(components, context, options)
-        true -> internal_update_hints(components, context, options)
-        false -> :skip
-      end
-
+    def release_servers(servers, components, context, options \\ %{}) do
+      options_b = Map.has_key?(options, :update_hints) && options || put_in(options, [:update_hints], false)
+      locks = for server <- servers, do: Task.async(fn -> remote_call(server, {:release_server, components, options}, context, options_b) end)
+      for lock <- locks, do: Task.await(lock)
+      if Map.get(options, :update_hints, true), do: internal_update_hints(components, context, options)
       :ack
     end
 
@@ -245,9 +227,13 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
           if v.status === %{} do
             {:nack, :none_available}
           else
-            # TODO handle no hints, illegal format, etc.
-            {{host, _service}, v} = Enum.random(v.hint)
-            {:ack, host}
+            if Enum.empty?(v.hint) do
+              {:nack, :none_available}
+            else
+              # TODO handle no hints, illegal format, etc.
+              {{host, _service}, v} = Enum.random(v.hint)
+              {:ack, host}
+            end
           end
       end
     end
@@ -333,11 +319,26 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
     def update_hints!(context, options \\ %{}) do
-      internal_cast({:update_hints, options}, context)
+      internal_system_cast({:update_hints, options}, context)
     end
 
-    def internal_update_hints(effective, context, options \\ %{}) do
-      remote_cast(effective.master_node, {:hint_update, effective, options}, context)
+
+    def internal_update_hints(components, context, options \\ %{})
+    def internal_update_hints(:all, context, options) do
+      internal_system_cast({:prep_hint_update, :all, options}, context, options)
+    end
+
+    def internal_update_hints(%MapSet{} = components, context, options) do
+      internal_system_cast({:prep_hint_update, components, options}, context, options)
+    end
+
+    def internal_update_hints(effective, context, options) do
+      remote_system_cast(effective.master_node, {:hint_update, effective, options}, context, options)
+    end
+
+    def handle_cast({:i, {:prep_hint_update, components, options}, context}, state) do
+      remote_system_cast(state.entity.effective.master_node, {:hint_update, components, options}, context)
+      {:noreply, state}
     end
 
     #---------------------------------------------------------------------------
@@ -385,22 +386,21 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
     def node_health_check!(context, options) do
-      internal_call({:node_health_check!, options[:node_health_check!] || %{}}, context, options)
+      internal_system_call({:node_health_check!, options[:node_health_check!] || %{}}, context, options)
     end
 
-    def perform_hint_update(state, effective, context, options) do
+    def perform_hint_update(state, components, context, options) do
       # call each service node to get current health checks.
       # 1. Grab nodes
-      servers = Amnesia.Fragment.async(fn ->
+      servers_raw = Amnesia.Fragment.async(fn ->
         Noizu.SimplePool.Database.MonitoringFramework.NodeTable.where(1 == 1)
         |> Amnesia.Selection.values
       end)
 
-
       state = update_effective(state, context, options)
 
       # 2. Grab Server Status
-      tasks = Enum.reduce(servers, [], fn(x, acc) ->
+      tasks = Enum.reduce(servers_raw, [], fn(x, acc) ->
         if (x.identifier != node()) do
           task = Task.async( fn ->
             {x.identifier, :rpc.call(x.identifier, __MODULE__, :node_health_check!, [context, options])}
@@ -412,6 +412,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         end
       end)
 
+
       servers = Enum.reduce(tasks, %{}, fn (task, acc) ->
         {k, {:ack, v}} = Task.await(task)
         Map.put(acc, k, v)
@@ -421,8 +422,14 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       valid_status = MapSet.new([:online, :degraded, :critical])
       valid_status_weight = %{online: 1, degraded: 2, critical: 3}
 
-      update = Map.keys(effective.services)
 
+      update = case components do
+        %MapSet{} -> MapSet.to_list(components)
+        :all -> Enum.reduce(servers_raw, MapSet.new([]), fn(x, acc) ->
+                  MapSet.union(acc, MapSet.new(Map.keys(x.entity.services)))
+                end) |> MapSet.to_list()
+        %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{} -> Map.keys(components.services)
+      end
 
       Enum.reduce(update, true, fn(service, acc) ->
         candidates = Enum.reduce(servers, [], fn ({server_id, server}, acc2) ->
@@ -481,8 +488,8 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
 
-    def handle_cast({:i, {:hint_update, effective, options}, context}, state) do
-      perform_hint_update(state, effective, context, options)
+    def handle_cast({:i, {:hint_update, components, options}, context}, state) do
+      perform_hint_update(state, components, context, options)
     end
 
     def handle_call({:i, {:join, server, initial, options}, context}, from, state) do
@@ -550,10 +557,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         Map.put(acc, k, m)
       end)
 
-      options_b = put_in(options, [:initializing], true)
       tasks = Enum.reduce(state.entity.effective.services, [], fn({k,v}, acc) ->
         acc ++ [Task.async( fn ->
-          h = v.definition.pool.service_health_check!(options[:health_check_options] || %{}, context, options_b)
+          h = v.definition.pool.service_health_check!(options[:health_check_options] || %{}, context, options)
           {k,h} end)]
       end)
 
