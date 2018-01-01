@@ -3,17 +3,17 @@
 # Copyright (C) 2017 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.Support.TestTwoPool do
+defmodule Noizu.SimplePool.Support.TestThreePool do
   #alias Noizu.Scaffolding.CallingContext
   use Noizu.SimplePool.Behaviour,
       default_modules: [:pool_supervisor, :worker_supervisor],
-      worker_state_entity: Noizu.SimplePool.Support.TestTwoWorkerEntity,
+      worker_state_entity: Noizu.SimplePool.Support.TestThreeWorkerEntity,
       verbose: false
 
   defmodule Worker do
     @vsn 1.0
     use Noizu.SimplePool.WorkerBehaviour,
-        worker_state_entity: Noizu.SimplePool.Support.TestTwoWorkerEntity,
+        worker_state_entity: Noizu.SimplePool.Support.TestThreeWorkerEntity,
         verbose: false
     require Logger
   end # end worker
@@ -24,10 +24,9 @@ defmodule Noizu.SimplePool.Support.TestTwoPool do
   defmodule Server do
     @vsn 1.0
     use Noizu.SimplePool.ServerBehaviour,
-        worker_state_entity: Noizu.SimplePool.Support.TestTwoWorkerEntity,
+        worker_state_entity: Noizu.SimplePool.Support.TestThreeWorkerEntity,
         server_monitor: Noizu.MonitoringFramework.EnvironmentPool.Server,
         worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
-    #alias Noizu.SimplePool.Support.TestTwoWorkerEntity
 
     #---------------------------------------------------------------------------
     # Convenience Methods

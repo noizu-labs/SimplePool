@@ -91,11 +91,11 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
 
       # @start_link
       if (unquote(required.start_link)) do
-        def start_link(context) do
+        def start_link(definition, context) do
           if verbose() do
-            Logger.info(fn -> {@base.banner("#{__MODULE__}.start_link"), Noizu.ElixirCore.metadata(context)} end)
+            Logger.info(fn -> {@base.banner("#{__MODULE__}.start_link"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
-          Supervisor.start_link(__MODULE__, context, [{:name, __MODULE__}])
+          Supervisor.start_link(__MODULE__, [definition, context], [{:name, __MODULE__}])
         end
       end # end start_link
 
@@ -112,7 +112,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
 
       # @init
       if (unquote(required.init)) do
-        def init(context) do
+        def init([definition, context]) do
           if verbose() do
             Logger.info(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect context}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end

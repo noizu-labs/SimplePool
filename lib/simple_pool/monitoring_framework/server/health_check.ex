@@ -39,7 +39,7 @@ defmodule  Noizu.SimplePool.MonitoringFramework.Server.HealthCheck do
   defimpl Inspect, for: Noizu.SimplePool.MonitoringFramework.Server.HealthCheck do
     import Inspect.Algebra
     def inspect(entity, opts) do
-      heading = "#Worker.HealthCheck(#{inspect entity.identifier})"
+      heading = "#Server.HealthCheck(#{inspect entity.identifier})"
       {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
       inner = cond do
         opts.limit == :infinity ->

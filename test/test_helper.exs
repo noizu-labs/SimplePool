@@ -9,26 +9,47 @@ Application.ensure_all_started(:bypass)
 # Test Schema Setup
 #-----------------------------------------------
 Amnesia.start
-:ok = Noizu.SimplePool.Database.DispatchTable.create()
-:ok = Noizu.SimplePool.Database.Dispatch.MonitorTable.create()
 
-:ok = Noizu.SimplePool.Database.MonitoringFramework.SettingTable.create()
-:ok = Noizu.SimplePool.Database.MonitoringFramework.NodeTable.create()
-:ok = Noizu.SimplePool.Database.MonitoringFramework.ServiceTable.create()
-:ok = Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.create()
 
-:ok = Noizu.SimplePool.Database.MonitoringFramework.Node.EventTable.create()
-:ok = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.create()
+if !Amnesia.Table.exists?(Noizu.SimplePool.Database.DispatchTable) do
+  :ok = Noizu.SimplePool.Database.DispatchTable.create()
+  :ok = Noizu.SimplePool.Database.Dispatch.MonitorTable.create()
 
-Node.connect(:"second@127.0.0.1")
+  :ok = Noizu.SimplePool.Database.MonitoringFramework.SettingTable.create()
+  :ok = Noizu.SimplePool.Database.MonitoringFramework.NodeTable.create()
+  :ok = Noizu.SimplePool.Database.MonitoringFramework.ServiceTable.create()
+  :ok = Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.create()
+
+  :ok = Noizu.SimplePool.Database.MonitoringFramework.Node.EventTable.create()
+  :ok = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.create()
+end
+
+true = Node.connect(:"second@127.0.0.1")
 :rpc.call(:"second@127.0.0.1", Amnesia, :start, [])
-{:ok, [:"second@127.0.0.1"]} = :mnesia.change_config(:extra_db_nodes, [:"second@127.0.0.1"])
 
+spawn_second = if !Enum.member?(Amnesia.info(:db_nodes),:"second@127.0.0.1") do
+    # conditional include to reduce the need to restart the remote server
+    :mnesia.change_config(:extra_db_nodes, [:"second@127.0.0.1"])
+    true
+  else
+    false
+  end
 
 #-----------------------------------------------
 # Registry and Environment Manager Setup - Local
 #-----------------------------------------------
 Noizu.SimplePool.TestHelpers.setup_first()
-IO.puts "c"
-:rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :setup_second, [])
-IO.puts "d"
+Process.sleep(500)
+
+if spawn_second do
+  {:pid, second_pid} = :rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :setup_second, [])
+else
+  IO.puts "Checking second node state"
+  context = Noizu.ElixirCore.CallingContext.system(%{})
+  case :rpc.call(:"second@127.0.0.1", Noizu.MonitoringFramework.EnvironmentPool.Server, :node_health_check!, [context, %{}]) do
+    {:badrpc, _} -> {:pid, second_pid} = :rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :setup_second, [])
+    v -> IO.puts "Checking second node state #{inspect v}"
+  end
+end
+
+Process.sleep(500)

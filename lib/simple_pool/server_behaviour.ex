@@ -67,20 +67,23 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     end
   end
 
-  def default_run_on_host(mod, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
-    case worker_lookup_handler.host!(ref, mod, context, options) do
+  def default_run_on_host(mod, base, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
+    case worker_lookup_handler.host!(ref, base, context, options) do
       {:ack, host} ->
+        #IO.puts "AAAAAAAAAAAAAAAAAAAAAAAAAA #{inspect {m,f,a} } - HOST = #{inspect host}"
         if host == node() do
+          #IO.puts "AAAAAAAAAAAAAAAAAAAAAAAAAA B"
           apply(m,f,a)
         else
+          #IO.puts "AAAAAAAAAAAAAAAAAAAAAAAAAA C"
           :rpc.call(host, m,f,a, timeout)
         end
       o -> o
     end
   end
 
-  def default_cast_to_host(mod, worker_lookup_handler, ref, {m,f,a}, context, options) do
-    case worker_lookup_handler.host!(ref, mod, context, options) do
+  def default_cast_to_host(mod, base, worker_lookup_handler, ref, {m,f,a}, context, options) do
+    case worker_lookup_handler.host!(ref, base, context, options) do
       {:ack, host} ->
         if host == node() do
           apply(m,f,a)
@@ -516,7 +519,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # Genserver Lifecycle
       #=========================================================================
       if unquote(required.start_link) do
-        def start_link(sup, context, definition) do
+        def start_link(sup, definition, context) do
           definition = if definition == :default do
             auto = default_definition()
             if verbose() do
@@ -529,12 +532,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             end
             definition
           end
-          GenServer.start_link(__MODULE__, [@worker_supervisor, context, definition], name: __MODULE__)
+          GenServer.start_link(__MODULE__, [@worker_supervisor, definition, context], name: __MODULE__)
         end
       end # end start_link
 
       if (unquote(required.init)) do
-        def init([sup, context, definition] = args) do
+        def init([sup, definition, context] = args) do
           if verbose() do
             Logger.info(fn -> {@base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})\n args: #{inspect args, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end
@@ -674,13 +677,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.run_on_host)) do
         def run_on_host(ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
-          default_run_on_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options, timeout)
+          default_run_on_host(__MODULE__, @base, @worker_lookup_handler, ref, {m,f,a}, context, options, timeout)
         end
       end
 
       if (unquote(required.cast_to_host)) do
         def cast_to_host(ref, {m,f,a}, context, options \\ %{}) do
-          default_cast_to_host(__MODULE__, @worker_lookup_handler, ref, {m,f,a}, context, options)
+          default_cast_to_host(__MODULE__, @base, @worker_lookup_handler, ref, {m,f,a}, context, options)
         end
       end
 
@@ -732,7 +735,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if unquote(required.worker_pid!) do
         def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-          @worker_lookup_handler.process!(ref, __MODULE__, context, options)
+          @worker_lookup_handler.process!(ref, @base,  __MODULE__, context, options)
         end
       end
 
@@ -852,7 +855,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           @TODO add support for s_redirect
         """
         def self_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-          case @server_monitor.supports_service?(node(), @base, context) do
+          #IO.puts "#{__MODULE__}.self_call #{inspect call}"
+          case @server_monitor.supports_service?(node(), @base, context, options) do
             :ack ->
               extended_call = {:s, call, context}
               timeout = options[:timeout] || @timeout
@@ -865,6 +869,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(required.self_cast)) do
 
         def self_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+          #IO.puts "#{__MODULE__}.self_cast #{inspect call}"
           case @server_monitor.supports_service?(node(), @base, context) do
             :ack ->
               extended_call = {:s, call, context}
@@ -877,7 +882,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.internal_call)) do
         def internal_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-          case @server_monitor.supports_service?(node(), @base, context) do
+          #IO.puts "#{__MODULE__}.internal_call #{inspect call} - #{inspect options}"
+          case @server_monitor.supports_service?(node(), @base, context, options) do
             :ack ->
               extended_call = {:i, call, context}
               timeout = options[:timeout] || @timeout
@@ -890,6 +896,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.internal_cast)) do
         def internal_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+          #IO.puts "#{__MODULE__}.internal_cast #{inspect call}"
           case @server_monitor.supports_service?(node(), @base, context) do
             :ack ->
               extended_call = {:i, call, context}
@@ -900,6 +907,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
       if (unquote(required.remote_call)) do
         def remote_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+          #IO.puts "#{__MODULE__}.remote_call #{inspect call}"
           timeout = options[:timeout] || @timeout
           extended_call = {:i, call, context}
           if remote_node == node() do
@@ -912,6 +920,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.remote_cast)) do
         def remote_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{})) do
+          #IO.puts "#{__MODULE__}.remote_cast #{inspect call}"
           extended_call = {:i, call, context}
           if remote_node == node() do
             GenServer.cast(__MODULE__, extended_call)
@@ -1020,7 +1029,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.service_health_check!) do
         def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, %{}}, context)
         def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: internal_call({:health_check!, health_check_options}, context)
-        def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: internal_call({:health_check!, health_check_options}, context, options)
+        def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options) do
+          internal_call({:health_check!, health_check_options}, context, options)
+          end
       end
 
       if unquote(required.health_check!) do

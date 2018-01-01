@@ -7,7 +7,7 @@ defmodule Noizu.SimplePool.DispatchRepo do
 
   def new(ref, _context, options \\ %{}) do
     state = options[:state] || :new
-    server = options[:server] || node()
+    server = options[:server] || :pending
     lock = prepare_lock(options)
     %Noizu.SimplePool.DispatchEntity{identifier: ref, server: server, state: state, lock: lock}
   end

@@ -27,7 +27,7 @@ defdatabase Noizu.SimplePool.Database do
   end
 
   deftable MonitoringFramework.NodeTable, [:identifier, :status, :directive, :health_index, :entity], type: :set, index: [] do
-    @type t :: %MonitoringFramework.NodeTable{identifier: any, status: atom, directive: atom,  health_index: float, entity: Noizu.SimplePool.MonitoringFramework.Node.HealthCheck.t}
+    @type t :: %MonitoringFramework.NodeTable{identifier: any, status: atom, directive: atom,  health_index: float, entity: Noizu.SimplePool.MonitoringFramework.Server.HealthCheck.t}
   end
 
   deftable MonitoringFramework.Node.EventTable, [:identifier, :event, :time_stamp, :entity], type: :bag, index: [] do

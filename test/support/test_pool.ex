@@ -24,7 +24,9 @@ defmodule Noizu.SimplePool.Support.TestPool do
   defmodule Server do
     @vsn 1.0
     use Noizu.SimplePool.ServerBehaviour,
-        worker_state_entity: Noizu.SimplePool.Support.TestWorkerEntity
+        worker_state_entity: Noizu.SimplePool.Support.TestWorkerEntity,
+        server_monitor: Noizu.MonitoringFramework.EnvironmentPool.Server,
+        worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
     #alias Noizu.SimplePool.Support.TestWorkerEntity
 
     #---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 # Copyright (C) 2017 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.Support.TestTwoWorkerEntity do
+defmodule Noizu.SimplePool.Support.TestThreeWorkerEntity do
   @vsn 1.0
 
   #-----------------------------------------------------------------------------
@@ -27,7 +27,7 @@ defmodule Noizu.SimplePool.Support.TestTwoWorkerEntity do
   ]
 
   use Noizu.SimplePool.InnerStateBehaviour,
-      pool: Noizu.SimplePool.Support.TestTwoPool,
+      pool: Noizu.SimplePool.Support.TestThreePool,
       override: [:load]
 
   #-----------------------------------------------------------------------------
@@ -66,29 +66,29 @@ defmodule Noizu.SimplePool.Support.TestTwoWorkerEntity do
   # id/1
   #-------------------
   def id({:ref, __MODULE__, identifier}), do: identifier
-  def id("ref.noizu-test-2." <> identifier), do: identifier
+  def id("ref.noizu-test-3." <> identifier), do: identifier
   def id(%__MODULE__{} = entity), do: entity.identifier
 
   #-------------------
   # ref/1
   #-------------------
   def ref({:ref, __MODULE__, identifier}), do: {:ref, __MODULE__, identifier}
-  def ref("ref.noizu-test-2." <> identifier), do: {:ref, __MODULE__, identifier}
+  def ref("ref.noizu-test-3." <> identifier), do: {:ref, __MODULE__, identifier}
   def ref(%__MODULE__{} = entity), do: {:ref, __MODULE__, entity.identifier}
 
   #-------------------
   # sref/1
   #-------------------
-  def sref({:ref, __MODULE__, identifier}), do: "ref.noizu-test-2.#{identifier}"
-  def sref("ref.noizu-test-2." <> identifier), do: "ref.noizu-test-2.#{identifier}"
-  def sref(%__MODULE__{} = entity), do: "ref.noizu-test-2.#{entity.identifier}"
+  def sref({:ref, __MODULE__, identifier}), do: "ref.noizu-test-3.#{identifier}"
+  def sref("ref.noizu-test-3." <> identifier), do: "ref.noizu-test-3.#{identifier}"
+  def sref(%__MODULE__{} = entity), do: "ref.noizu-test-3.#{entity.identifier}"
 
   #-------------------
   # entity/2
   #-------------------
   def entity(ref, options \\ %{})
   def entity({:ref, __MODULE__, identifier}, _options), do: %__MODULE__{identifier: identifier}
-  def entity("ref.noizu-test-2." <> identifier, _options), do: %__MODULE__{identifier: identifier}
+  def entity("ref.noizu-test-3." <> identifier, _options), do: %__MODULE__{identifier: identifier}
   def entity(%__MODULE__{} = entity, _options), do: entity
 
   #-------------------
@@ -96,7 +96,7 @@ defmodule Noizu.SimplePool.Support.TestTwoWorkerEntity do
   #-------------------
   def entity!(ref, options \\ %{})
   def entity!({:ref, __MODULE__, identifier}, _options), do: %__MODULE__{identifier: identifier}
-  def entity!("ref.noizu-test-2." <> identifier, _options), do: %__MODULE__{identifier: identifier}
+  def entity!("ref.noizu-test-3." <> identifier, _options), do: %__MODULE__{identifier: identifier}
   def entity!(%__MODULE__{} = entity, _options), do: entity
 
 
@@ -105,7 +105,7 @@ defmodule Noizu.SimplePool.Support.TestTwoWorkerEntity do
   #-------------------
   def record(ref, options \\ %{})
   def record({:ref, __MODULE__, identifier}, _options), do: %__MODULE__{identifier: identifier}
-  def record("ref.noizu-test-2." <> identifier, _options), do: %__MODULE__{identifier: identifier}
+  def record("ref.noizu-test-3." <> identifier, _options), do: %__MODULE__{identifier: identifier}
   def record(%__MODULE__{} = entity, _options), do: entity
 
   #-------------------
@@ -113,22 +113,22 @@ defmodule Noizu.SimplePool.Support.TestTwoWorkerEntity do
   #-------------------
   def record!(ref, options \\ %{})
   def record!({:ref, __MODULE__, identifier}, _options), do: %__MODULE__{identifier: identifier}
-  def record!("ref.noizu-test-2." <> identifier, _options), do: %__MODULE__{identifier: identifier}
+  def record!("ref.noizu-test-3." <> identifier, _options), do: %__MODULE__{identifier: identifier}
   def record!(%__MODULE__{} = entity, _options), do: entity
 
 
 
-  defimpl Noizu.ERP, for: Noizu.SimplePool.Support.TestTwoWorkerEntity do
+  defimpl Noizu.ERP, for: Noizu.SimplePool.Support.TestThreeWorkerEntity do
     def id(obj) do
       obj.identifier
     end # end sref/1
 
     def ref(obj) do
-      {:ref, Noizu.SimplePool.Support.TestTwoWorkerEntity, obj.identifier}
+      {:ref, Noizu.SimplePool.Support.TestThreeWorkerEntity, obj.identifier}
     end # end ref/1
 
     def sref(obj) do
-      "ref.noizu-test-2.#{obj.identifier}"
+      "ref.noizu-test-3.#{obj.identifier}"
     end # end sref/1
 
     def record(obj, _options \\ nil) do
@@ -152,10 +152,10 @@ defmodule Noizu.SimplePool.Support.TestTwoWorkerEntity do
   #-----------------------------------------------------------------------------
   # Inspect Protocol
   #-----------------------------------------------------------------------------
-  defimpl Inspect, for: Noizu.SimplePool.Support.TestTwoWorkerEntity do
+  defimpl Inspect, for: Noizu.SimplePool.Support.TestThreeWorkerEntity do
     import Inspect.Algebra
     def inspect(entity, opts) do
-      heading = "#TestTwoWorkerEntity(#{inspect entity.identifier})"
+      heading = "#TestThreeWorkerEntity(#{inspect entity.identifier})"
       {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
       inner = cond do
         opts.limit == :infinity ->

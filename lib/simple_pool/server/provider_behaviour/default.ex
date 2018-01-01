@@ -44,7 +44,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # Blocking/Lazy Initialization, Loading Strategy.
     #---------------------------------------------------------------------------
     def status(server, context), do: server.internal_call(:status, context)
-    def load(server, settings, context), do: server.internal_call({:load, settings}, context)
+    def load(server, settings, context), do: server.internal_call({:load, settings}, context, %{initializing: true})
 
     def as_cast({:reply, _reply, state}), do: {:noreply, state}
     def as_cast({:noreply, state}), do: {:noreply, state}
@@ -143,7 +143,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     def internal_call_handler({:health_check!, health_check_options}, context, _from, %State{} = state), do: get_health_check(state, context, health_check_options)
     def internal_call_handler({:load, options}, context, _from, %State{} = state), do: load_workers(options, context, state)
     def internal_call_handler(call, context, _from, %State{} = state) do
-        Logger.error(fn -> {" #{inspect state.server} unsupported call(#{inspect call})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+        Logger.error(fn -> {"#{__MODULE__} #{inspect state.server} unsupported call(#{inspect call})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
       {:reply, {:error, {:unsupported, call}}, state}
     end
     #---------------------------------------------------------------------------
@@ -154,7 +154,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     end
 
     def internal_cast_handler(call, context, %State{} = state) do
-      Logger.error(fn -> {" #{inspect state.server} unsupported cast(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+      Logger.error(fn -> {"#{__MODULE__} #{inspect state.server} unsupported cast(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
       {:noreply, state}
     end
 
@@ -162,7 +162,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # Internal Routing - internal_info_handler
     #---------------------------------------------------------------------------
     def internal_info_handler(call, context, %State{} = state) do
-        Logger.error(fn -> {" #{inspect state.server} unsupported info(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+        Logger.error(fn -> {"#{__MODULE__} #{inspect state.server} unsupported info(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
 
       {:noreply, state}
     end

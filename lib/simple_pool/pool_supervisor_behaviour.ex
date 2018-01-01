@@ -126,10 +126,10 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             end)
           end
 
-          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [context], [])) do
+          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [definition, context], [])) do
             {:ok, _pool_supervisor} ->
 
-              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, context, definition], [])) do
+              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, definition, context], [])) do
                 {:ok, pid} -> {:ok, pid}
                 {:error, {:already_started, process2_id}} ->
                   Supervisor.restart_child(__MODULE__, process2_id)
