@@ -76,8 +76,8 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     end
 
     def lifecycle_events(state, filter, context, options) do
-      events = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.read!({state.entity.effective.identifier}) || []
-      Enum.reduce(events, [], fn(x, acc) ->
+      (Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.read!(state.entity.effective.identifier) || [])
+      |>  Enum.reduce([], fn(x, acc) ->
         if MapSet.member?(filter, x.event) do
           acc ++ [x.entity]
         else
@@ -118,8 +118,8 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       e_factor = Enum.reduce(events, 0.0, fn(x, acc) ->
         event_time = DateTime.to_unix(x.time_stamp)
         age = current_time - event_time
-        if (age) >= 600 do
-          weight = :math.pow((age / 600), 2)
+        if (age < 600 && age >= 0) do
+          weight = :math.pow(( (600-age) / 600), 2)
           case x.identifier do
             :start -> acc + (1.0 * weight)
             :exit -> acc + (0.75 * weight)

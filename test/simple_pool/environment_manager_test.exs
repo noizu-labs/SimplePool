@@ -6,7 +6,7 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
 
   alias Noizu.SimplePool.Support.TestTwoPool
   alias Noizu.SimplePool.Support.TestPool
-
+  alias Noizu.SimplePool.MonitoringFramework.LifeCycleEvent
   @context Noizu.ElixirCore.CallingContext.system(%{})
 
 
@@ -43,7 +43,7 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
   end
 
   @tag capture_log: true
-  test "process hint table" do
+  test "service hint table" do
     hint_1 = Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.read!(Noizu.SimplePool.Support.TestPool)
     hint_2 = Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.read!(Noizu.SimplePool.Support.TestTwoPool)
     hint_3 = Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.read!(Noizu.SimplePool.Support.TestThreePool)
@@ -58,7 +58,7 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
   end
 
   @tag capture_log: true
-  test "process events" do
+  test "service events" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref(:two)
     TestTwoPool.Server.test_s_call!(ref, :bannana, @context)
     TestTwoPool.Server.kill!(ref, @context)
@@ -74,8 +74,67 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
   end
 
   @tag capture_log: true
-  test "process health_index" do
-    #assert true == false
+  test "service health_check" do
+    health_check = TestPool.Server.service_health_check!(@context)
+    assert health_check.status == :online
+    assert health_check.health_index > 0
+    assert health_check.health_index < 4
+  end
+
+    @tag capture_log: true
+  test "service health_index" do
+
+    current_time = DateTime.utc_now()
+    ct = DateTime.to_unix(current_time)
+
+    definition = %Noizu.SimplePool.MonitoringFramework.Service.Definition{
+      identifier: {:"second@127.0.0.1", Noizu.SimplePool.Support.TestTwoPool},
+      server: :"second@127.0.0.1",
+      pool: Noizu.SimplePool.Support.TestTwoPool.Server,
+      supervisor: Noizu.SimplePool.Support.TestTwoPool.PoolSupervisor,
+      time_stamp: current_time,
+      hard_limit: 200,
+      soft_limit: 150,
+      target: 100,
+    }
+
+    events = [
+      %LifeCycleEvent{identifier: :start, time_stamp: DateTime.from_unix!(ct - 60*20)},
+      %LifeCycleEvent{identifier: :start, time_stamp: DateTime.from_unix!(ct - 60*9)},
+      %LifeCycleEvent{identifier: :exit, time_stamp: DateTime.from_unix!(ct - 60*8)},
+      %LifeCycleEvent{identifier: :start, time_stamp: DateTime.from_unix!(ct - 60*7)},
+      %LifeCycleEvent{identifier: :terminate, time_stamp: DateTime.from_unix!(ct - 60*6)},
+      %LifeCycleEvent{identifier: :start, time_stamp: DateTime.from_unix!(ct - 60*5)},
+      %LifeCycleEvent{identifier: :timeout, time_stamp: DateTime.from_unix!(ct - 60*4)},
+      %LifeCycleEvent{identifier: :timeout, time_stamp: DateTime.from_unix!(ct - 60*3)},
+      %LifeCycleEvent{identifier: :timeout, time_stamp: DateTime.from_unix!(ct - 60*2)}
+    ]
+
+    {hi_1, li_1, ei_1} = Noizu.SimplePool.Server.ProviderBehaviour.Default.health_tuple(definition, %{active: 0}, events, ct)
+    expected_weight = (
+        (:math.pow((60/600), 2) * 1.0) +
+        (:math.pow((120/600), 2) * 0.75) +
+        (:math.pow((180/600), 2) * 1.0) +
+        (:math.pow((240/600), 2) * 1.5) +
+        (:math.pow((300/600), 2) * 1.0) +
+        (:math.pow((360/600), 2) * 0.35) +
+        (:math.pow((420/600), 2) * 0.35) +
+        (:math.pow((480/600), 2) * 0.35)
+      )
+
+    assert hi_1 == expected_weight
+    assert li_1 == 0
+    assert ei_1 == expected_weight
+
+
+    {hi_2, _li_2, _ei_2} = Noizu.SimplePool.Server.ProviderBehaviour.Default.health_tuple(definition, %{active: 101}, events, ct)
+    assert hi_2 == (expected_weight + 1.0)
+
+    {hi_2, _li_2, _ei_2} = Noizu.SimplePool.Server.ProviderBehaviour.Default.health_tuple(definition, %{active: 151}, events, ct)
+    assert hi_2 == (expected_weight + 4.0)
+
+    {hi_3, _li_3, _ei_3} = Noizu.SimplePool.Server.ProviderBehaviour.Default.health_tuple(definition, %{active: 201}, events, ct)
+    assert hi_3 == (expected_weight + 12.0)
   end
 
   @tag capture_log: true
