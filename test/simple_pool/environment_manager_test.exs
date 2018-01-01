@@ -137,19 +137,9 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
     assert hi_3 == (expected_weight + 12.0)
   end
 
-  @tag capture_log: true
-  test "server events" do
-    #assert true == false
-  end
-
-  @tag capture_log: true
-  test "server health_index" do
-    #assert true == false
-  end
-
   @tag :lock
   @tag capture_log: true
-  test "lock server" do
+  test "lock and release server" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref(:two)
     pre_lock = TestTwoPool.Server.test_s_call!(ref, :bannana, @context)
     assert pre_lock == :s_call!
@@ -160,6 +150,9 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
     Noizu.MonitoringFramework.EnvironmentPool.Server.release_server(:"second@127.0.0.1", :all, @context, %{})
     assert post_lock == {:error, {:host_pick, {:nack, :none_available}}}
     :ok = wait_hint_update(ref2, TestTwoPool.Server, @context)
+
+    post_release = TestTwoPool.Server.test_s_call!(ref2, :bannana, @context)
+    assert post_release == :s_call!
   end
 
 
@@ -181,24 +174,18 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
   end
 
   @tag capture_log: true
-  test "release server" do
-    #assert true == false
-  end
-
-  @tag capture_log: true
-  test "lock service" do
-    #assert true == false
-  end
-
-  @tag capture_log: true
-  test "release service" do
-    #assert true == false
-  end
-
-  @tag capture_log: true
   test "rebalance server" do
+    #assert true == false
+  end
+  
+  @tag capture_log: true
+  test "server events" do
+    #assert true == false
+  end
+
+  @tag capture_log: true
+  test "server health_index" do
     #assert true == false
   end
 
 end
-
