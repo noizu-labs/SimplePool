@@ -40,6 +40,16 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   def default_terminate_hook(server, reason, state) do
     case reason do
       {:shutdown, {:migrate, _ref, _, :to, _}} ->
+        server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
+        server.worker_lookup_handler().record_event!(state.worker_ref, :migrate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
+        reason
+      {:shutdown, :migrate} ->
+        server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
+        server.worker_lookup_handler().record_event!(state.worker_ref, :migrate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
+        reason
+      {:shutdown, details} ->
+        server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
+        server.worker_lookup_handler().record_event!(state.worker_ref, :shutdown, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         reason
       _ ->
         server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))

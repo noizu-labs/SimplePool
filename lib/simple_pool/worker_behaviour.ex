@@ -47,7 +47,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     end
   end
 
-  def default_init({mod, server, base, worker_state_entity, inactivity_check, _lazy_load}, {:migrate, ref, {:transfer, initial_state}, context}) do
+  def default_init({mod, server, base, worker_state_entity, inactivity_check, _lazy_load}, {:migrate, ref, initial_state, context}) do
     if (mod.verbose()) do
       Logger.info(fn -> {base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
     end
@@ -221,8 +221,8 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       (rebase == node() && ref == state.worker_ref) -> {:reply, {:ok, self()}, state}
       true ->
         case :rpc.call(rebase, server, :accept_transfer!, [ref, state, context, options], options[:timeout] || 60_000) do
-          {:ack, pid} -> {:reply, {:ack, pid}, state}
-          r -> {:reply, {:error, r}, state}
+          {:ack, pid} -> {:stop, {:shutdown, :migrate}, {:ack, pid}, state}
+          r ->  {:reply, {:error, r}, state}
         end
     end
   end
@@ -365,7 +365,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
             Logger.info(fn -> @base.banner("TERMINATE #{__MODULE__} (#{inspect state.worker_ref}\n Reason: #{inspect reason}") end)
           end
           @worker_state_entity.terminate_hook(reason, clear_inactivity_check(state))
-          @server.worker_lookup_handler().record_event!(state.worker_ref, :terminate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
+          #@server.worker_lookup_handler().record_event!(state.worker_ref, :terminate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         end
       end # end start_link
 
@@ -506,7 +506,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         handle_cast({:s, {:migrate!, ref, rebase, options}, context}, state)
       end
 
-      def handle_call({:s, {:migrate!, ref, rebase, options} = call, context}, from, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
+      def handle_call({:s, {:migrate!, ref, rebase, options}, context}  = call, from, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
         default_handle_call_migrate(__MODULE__, @server, @worker_state_entity, @migrate_shutdown, call, from, state)
       end
 

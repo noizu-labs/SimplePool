@@ -45,7 +45,7 @@ context = Noizu.ElixirCore.CallingContext.system(%{})
 
 Noizu.SimplePool.TestHelpers.setup_first()
 :ok = Noizu.SimplePool.TestHelpers.unique_ref(:one)
-      |> Noizu.SimplePool.TestHelpers.wait_hint_update(TestPool.Server, context)
+      |> Noizu.SimplePool.TestHelpers.wait_hint_release(TestPool.Server, context)
 
 if spawn_second do
   {:pid, second_pid} = :rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :setup_second, [])
@@ -59,7 +59,7 @@ else
 end
 
 :ok = Noizu.SimplePool.TestHelpers.unique_ref(:two)
-      |> Noizu.SimplePool.TestHelpers.wait_hint_update(TestTwoPool.Server, context)
+      |> Noizu.SimplePool.TestHelpers.wait_hint_release(TestTwoPool.Server, context)
 
 
 

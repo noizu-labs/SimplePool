@@ -91,7 +91,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     end
 
     def default_record_event!({_mod, _d, m,_sm, _r}, ref, event, details, context, options \\ %{}) do
-      Logger.info(fn -> {"[RecordEvent #{inspect event}] #{inspect %{ref: ref, event: event, details: details}}", CallingContext.metadata(context)} end)
+      Logger.info(fn -> {"[RecordEvent #{inspect event}] #{node()} #{inspect %{ref: ref, event: event, details: details}}", CallingContext.metadata(context)} end)
       m.new(ref, event, details, context, options)
       |> m.create!(context, options)
     end
@@ -100,7 +100,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
       m.get!(ref, context)
     end
 
-    def default_register!({mod, _d, _m, _sm, r}, ref, context, _options \\ %{}) do
+    def default_register!({mod, d, _m, _sm, r}, ref, context, options \\ %{}) do
       r = Registry.register(r, {:worker, ref}, :process)
       options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
         case x do
@@ -110,6 +110,17 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
           _ -> false
         end
       end}
+      options_b = Map.merge(options_b, options)
+
+
+      case d.get!(ref, context, options) do
+        nil -> :unexpected
+        entity ->
+          entity
+          |> put_in([Access.key(:server)], node()) #@TODO standardize naming conventions.
+          |> d.update!(context, options)
+      end
+
       mod.release_lock!(ref, context, options_b)
       r
     end

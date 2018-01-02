@@ -24,7 +24,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :remote_system_call, :remote_system_cast, :remote_call, :remote_cast, :fetch, :save!, :reload!, :ping!, :server_kill!, :kill!, :crash!,
               :service_health_check!, :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
               :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
-              :link_forward!, :record_service_event!, :lock!, :release!, :status_wait, :entity_status
+              :link_forward!, :record_service_event!, :lock!, :release!, :status_wait, :entity_status,
+              :bulk_migrate!, :o_call, :o_cast
             ])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -93,6 +94,49 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       o ->
         o
     end
+  end
+
+
+  #-------------------------------------------------------------------------
+  # default_bulk_migrate!
+  #-------------------------------------------------------------------------
+  def default_bulk_migrate!(mod, transfer_server, context, options) do
+    tasks = if options[:sync] do
+      to = options[:timeout] || 60_000
+      Enum.reduce(transfer_server, [], fn({server, refs}, acc) ->
+        acc ++ [
+          Task.async( fn ->
+            i_tasks = Enum.reduce(refs, [], fn(ref, a2) ->
+              a2 ++ [Task.async(fn -> {ref, mod.o_call(ref, {:migrate!, ref, server, options}, context, options, to)} end)]
+            end)
+            o = for(i_task <- i_tasks) do
+              Task.await(i_task)
+            end
+            {server, o}
+          end)
+        ]
+      end)
+    else
+      Enum.reduce(transfer_server, [], fn({server, refs}, acc) ->
+        acc ++ [
+          Task.async( fn ->
+            i_tasks = Enum.reduce(refs, [], fn(ref, a2) ->
+              a2 ++ [Task.async(fn -> {ref, mod.o_cast(ref, {:migrate!, ref, server, options}, context)} end)]
+            end)
+            o = for(i_task <- i_tasks) do
+              Task.await(i_task)
+            end
+            {server, o}
+          end)
+        ]
+      end)
+    end
+
+    r = Enum.reduce(tasks, %{}, fn(task, acc) ->
+      {server, outcome} = Task.await(task)
+      put_in(acc, [server], outcome)
+    end)
+    {:ack, r}
   end
 
   #-------------------------------------------------------------------------
@@ -194,7 +238,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
     end
   end # end s_call!
-
 
   def default_crash_protection_rs_cast!({mod, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast!, {mod, identifier}, {:s, call, context}}, else: {:s, call, context}
@@ -715,6 +758,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
+      if unquote(required.bulk_migrate!) do
+        def bulk_migrate!(transfer_server, context, options) do
+          default_bulk_migrate!(__MODULE__, transfer_server, context, options)
+        end
+      end
+
       if unquote(required.worker_migrate!) do
         def worker_migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           if options[:sync] do
@@ -746,12 +795,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           case @worker_lookup_handler.obtain_lock!(ref, context, options_b) do
             {:ack, lock} ->
               case worker_sup_start(ref, state, context) do
-                {:ok, pid} ->
+                {:ack, pid} ->
                   @worker_lookup_handler.register!(ref, context, options)
                   {:ack, pid}
-                o -> {:nack, o}
+                o -> {:error, {:worker_sup_start, o}}
               end
-             o -> o
+             o -> {:error, {:get_lock, o}}
           end
         end
       end
@@ -1089,6 +1138,24 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if unquote(MapSet.member?(features, :crash_protection)) do
 
+        if (unquote(required.o_call)) do
+          @doc """
+            Optomized call, assumed call already in ref form and on target server. Simply check if process is alive and forward.
+          """
+          def o_call(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
+            default_crash_protection_rs_call({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
+          end # end s_call!
+        end
+
+        if (unquote(required.o_cast)) do
+          @doc """
+            Optomized call, assumed call already in ref form and on target server. Simply check if process is alive and forward.
+          """
+          def o_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+            default_crash_protection_rs_cast({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
+          end # end s_call!
+        end
+
 
         if (unquote(required.rs_call!)) do
           def rs_call!(identifier, call, context, options, timeout) do
@@ -1097,7 +1164,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
 
         if (unquote(required.s_call!)) do
-
           @doc """
             Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
           """

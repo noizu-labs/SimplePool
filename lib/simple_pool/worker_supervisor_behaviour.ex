@@ -25,7 +25,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
         verbose: %OptionValue{option: :verbose, default: :auto},
-
+        restart_type: %OptionValue{option: :restart_type, default: Application.get_env(:noizu_simple_pool, :pool_restart_type, :transient)},
         max_restarts: %OptionValue{option: :max_restarts, default: Application.get_env(:noizu_simple_pool, :pool_max_restarts, @default_max_restarts)},
         max_seconds: %OptionValue{option: :max_seconds, default: Application.get_env(:noizu_simple_pool, :pool_max_seconds, @default_max_seconds)},
         strategy: %OptionValue{option: :strategy, default: Application.get_env(:noizu_simple_pool, :pool_strategy, @default_strategy)}
@@ -58,6 +58,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
     max_restarts = options.max_restarts
     max_seconds = options.max_seconds
     strategy = options.strategy
+    restart_type = options.restart_type
     verbose = options.verbose
 
     quote do
@@ -70,6 +71,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       require Logger
 
       @strategy unquote(strategy)
+      @restart_type unquote(restart_type)
       @max_restarts unquote(max_restarts)
       @max_seconds unquote(max_seconds)
 
@@ -102,11 +104,16 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       # @child
       if (unquote(required.child)) do
         def child(ref, context) do
-          worker(@worker, [ref, context], [id: ref])
+          worker(@worker, [ref, context], [id: ref, restart: @restart_type])
         end
 
         def child(ref, params, context) do
-          worker(@worker, [ref, params, context], [id: ref])
+          worker(@worker, [ref, params, context], [id: ref, restart: @restart_type])
+        end
+
+        def child(ref, params, context, options) do
+          restart = options[:restart] || @restart_type
+          worker(@worker, [ref, params, context], [id: ref, restart: restart])
         end
       end # end child
 

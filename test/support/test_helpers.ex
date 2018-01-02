@@ -4,7 +4,7 @@ defmodule Noizu.SimplePool.TestHelpers do
   def unique_ref(:two), do: {:ref, Noizu.SimplePool.Support.TestTwoWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
   def unique_ref(:three), do: {:ref, Noizu.SimplePool.Support.TestThreeWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
 
-  def wait_hint_update(ref, service, context, timeout \\ 60_000) do
+  def wait_hint_release(ref, service, context, timeout \\ 60_000) do
     t = :os.system_time(:millisecond)
     Process.sleep(100)
     case Noizu.SimplePool.WorkerLookupBehaviour.Dynamic.host!(ref, service, context) do
@@ -13,7 +13,7 @@ defmodule Noizu.SimplePool.TestHelpers do
         t2 = :os.system_time(:millisecond)
         t3 = timeout - (t2 - t)
         if t3 > 0 do
-          wait_hint_update(ref, service, context, t3)
+          wait_hint_release(ref, service, context, t3)
         else
           :timeout
         end
@@ -21,6 +21,21 @@ defmodule Noizu.SimplePool.TestHelpers do
     end
   end
 
+  def wait_hint_lock(ref, service, context, timeout \\ 60_000) do
+    t = :os.system_time(:millisecond)
+    Process.sleep(100)
+    case Noizu.SimplePool.WorkerLookupBehaviour.Dynamic.host!(ref, service, context) do
+      {:ack, _h} ->
+        t2 = :os.system_time(:millisecond)
+        t3 = timeout - (t2 - t)
+        if t3 > 0 do
+          wait_hint_lock(ref, service, context, t3)
+        else
+          :timeout
+        end
+      _j -> :ok
+    end
+  end
 
   def setup_first() do
     context = Noizu.ElixirCore.CallingContext.system(%{})

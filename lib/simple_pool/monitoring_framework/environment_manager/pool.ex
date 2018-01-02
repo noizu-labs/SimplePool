@@ -163,7 +163,6 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       service_workers = Enum.reduce(wtasks, %{}, fn(task, acc) ->
         t = Task.await(task)
-        IO.puts "t = #{inspect t, pretty: true, limit: :infinity}"
         case t do
           {server, {service, {:ack, workers}}} ->
             update_in(acc, [server], &(  &1 && put_in(&1, [service], workers) || %{service => workers}))
@@ -196,6 +195,8 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         end)
       end)
 
+
+      if false do
       IO.puts """
 
       cl = #{inspect cl, pretty: true, limit: :infinity}
@@ -210,9 +211,11 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       --------------
       per_server_targets =  #{inspect per_server_targets, pretty: true, limit: :infinity}
       """
-
+      end
       # 5. Calculate target allocation
       {outcome, target_allocation} = optimize_balance(input_server_list, output_server_list, service_list, per_server_targets, service_allocation)
+
+      if false do
       IO.puts """
       ---------------------
       outcome = #{inspect outcome}
@@ -220,18 +223,77 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       target_allocation = #{inspect target_allocation}
 
 
-      # 6. @TODO Re-map workers to hit target levels.
 
-      # 7. @TODO Asynch send migrate command
-
-      # 8. @TODO Wait for migrate completion.
-
-      # 9. @TODO unit test cover best_balance method.
 
       """
+      end
+
+      # first pass, strip overages into general pull
+      {unallocated, target_allocation} = Enum.reduce(target_allocation, {%{}, target_allocation}, fn({server, v}, {u, wa}) ->
+        Enum.reduce(v, {u, wa}, fn({service, target}, {u2, wa2}) ->
+          # 1. Grab any currently allocated.
+          case service_workers[server][service] do
+            nil -> {u2, wa2}
+            workers ->
+              {l, r} = Enum.split(workers, target)
+              m_u2 = update_in(u2, [service], &((&1 || []) ++ r))
+              m_wa2 = put_in(wa2, [server, service], (target - length(l)))
+              {m_u2, m_wa2}
+          end
+        end)
+      end)
+
+      # second pass -> assign
+      {unallocated, final_allocation} = Enum.reduce(target_allocation, {unallocated, %{}}, fn({server, v}, {u, wa}) ->
+        Enum.reduce(v, {u, wa}, fn({service, target}, {u2, wa2}) ->
+          case u2[service] do
+            nil -> {u2, wa2}
+            workers ->
+              {l, r} = Enum.split(workers, target)
+              m_u2 = put_in(u2, [service], r)
+              m_wa2 = wa2
+                |> update_in([server], &(&1 || %{}))
+                |> put_in([server, service], l)
+              {m_u2, m_wa2}
+          end
+        end)
+      end)
+
+      # @TODO third pass - group by origin server.service
+      broadcast_grouping = Enum.reduce(final_allocation, %{}, fn({server, v}, acc) ->
+        Enum.reduce(v, acc, fn({service, workers}, a2) ->
+          Enum.reduce(workers, a2, fn(dispatch, a3) ->
+            a3
+            |> update_in([dispatch.server], &(&1 || %{}))
+            |> update_in([dispatch.server, service], &(&1 || %{}))
+            |> update_in([dispatch.server, service, server], &((&1 || []) ++ [dispatch.identifier]))
+          end)
+        end)
+      end)
+
+      tasks = Enum.reduce(broadcast_grouping, [], fn({server, services}, acc) ->
+        acc ++ [Task.async(fn -> {server, :rpc.call(server, __MODULE__, :server_bulk_migrate!, [services, context, options])} end)]
+      end)
+
+      r = Enum.reduce(tasks, %{}, fn(task, acc) ->
+        {server, outcome} = Task.await(task)
+        put_in(acc, [server], outcome)
+      end)
+      {:ack, r}
+    end
 
 
-      :wip
+    def server_bulk_migrate!(services, context, options) do
+      tasks = Enum.reduce(services, [], fn({service, transfer_servers}, acc) ->
+        acc ++ [Task.async(fn -> {service, service.bulk_migrate!(transfer_servers, context, options)} end)]
+      end)
+
+      r = Enum.reduce(tasks, %{}, fn(task, acc) ->
+        {service, outcome} = Task.await(task)
+        put_in(acc, [service], outcome)
+      end)
+
+      {:ack, r}
     end
 
     def total_unallocated(unallocated) do

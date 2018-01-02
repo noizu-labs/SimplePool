@@ -146,12 +146,12 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
     pre_lock = TestTwoPool.Server.test_s_call!(ref, :bannana, @context)
     assert pre_lock == :s_call!
     Noizu.MonitoringFramework.EnvironmentPool.Server.lock_server(:"second@127.0.0.1", :all, @context, %{})
-    Process.sleep(150)
+    :ok = Noizu.SimplePool.TestHelpers.wait_hint_lock(Noizu.SimplePool.TestHelpers.unique_ref(:two), TestTwoPool.Server, @context)
     ref2 = Noizu.SimplePool.TestHelpers.unique_ref(:two)
     post_lock = TestTwoPool.Server.test_s_call!(ref2, :bannana, @context)
     Noizu.MonitoringFramework.EnvironmentPool.Server.release_server(:"second@127.0.0.1", :all, @context, %{})
     assert post_lock == {:error, {:host_pick, {:nack, :none_available}}}
-    :ok = Noizu.SimplePool.TestHelpers.wait_hint_update(ref2, TestTwoPool.Server, @context)
+    :ok = Noizu.SimplePool.TestHelpers.wait_hint_release(ref2, TestTwoPool.Server, @context)
 
     post_release = TestTwoPool.Server.test_s_call!(ref2, :bannana, @context)
     assert post_release == :s_call!
@@ -174,9 +174,46 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
       |> TestThreePool.Server.test_s_call!(:labanda, @context)
     end
 
-    sut = Noizu.MonitoringFramework.EnvironmentPool.Server.rebalance([:"first@127.0.0.1"], [:"first@127.0.0.1", :"second@127.0.0.1"], MapSet.new([TestPool, TestTwoPool, TestThreePool]), @context, %{})
+    #@TODO wait for all to spawn with out spin lock
+    Process.sleep(2_000)
 
-    assert sut == :wip
+    Noizu.MonitoringFramework.EnvironmentPool.Server.lock_server(:"second@127.0.0.1", :all, @context, %{})
+    :ok = Noizu.SimplePool.TestHelpers.wait_hint_lock(Noizu.SimplePool.TestHelpers.unique_ref(:two), TestTwoPool.Server, @context)
+
+    for i <- 0 .. 100 do
+      :s_call! = Noizu.SimplePool.TestHelpers.unique_ref(:three)
+                 |> TestThreePool.Server.test_s_call!(:labanda, @context)
+    end
+
+    #@TODO wait for all to spawn with out spin lock
+    Process.sleep(2_000)
+
+    Noizu.MonitoringFramework.EnvironmentPool.Server.release_server(:"second@127.0.0.1", :all, @context, %{})
+    :ok = Noizu.SimplePool.TestHelpers.wait_hint_release(Noizu.SimplePool.TestHelpers.unique_ref(:two), TestTwoPool.Server, @context)
+
+    #@TODO wait for all to spawn with out spin lock
+    Process.sleep(2_000)
+
+    # @TODO wait for state of last started process to be online.
+
+
+    {:ack, chk1_1} = TestThreePool.Server.workers!(:"first@127.0.0.1", @context, %{})
+    {:ack, chk1_2} = TestThreePool.Server.workers!(:"second@127.0.0.1", @context, %{})
+
+    {:ack, details} = Noizu.MonitoringFramework.EnvironmentPool.Server.rebalance([:"first@127.0.0.1"], [:"first@127.0.0.1", :"second@127.0.0.1"], MapSet.new([TestPool, TestTwoPool, TestThreePool]), @context, %{sync: true})
+
+    Process.sleep(2_000)
+    # @TODO wait for server of last scheduled to transfer to change
+# context = Noizu.ElixirCore.CallingContext.system(%{})
+    {:ack, chk2_1} = TestThreePool.Server.workers!(:"first@127.0.0.1", @context, %{})
+    {:ack, chk2_2} = TestThreePool.Server.workers!(:"second@127.0.0.1", @context, %{})
+
+    delta1 = abs(length(chk1_1) - length(chk1_2))
+    delta2 = abs(length(chk2_1) - length(chk2_2))
+
+    assert delta1 > 50
+    assert delta2 < 10
+
   end
 
   @tag capture_log: true

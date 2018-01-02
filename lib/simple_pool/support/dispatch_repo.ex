@@ -12,6 +12,8 @@ defmodule Noizu.SimplePool.DispatchRepo do
     %Noizu.SimplePool.DispatchEntity{identifier: ref, server: server, state: state, lock: lock}
   end
 
+
+
   def prepare_lock(options, force \\ false) do
     if options[:lock] || force do
       time = options[:time] || :os.system_time()
