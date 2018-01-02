@@ -1139,7 +1139,21 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
 
         if (unquote(required.workers!)) do
-          def workers!(context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+
+
+          def workers!(server, %Noizu.ElixirCore.CallingContext{} = context) do
+            @worker_lookup_handler.workers!(server, @worker_state_entity, context, %{})
+          end # end s_cast!
+
+          def workers!(server, %Noizu.ElixirCore.CallingContext{} = context, options) do
+            @worker_lookup_handler.workers!(server, @worker_state_entity, context, options)
+          end # end s_cast!
+
+          def workers!(%Noizu.ElixirCore.CallingContext{} = context) do
+            @worker_lookup_handler.workers!(node(), @worker_state_entity, context, %{})
+          end # end s_cast!
+
+          def workers!(%Noizu.ElixirCore.CallingContext{} = context, options) do
             @worker_lookup_handler.workers!(node(), @worker_state_entity, context, options)
           end # end s_cast!
         end

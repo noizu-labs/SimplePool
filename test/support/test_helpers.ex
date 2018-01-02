@@ -1,6 +1,25 @@
 defmodule Noizu.SimplePool.TestHelpers do
-  def unique_ref(), do: {:ref, Noizu.SimplePool.Support.TestWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
+  def unique_ref(), do: unique_ref(:one)
+  def unique_ref(:one), do: {:ref, Noizu.SimplePool.Support.TestWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
   def unique_ref(:two), do: {:ref, Noizu.SimplePool.Support.TestTwoWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
+  def unique_ref(:three), do: {:ref, Noizu.SimplePool.Support.TestThreeWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
+
+  def wait_hint_update(ref, service, context, timeout \\ 60_000) do
+    t = :os.system_time(:millisecond)
+    Process.sleep(100)
+    case Noizu.SimplePool.WorkerLookupBehaviour.Dynamic.host!(ref, service, context) do
+      {:ack, _h} -> :ok
+      j ->
+        t2 = :os.system_time(:millisecond)
+        t3 = timeout - (t2 - t)
+        if t3 > 0 do
+          wait_hint_update(ref, service, context, t3)
+        else
+          :timeout
+        end
+
+    end
+  end
 
 
   def setup_first() do

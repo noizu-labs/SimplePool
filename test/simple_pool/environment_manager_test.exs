@@ -4,8 +4,10 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
   import ExUnit.CaptureLog
   require Logger
 
-  alias Noizu.SimplePool.Support.TestTwoPool
   alias Noizu.SimplePool.Support.TestPool
+  alias Noizu.SimplePool.Support.TestTwoPool
+  alias Noizu.SimplePool.Support.TestThreePool
+
   alias Noizu.SimplePool.MonitoringFramework.LifeCycleEvent
   @context Noizu.ElixirCore.CallingContext.system(%{})
 
@@ -149,35 +151,33 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
     post_lock = TestTwoPool.Server.test_s_call!(ref2, :bannana, @context)
     Noizu.MonitoringFramework.EnvironmentPool.Server.release_server(:"second@127.0.0.1", :all, @context, %{})
     assert post_lock == {:error, {:host_pick, {:nack, :none_available}}}
-    :ok = wait_hint_update(ref2, TestTwoPool.Server, @context)
+    :ok = Noizu.SimplePool.TestHelpers.wait_hint_update(ref2, TestTwoPool.Server, @context)
 
     post_release = TestTwoPool.Server.test_s_call!(ref2, :bannana, @context)
     assert post_release == :s_call!
   end
 
 
-  def wait_hint_update(ref, server, context, timeout \\ 60_000) do
-    t = :os.system_time(:millisecond)
-    Process.sleep(100)
-    case Noizu.SimplePool.WorkerLookupBehaviour.Dynamic.host!(ref, server, context) do
-      {:ack, _h} -> :ok
-      j ->
-        t2 = :os.system_time(:millisecond)
-        t3 = timeout - (t2 - t)
-        if t3 > 0 do
-          wait_hint_update(ref, server, context, t3)
-        else
-          :timeout
-        end
 
-    end
-  end
-
+  @tag :rebalance
   @tag capture_log: true
   test "rebalance server" do
-    #assert true == false
+
+    for i <- 0 .. 200 do
+      :s_call! = Noizu.SimplePool.TestHelpers.unique_ref(:one)
+      |> TestPool.Server.test_s_call!(:bananda, @context)
+
+      :s_call! = Noizu.SimplePool.TestHelpers.unique_ref(:two)
+      |> TestTwoPool.Server.test_s_call!(:fananda, @context)
+
+      :s_call! = Noizu.SimplePool.TestHelpers.unique_ref(:three)
+      |> TestThreePool.Server.test_s_call!(:labanda, @context)
+    end
+
+    sut = Noizu.MonitoringFramework.EnvironmentPool.Server.rebalance([:"first@127.0.0.1"], [:"second@127.0.0.1"], MapSet.new([TestPool, TestTwoPool, TestThreePool]), @context, %{})
+    assert sut == :wip
   end
-  
+
   @tag capture_log: true
   test "server events" do
     #assert true == false

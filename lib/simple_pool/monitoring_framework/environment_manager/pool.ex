@@ -13,6 +13,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
   use Amnesia
   use Noizu.SimplePool.Database.MonitoringFramework.NodeTable
 
+
   defmodule Worker do
     @vsn 1.0
     use Noizu.SimplePool.WorkerBehaviour,
@@ -32,7 +33,6 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     use Noizu.SimplePool.ServerBehaviour,
         worker_state_entity: Noizu.MonitoringFramework.EnvironmentWorkerEntity,
         override: [:init]
-
 
     def handle_cast({:i, {:update_hints, options}, context}, state) do
       internal_update_hints(state.entity.effective, context, options)
@@ -139,7 +139,82 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end
     end
 
+
     def rebalance(input, output, components, context, options \\ %{}) do
+      # 1. Data Setup
+
+      # Services
+      cl = MapSet.to_list(components)
+      services = Enum.reduce(cl, [], fn(c, acc) -> acc ++ [Module.concat([c, "Server"])] end)
+
+      # Servers
+      pool = Enum.uniq(input ++ output)
+
+
+      # 2. Asynchronously grab Server rules and worker lists.
+      htasks = Enum.reduce(pool, [], fn(server, acc) ->  acc ++ [Task.async(fn -> {server, server_health_check!(server, context, options)} end)] end)
+      wtasks = Enum.reduce(pool, [], fn(server, acc) -> Enum.reduce(services, acc, fn(service, a2) -> a2 ++ [Task.async(fn -> {server, {service, service.workers!(server, context)}} end)] end) end)
+      server_health = Enum.reduce(htasks, %{}, fn(task, acc) ->
+        case Task.await(task) do
+          {server, {:ack, h}} -> put_in(acc, [server], h)
+          {server, error} -> put_in(acc, [server], error)
+        end
+      end)
+
+      service_workers = Enum.reduce(wtasks, %{}, fn(task, acc) ->
+        t = Task.await(task)
+        IO.puts "t = #{inspect t, pretty: true, limit: :infinity}"
+        case t do
+          {server, {service, {:ack, workers}}} ->
+            update_in(acc, [server], &(  &1 && put_in(&1, [service], workers) || %{service => workers}))
+          {server, {service, error}} -> update_in(acc, [server], &(  &1 && put_in(&1, [service], error) || %{service => error}))
+        end
+      end)
+
+      # 3. Tally total service workers.
+      worker_count = Enum.reduce(service_workers, %{}, fn({k,v}, acc) ->
+        Enum.reduce(v, acc, fn({k2, v2}, a2) -> update_in(a2, [k2], &((&1 || 0) + length(v2))) end)
+      end)
+
+      # 4. Calculate total available Target, Soft and Hard Limit for each service.
+      counts = Enum.reduce(cl, %{}, fn(component, acc) ->
+        Enum.reduce(server_health, acc, fn({_server, rules}, a2) ->
+          case rules do
+            %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{} ->
+              case rules.services[component] do
+                sr = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{} ->
+                  e = %{target: sr.definition.target, soft: sr.definition.soft_limit, hard: sr.definition.hard_limit}
+                  update_in(a2, [component], fn(p) -> p && %{target: e.target + p.target, soft: e.soft + p.soft, hard: e.hard + p.hard} || e end)
+                _ -> a2
+              end
+            _ -> a2
+          end
+        end)
+      end)
+
+      IO.puts """
+
+      cl = #{inspect cl, pretty: true, limit: :infinity}
+      -----------------
+      services = #{inspect services, pretty: true, limit: :infinity}
+      -----------------
+      server_health = #{inspect server_health, pretty: true, limit: 15}
+      -----------------
+      service_workers = #{inspect service_workers, pretty: true, limit: 15}
+      ------------
+      worker_count =  #{inspect worker_count, pretty: true, limit: :infinity}
+      --------------
+      counts =  #{inspect counts, pretty: true, limit: :infinity}
+      """
+
+      # for each component call into balance submodule (test submodule)
+      :wip
+
+    end
+
+
+
+    def _temp_rebalance(input, output, components, context, options \\ %{}) do
 
       server_list = MapSet.to_list(input)
       component_list = MapSet.to_list(components)
@@ -385,8 +460,17 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       state
     end
 
-    def node_health_check!(context, options) do
+
+    def server_health_check!(server, context, options) do
+      :rpc.call(server, __MODULE__, :server_health_check!, [context, options])
+    end
+
+    def server_health_check!(context, options) do
       internal_system_call({:node_health_check!, options[:node_health_check!] || %{}}, context, options)
+    end
+
+    def node_health_check!(context, options) do
+      server_health_check!(context, options)
     end
 
     def perform_hint_update(state, components, context, options) do
@@ -426,8 +510,8 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       update = case components do
         %MapSet{} -> MapSet.to_list(components)
         :all -> Enum.reduce(servers_raw, MapSet.new([]), fn(x, acc) ->
-                  MapSet.union(acc, MapSet.new(Map.keys(x.entity.services)))
-                end) |> MapSet.to_list()
+          MapSet.union(acc, MapSet.new(Map.keys(x.entity.services)))
+        end) |> MapSet.to_list()
         %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{} -> Map.keys(components.services)
       end
 

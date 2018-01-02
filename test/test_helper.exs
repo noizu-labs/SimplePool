@@ -1,5 +1,8 @@
 ExUnit.start()
 
+alias Noizu.SimplePool.Support.TestPool
+alias Noizu.SimplePool.Support.TestTwoPool
+alias Noizu.SimplePool.Support.TestThreePool
 
 
 Application.ensure_all_started(:bypass)
@@ -38,8 +41,11 @@ spawn_second = if !Enum.member?(Amnesia.info(:db_nodes),:"second@127.0.0.1") do
 #-----------------------------------------------
 # Registry and Environment Manager Setup - Local
 #-----------------------------------------------
+context = Noizu.ElixirCore.CallingContext.system(%{})
+
 Noizu.SimplePool.TestHelpers.setup_first()
-Process.sleep(500)
+:ok = Noizu.SimplePool.TestHelpers.unique_ref(:one)
+      |> Noizu.SimplePool.TestHelpers.wait_hint_update(TestPool.Server, context)
 
 if spawn_second do
   {:pid, second_pid} = :rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :setup_second, [])
@@ -52,4 +58,10 @@ else
   end
 end
 
-Process.sleep(500)
+:ok = Noizu.SimplePool.TestHelpers.unique_ref(:two)
+      |> Noizu.SimplePool.TestHelpers.wait_hint_update(TestTwoPool.Server, context)
+
+
+
+
+
