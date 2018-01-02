@@ -140,20 +140,20 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
 
-    def rebalance(input, output, components, context, options \\ %{}) do
+    def rebalance(input_server_list, output_server_list, component_set, context, options \\ %{}) do
       # 1. Data Setup
 
       # Services
-      cl = MapSet.to_list(components)
-      services = Enum.reduce(cl, [], fn(c, acc) -> acc ++ [Module.concat([c, "Server"])] end)
+      cl = MapSet.to_list(component_set)
+      service_list = Enum.reduce(cl, [], fn(c, acc) -> acc ++ [Module.concat([c, "Server"])] end)
 
       # Servers
-      pool = Enum.uniq(input ++ output)
+      pool = Enum.uniq(input_server_list ++ output_server_list)
 
 
       # 2. Asynchronously grab Server rules and worker lists.
       htasks = Enum.reduce(pool, [], fn(server, acc) ->  acc ++ [Task.async(fn -> {server, server_health_check!(server, context, options)} end)] end)
-      wtasks = Enum.reduce(pool, [], fn(server, acc) -> Enum.reduce(services, acc, fn(service, a2) -> a2 ++ [Task.async(fn -> {server, {service, service.workers!(server, context)}} end)] end) end)
+      wtasks = Enum.reduce(pool, [], fn(server, acc) -> Enum.reduce(service_list, acc, fn(service, a2) -> a2 ++ [Task.async(fn -> {server, {service, service.workers!(server, context)}} end)] end) end)
       server_health = Enum.reduce(htasks, %{}, fn(task, acc) ->
         case Task.await(task) do
           {server, {:ack, h}} -> put_in(acc, [server], h)
@@ -171,20 +171,24 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         end
       end)
 
-      # 3. Tally total service workers.
-      worker_count = Enum.reduce(service_workers, %{}, fn({k,v}, acc) ->
-        Enum.reduce(v, acc, fn({k2, v2}, a2) -> update_in(a2, [k2], &((&1 || 0) + length(v2))) end)
+      # 3. Prepare per server.service allocation and target details.
+      service_allocation = Enum.reduce(service_workers, %{}, fn({k,v}, acc) ->
+        acc = put_in(acc, [k], %{})
+        Enum.reduce(v, acc, fn({k2, v2}, a2) -> put_in(a2, [k, k2], length(v2)) end)
       end)
 
       # 4. Calculate total available Target, Soft and Hard Limit for each service.
-      counts = Enum.reduce(cl, %{}, fn(component, acc) ->
-        Enum.reduce(server_health, acc, fn({_server, rules}, a2) ->
+      per_server_targets = Enum.reduce(cl, %{}, fn(component, acc) ->
+        Enum.reduce(server_health, acc, fn({server, rules}, a2) ->
           case rules do
             %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{} ->
               case rules.services[component] do
                 sr = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{} ->
-                  e = %{target: sr.definition.target, soft: sr.definition.soft_limit, hard: sr.definition.hard_limit}
-                  update_in(a2, [component], fn(p) -> p && %{target: e.target + p.target, soft: e.soft + p.soft, hard: e.hard + p.hard} || e end)
+                  # @TODO refactor out need to do this. pri2
+                  service = Module.concat([component, "Server"])
+                  a2
+                  |> update_in([server], &(&1 || %{}))
+                  |> put_in([server, service], %{target: sr.definition.target, soft: sr.definition.soft_limit, hard: sr.definition.hard_limit})
                 _ -> a2
               end
             _ -> a2
@@ -196,21 +200,130 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       cl = #{inspect cl, pretty: true, limit: :infinity}
       -----------------
-      services = #{inspect services, pretty: true, limit: :infinity}
+      services = #{inspect service_list, pretty: true, limit: :infinity}
       -----------------
       server_health = #{inspect server_health, pretty: true, limit: 15}
       -----------------
-      service_workers = #{inspect service_workers, pretty: true, limit: 15}
-      ------------
-      worker_count =  #{inspect worker_count, pretty: true, limit: :infinity}
+      service_workers = #{inspect service_workers, pretty: true}
+      -------------
+      service_allocation =  #{inspect service_allocation, pretty: true, limit: :infinity}
       --------------
-      counts =  #{inspect counts, pretty: true, limit: :infinity}
+      per_server_targets =  #{inspect per_server_targets, pretty: true, limit: :infinity}
       """
 
-      # for each component call into balance submodule (test submodule)
-      :wip
+      # 5. Calculate target allocation
+      {outcome, target_allocation} = optimize_balance(input_server_list, output_server_list, service_list, per_server_targets, service_allocation)
+      IO.puts """
+      ---------------------
+      outcome = #{inspect outcome}
+      ---------------------------
+      target_allocation = #{inspect target_allocation}
 
+
+      # 6. @TODO Re-map workers to hit target levels.
+
+      # 7. @TODO Asynch send migrate command
+
+      # 8. @TODO Wait for migrate completion.
+
+      # 9. @TODO unit test cover best_balance method.
+
+      """
+
+
+      :wip
     end
+
+    def total_unallocated(unallocated) do
+      Enum.reduce(unallocated, 0, fn({service, u}, acc) -> acc + u end)
+    end
+
+    def fill_to({unallocated, service_allocation}, level, output_server_list, service_list, per_server_targets) do
+      {total_bandwidth, bandwidth} = Enum.reduce(output_server_list, {%{}, %{}}, fn(server, {tb, b}) ->
+        Enum.reduce(service_list, {tb, b}, fn(service, {tb2, b2}) ->
+          cond do
+            per_server_targets[server][service] ->
+              psa = (service_allocation[server][service] || 0)
+              pst = per_server_targets[server][service] || %{}
+              bandwidth = case level do
+                :target -> Map.get(pst, :target, 0) - psa
+                :soft_limit -> Map.get(pst, :soft, 0) - psa
+                :hard_limit -> Map.get(pst, :hard, 0) - psa
+                :overflow -> Map.get(pst, :hard, 0)
+              end |> max(0)
+              m_b2 = b2
+                     |> update_in([server], &(&1 || %{}))
+                     |> put_in([server, service], bandwidth)
+              m_tb2 = update_in(tb2, [service], &((&1 || 0) + bandwidth))
+              {m_tb2, m_b2}
+            true -> {tb2, b2}
+          end
+        end)
+      end)
+
+
+      # 3. Allocate out up to bandwidth to fill out to target levels
+      Enum.reduce(bandwidth, {unallocated, service_allocation}, fn ({server, v}, {u, sa}) ->
+        Enum.reduce(v, {u, sa}, fn({service, b}, {u2, sa2}) ->
+          cond do
+            b > 0 && u2[service] > 0 && total_bandwidth[service] > 0 ->
+              p = min(total_bandwidth[service], unallocated[service])
+              allocate = round((b/total_bandwidth[service]) * p)
+              m_u2 = update_in(u2, [service], &(max(0, &1 - allocate)))
+              m_sa2 = sa2 |> update_in([server], &(&1 || %{}))
+                      |> update_in([server, service], &((&1 || 0) + allocate))
+              {m_u2, m_sa2}
+            true -> {u2, sa2}
+          end
+        end)
+      end)
+    end
+
+    def optimize_balance(input_server_list, output_server_list, service_list, per_server_targets, service_allocation) do
+      input_server_set = MapSet.new(input_server_list)
+      output_server_set = MapSet.new(output_server_list)
+
+      # 1. Calculate unallocated
+      {unallocated, service_allocation} = Enum.reduce(service_allocation, {%{}, service_allocation}, fn ({server, services}, {u,sa}) ->
+        cond do
+          !MapSet.member?(input_server_set, server) && MapSet.member?(output_server_set, server) -> {u, sa}
+          true ->
+            {w, m_sa} = pop_in(sa, [server])
+            m_u = Enum.reduce(w, u, fn({service, worker_count}, acc) -> update_in(acc, [service], &((&1 || 0) + worker_count)) end)
+            {m_u, m_sa}
+        end
+      end)
+
+      # 2. Fill up to target
+      {unallocated, service_allocation} = fill_to({unallocated, service_allocation}, :target, output_server_list, service_list, per_server_targets)
+      r = total_unallocated(unallocated)
+      cond do
+        r == 0 -> {:target, service_allocation}
+        true -> # 3. Fill up to soft_limit
+          {unallocated, service_allocation} = fill_to({unallocated, service_allocation}, :soft_limit, output_server_list, service_list, per_server_targets)
+          r2 = total_unallocated(unallocated)
+          cond do
+            r2 == 0 -> {:soft_limit, service_allocation}
+            true -> # 3. Fill up to hard_limit
+              {unallocated, service_allocation} = fill_to({unallocated, service_allocation}, :hard_limit, output_server_list, service_list, per_server_targets)
+              r3 = total_unallocated(unallocated)
+              cond do
+                r3 == 0 -> {:hard_limit, service_allocation}
+                true -> # 4. overflow!
+                  {unallocated, service_allocation} = fill_to({unallocated, service_allocation}, :overflow, output_server_list, service_list, per_server_targets)
+                  r4 = total_unallocated(unallocated)
+                  cond do
+                    r4 < 0 -> {{:error, :critical_bug}, service_allocation}
+                    r4 == 0 -> {:overflow, service_allocation}
+                    r4 > 0 ->
+                      # @TODO add check for unassignable services higher in logic. (we can check as soon as we output server health checks)
+                      {{:error, :unassignable_services}, service_allocation}
+                  end
+              end
+          end
+      end
+    end
+
 
 
 

@@ -174,7 +174,8 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
       |> TestThreePool.Server.test_s_call!(:labanda, @context)
     end
 
-    sut = Noizu.MonitoringFramework.EnvironmentPool.Server.rebalance([:"first@127.0.0.1"], [:"second@127.0.0.1"], MapSet.new([TestPool, TestTwoPool, TestThreePool]), @context, %{})
+    sut = Noizu.MonitoringFramework.EnvironmentPool.Server.rebalance([:"first@127.0.0.1"], [:"first@127.0.0.1", :"second@127.0.0.1"], MapSet.new([TestPool, TestTwoPool, TestThreePool]), @context, %{})
+
     assert sut == :wip
   end
 
