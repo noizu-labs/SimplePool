@@ -71,12 +71,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   def default_run_on_host(mod, base, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
     case worker_lookup_handler.host!(ref, mod, context, options) do
       {:ack, host} ->
-        #IO.puts "AAAAAAAAAAAAAAAAAAAAAAAAAA #{inspect {m,f,a} } - HOST = #{inspect host}"
         if host == node() do
-          #IO.puts "AAAAAAAAAAAAAAAAAAAAAAAAAA B"
           apply(m,f,a)
         else
-          #IO.puts "AAAAAAAAAAAAAAAAAAAAAAAAAA C"
           :rpc.call(host, m,f,a, timeout)
         end
       o -> o
@@ -537,7 +534,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       def handle_call({:m, {:status, options}, context}, _from, state) do
-        {:reply, {:ack, state.entity.status}, state}
+        {:reply, {:ack, state.environment_details.status}, state}
       end
 
       def default_definition() do

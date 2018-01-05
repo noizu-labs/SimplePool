@@ -35,22 +35,21 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         override: [:init]
 
     def handle_cast({:i, {:update_hints, options}, context}, state) do
-      internal_update_hints(state.entity.effective, context, options)
+      internal_update_hints(state.environment_details.effective, context, options)
       {:noreply, state}
     end
 
     def handle_call({:i, {:node_health_check!, options}, context}, _from, state) do
-      pstate = state
       state = update_effective(state, context, options)
-      {:reply, {:ack, state.entity.effective}, state}
+      {:reply, {:ack, state.environment_details.effective}, state}
     end
 
     def handle_call({:i, {:lock_server, components, options}, context}, _from, state) do
-      c = components == :all && Map.keys(state.entity.effective.services) || MapSet.to_list(components)
+      c = components == :all && Map.keys(state.environment_details.effective.services) || MapSet.to_list(components)
 
       tasks = Enum.reduce(c, [], fn(service, acc) ->
-        if state.entity.effective.services[service] do
-          acc ++ [Task.async(fn -> {service, state.entity.effective.services[service].definition.pool.lock!(context, options)} end)]
+        if state.environment_details.effective.services[service] do
+          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.pool.lock!(context, options)} end)]
         else
           acc
         end
@@ -58,21 +57,21 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       state = Enum.reduce(tasks, state, fn(task, acc) ->
         case Task.await(task) do
-          {k, {:ack, s}} -> put_in(acc, [Access.key(:entity), :effective, Access.key(:services), k], s)
+          {k, {:ack, s}} -> put_in(acc, [Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], s)
           _ -> acc
         end
       end)
 
       %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
-        identifier: state.entity.effective.identifier,
-        status: state.entity.effective.status,
-        directive: state.entity.effective.directive,
-        health_index: state.entity.effective.health_index,
-        entity: state.entity.effective
+        identifier: state.environment_details.effective.identifier,
+        status: state.environment_details.effective.status,
+        directive: state.environment_details.effective.directive,
+        health_index: state.environment_details.effective.health_index,
+        entity: state.environment_details.effective
       } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
 
       if Map.get(options, :update_hints, true) do
-        internal_update_hints(state.entity.effective, context, options)
+        internal_update_hints(state.environment_details.effective, context, options)
       end
       {:reply, :ack, state}
     end
@@ -80,11 +79,11 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
 
     def handle_call({:i, {:release_server, components, options}, context}, _from, state) do
-      c = components == :all && Map.keys(state.entity.effective.services) || MapSet.to_list(components)
+      c = components == :all && Map.keys(state.environment_details.effective.services) || MapSet.to_list(components)
 
       tasks = Enum.reduce(c, [], fn(service, acc) ->
-        if state.entity.effective.services[service] do
-          acc ++ [Task.async(fn -> {service, state.entity.effective.services[service].definition.pool.release!(context, options)} end)]
+        if state.environment_details.effective.services[service] do
+          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.pool.release!(context, options)} end)]
         else
           acc
         end
@@ -92,21 +91,21 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       state = Enum.reduce(tasks, state, fn(task, acc) ->
         case Task.await(task) do
-          {k, {:ack, s}} -> put_in(acc, [Access.key(:entity), :effective, Access.key(:services), k], s)
+          {k, {:ack, s}} -> put_in(acc, [Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], s)
           _ -> acc
         end
       end)
 
       %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
-        identifier: state.entity.effective.identifier,
-        status: state.entity.effective.status,
-        directive: state.entity.effective.directive,
-        health_index: state.entity.effective.health_index,
-        entity: state.entity.effective
+        identifier: state.environment_details.effective.identifier,
+        status: state.environment_details.effective.status,
+        directive: state.environment_details.effective.directive,
+        health_index: state.environment_details.effective.health_index,
+        entity: state.environment_details.effective
       } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
 
       if Map.get(options, :update_hints, true) do
-        internal_update_hints(state.entity.effective, context, options)
+        internal_update_hints(state.environment_details.effective, context, options)
       end
       {:reply, :ack, state}
     end
@@ -518,18 +517,19 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
     def handle_info({:DOWN, ref, :process, process, msg} = event, state) do
       IO.puts "LINK MONITOR: #{inspect event, pretty: true}"
-      monitors = Enum.reduce(state.entity.monitors, %{}, fn({k,v}, acc) ->
+      monitors = Enum.reduce(state.environment_details.monitors, %{}, fn({k,v}, acc) ->
         if ref == v do
           Map.put(acc, k, nil)
         else
           Map.put(acc, k, v)
         end
       end)
-      state = put_in(state, [Access.key(:entity), :monitors], monitors)
+      state = put_in(state, [Access.key(:environment_details), Access.key(:monitors)], monitors)
       {:noreply, state}
     end
 
     alias Noizu.SimplePool.Server.State
+    alias Noizu.SimplePool.Server.EnvironmentDetails
 
     def init([sup, definition, context] = args) do
       if verbose() do
@@ -552,7 +552,15 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         status_details: :pending,
         extended: %{monitors: %{}},
         options: option_settings(),
-        entity: %{server: node(), definition: definition, initial: definition.server_options.initial, effective: %{}, default: nil, status: :offline, monitors: %{}}
+        environment_details: %EnvironmentDetails{
+          server: node(),
+          definition: definition,
+          initial: definition.server_options.initial,
+          effective: %{},
+          default: nil,
+          status: :offline,
+          monitors: %{}
+        }
       }
       {:ok, state}
     end
@@ -587,7 +595,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
     def handle_cast({:i, {:prep_hint_update, components, options}, context}, state) do
-      remote_system_cast(state.entity.effective.master_node, {:hint_update, components, options}, context)
+      remote_system_cast(state.environment_details.effective.master_node, {:hint_update, components, options}, context)
       {:noreply, state}
     end
 
@@ -612,7 +620,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
           } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
 
       monitor_ref = Process.monitor(pid)
-      put_in(state, [Access.key(:extended), :monitors, server], monitor_ref)
+      put_in(state, [Access.key(:extended), Access.key(:monitors), server], monitor_ref)
       {:reply, effective, state}
     end
 
@@ -620,18 +628,18 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
 
     def update_effective(state, context, options) do
-      tasks = Enum.reduce(state.entity.effective.services, [], fn({k,v}, acc) ->
+      tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
         acc ++ [Task.async( fn ->
           h = v.definition.pool.service_health_check!(options[:health_check_options] || %{}, context, options)
           {k,h} end)]
       end)
 
-      effective = Enum.reduce(tasks, state.entity.effective, fn(t, acc) ->
+      effective = Enum.reduce(tasks, state.environment_details.effective, fn(t, acc) ->
         {k, v} = Task.await(t)
         put_in(acc, [Access.key(:services), k], v)
       end)
 
-      state = put_in(state, [Access.key(:entity), :effective], effective)
+      state = put_in(state, [Access.key(:environment_details), Access.key(:effective)], effective)
       state
     end
 
@@ -666,7 +674,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
           end)
           acc ++ [task]
         else
-          task = Task.async( fn -> {x.identifier, {:ack, state.entity.effective}} end)
+          task = Task.async( fn -> {x.identifier, {:ack, state.environment_details.effective}} end)
           acc ++ [task]
         end
       end)
@@ -756,7 +764,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
     def handle_call({:m, {:register, initial, options}, context}, _from, state) do
-      initial = initial || state.entity.initial
+      initial = initial || state.environment_details.initial
       master = case Noizu.SimplePool.Database.MonitoringFramework.SettingTable.read!(:environment_master) do
         nil -> nil
         [] -> nil
@@ -791,18 +799,18 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
           } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
 
           state = state
-                  |> put_in([Access.key(:entity), :effective], effective)
-                  |> put_in([Access.key(:entity), :default], initial)
-                  |> put_in([Access.key(:entity), :status], :registered)
-          {:reply, {:ack, state.entity.effective}, state}
+                  |> put_in([Access.key(:environment_details), Access.key(:effective)], effective)
+                  |> put_in([Access.key(:environment_details), Access.key(:default)], initial)
+                  |> put_in([Access.key(:environment_details), Access.key(:status)], :registered)
+          {:reply, {:ack, state.environment_details.effective}, state}
         else
           effective = remote_call(master, {:join, node(), initial, options}, context)
           state = state
-                  |> put_in([Access.key(:entity), :effective], effective)
-                  |> put_in([Access.key(:entity), :default], initial)
-                  |> put_in([Access.key(:entity), :status], :registered)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective)], effective)
+                  |> put_in([Access.key(:environment_details), Access.key(:default)], initial)
+                  |> put_in([Access.key(:environment_details), Access.key(:status)], :registered)
 
-          {:reply, {:ack, state.entity.effective}, state}
+          {:reply, {:ack, state.environment_details.effective}, state}
         end
       else
         {:reply, {:error, :master_node_required}, state}
@@ -810,13 +818,13 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
     def handle_cast({:m, {:start_services, options}, context}, state) do
-      monitors = Enum.reduce(state.entity.effective.services, %{}, fn({k,v}, acc) ->
+      monitors = Enum.reduce(state.environment_details.effective.services, %{}, fn({k,v}, acc) ->
         {:ok, sup_pid} = v.definition.supervisor.start_link(context, v.definition)
         m = Process.monitor(sup_pid)
         Map.put(acc, k, m)
       end)
 
-      tasks = Enum.reduce(state.entity.effective.services, [], fn({k,v}, acc) ->
+      tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
         acc ++ [Task.async( fn ->
           h = v.definition.pool.service_health_check!(options[:health_check_options] || %{}, context, options)
           {k,h} end)]
@@ -829,29 +837,29 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         case v do
           %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{} ->
             acc
-            |> put_in([Access.key(:entity), :effective, Access.key(:services), k], v)
+            |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], v)
           e ->
             Logger.error("#{node()} - Service Startup Error #{inspect k} - #{inspect e}")
             acc
-            |> put_in([Access.key(:entity), :effective, Access.key(:services), k, Access.key(:status)], :error)
+            |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:services), k, Access.key(:status)], :error)
         end
 
       end)
 
       state = state
-              |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
-              |> put_in([Access.key(:entity), :status], :online)
-              |> put_in([Access.key(:entity), :monitors], monitors)
+              |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
+              |> put_in([Access.key(:environment_details), Access.key(:status)], :online)
+              |> put_in([Access.key(:environment_details), Access.key(:monitors)], monitors)
 
       %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
-        identifier: state.entity.effective.identifier,
-        status: state.entity.effective.status,
-        directive: state.entity.effective.directive,
-        health_index: state.entity.effective.health_index,
-        entity: state.entity.effective
+        identifier: state.environment_details.effective.identifier,
+        status: state.environment_details.effective.status,
+        directive: state.environment_details.effective.directive,
+        health_index: state.environment_details.effective.health_index,
+        entity: state.environment_details.effective
       } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
 
-      internal_update_hints(state.entity.effective, context, options)
+      internal_update_hints(state.environment_details.effective, context, options)
       {:noreply, state}
     end
 

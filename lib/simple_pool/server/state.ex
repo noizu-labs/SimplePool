@@ -13,6 +13,7 @@ alias Noizu.SimplePool.Server.State
     status: Map.t,
     extended: any,
     entity: any,
+    environment_details: Noizu.SimplePool.Server.EnvironmentDetails.t,
     options: Noizu.SimplePool.OptionSettings.t
   }
 
@@ -23,6 +24,7 @@ alias Noizu.SimplePool.Server.State
     status: %{loading: :pending, state: :pending},
     extended: %{},
     entity: nil,
+    environment_details: nil,
     options: nil
   ]
 

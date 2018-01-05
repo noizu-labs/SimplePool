@@ -5,6 +5,7 @@
 
 defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     alias Noizu.SimplePool.Server.State
+    alias Noizu.SimplePool.Server.EnvironmentDetails
     require Logger
     use Amnesia
     #---------------------------------------------------------------------------
@@ -27,10 +28,9 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
           server: server,
           status_details: :pending,
           extended: %{},
-          entity: %{definition: definition, effective: effective, status: :init},
+          environment_details: %EnvironmentDetails{definition: definition, effective: effective, status: :init},
           options: options
         }
-
 
       server.record_service_event!(:start, %{definition: definition, options: options}, context, %{})
       {:ok, state}
@@ -64,11 +64,11 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       state = update_health_check(state, allocated, events, context, options)
 
       response = if options[:events] do
-        state.entity.effective
+        state.environment_details.effective
           |> put_in([Access.key(:events)], events)
           |> put_in([Access.key(:process)], self())
       else
-        state.entity.effective
+        state.environment_details.effective
           |> put_in([Access.key(:process)], self())
       end
 
@@ -76,7 +76,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     end
 
     def lifecycle_events(state, filter, context, options) do
-      (Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.read!(state.entity.effective.identifier) || [])
+      (Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.read!(state.environment_details.effective.identifier) || [])
       |>  Enum.reduce([], fn(x, acc) ->
         if MapSet.member?(filter, x.event) do
           acc ++ [x.entity]
@@ -87,9 +87,9 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     end
 
     def update_health_check(state, allocated, events, context, options) do
-      status = state.entity.effective.status
+      status = state.environment_details.effective.status
       current_time = options[:current_time] || :os.system_time(:seconds)
-      {health_index, l_index, e_index} = health_tuple(state.entity.effective.definition, allocated, events, current_time)
+      {health_index, l_index, e_index} = health_tuple(state.environment_details.effective.definition, allocated, events, current_time)
       cond do
         Enum.member?([:online, :degraded, :critical], status) ->
           updated_status = cond do
@@ -101,13 +101,13 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
             true -> :online
           end
           state = state
-                  |> put_in([Access.key(:entity), :effective, Access.key(:status)], updated_status)
-                  |> put_in([Access.key(:entity), :effective, Access.key(:health_index)], health_index)
-                  |> put_in([Access.key(:entity), :effective, Access.key(:allocated)], allocated)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], updated_status)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:health_index)], health_index)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:allocated)], allocated)
         true ->
           state = state
-                  |> put_in([Access.key(:entity), :effective, Access.key(:health_index)], health_index)
-                  |> put_in([Access.key(:entity), :effective, Access.key(:allocated)], allocated)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:health_index)], health_index)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:allocated)], allocated)
       end
     end
 
@@ -143,16 +143,16 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     def lock!(state, context, options) do
       # TODO obtain lock, etc. - record event?
       state = state
-        |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :maintenance)
-        |> put_in([Access.key(:entity), :effective, Access.key(:status)], :locked)
-      {:reply, {:ack, state.entity.effective}, state}
+        |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :maintenance)
+        |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :locked)
+      {:reply, {:ack, state.environment_details.effective}, state}
     end
 
     def release!(state, context, options) do
       # TODO obtain lock, etc. - record event?
       state = state
-              |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :active)
-              |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
+              |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :active)
+              |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
       {_, e, state} = get_health_check(state, context, options)
       {:reply, {:ack, e}, state}
     end
@@ -218,18 +218,18 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
         status = %{state.status| loading: :in_progress, state: :initialization}
 
         state = state
-                |> put_in([Access.key(:entity), :effective, Access.key(:status)], :loading)
-                |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :loading)
+                |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :loading)
+                |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :loading)
 
         state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid)}
         {:reply, {:ok, :loading}, state}
       else
         if Enum.member?(state.options.effective_options.features, :lazy_load) do
-          Logger.info(fn -> {state.server.base().banner("Lazy Load Workers #{inspect state.entity}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+          Logger.info(fn -> {state.server.base().banner("Lazy Load Workers #{inspect state.environment_details}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           # nothing to do,
           state = state
-                  |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
-                  |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :online)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :online)
 
           state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}
@@ -237,8 +237,8 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
           Logger.info(fn -> {state.server.base().banner("Load Workers"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           :ok = load_workers_sync(options, context, state)
           state = state
-                  |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
-                  |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :online)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
+                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :online)
 
           state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
           {:reply, {:ok, :loaded}, state}
@@ -249,8 +249,8 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     def load_complete(_source, state, _context) do
       status = %{state.status| loading: :complete, state: :ready}
       state = state
-        |> put_in([Access.key(:entity), :effective, Access.key(:status)], :online)
-        |> put_in([Access.key(:entity), :effective, Access.key(:directive)], :online)
+        |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
+        |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :online)
 
       state = %State{state| status: status, extended: Map.put(state.extended, :load_process, nil)}
       {:noreply, state}

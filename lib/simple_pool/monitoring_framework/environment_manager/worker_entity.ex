@@ -66,29 +66,29 @@ defmodule Noizu.MonitoringFramework.EnvironmentWorkerEntity do
   # id/1
   #-------------------
   def id({:ref, __MODULE__, identifier}), do: identifier
-  def id("ref.noizu-test." <> identifier), do: identifier
+  def id("ref.noizu-env." <> identifier), do: identifier
   def id(%__MODULE__{} = entity), do: entity.identifier
 
   #-------------------
   # ref/1
   #-------------------
   def ref({:ref, __MODULE__, identifier}), do: {:ref, __MODULE__, identifier}
-  def ref("ref.noizu-test." <> identifier), do: {:ref, __MODULE__, identifier}
+  def ref("ref.noizu-env." <> identifier), do: {:ref, __MODULE__, identifier}
   def ref(%__MODULE__{} = entity), do: {:ref, __MODULE__, entity.identifier}
 
   #-------------------
   # sref/1
   #-------------------
-  def sref({:ref, __MODULE__, identifier}), do: "ref.noizu-test.#{identifier}"
-  def sref("ref.noizu-test." <> identifier), do: "ref.noizu-test.#{identifier}"
-  def sref(%__MODULE__{} = entity), do: "ref.noizu-test.#{entity.identifier}"
+  def sref({:ref, __MODULE__, identifier}), do: "ref.noizu-env.#{identifier}"
+  def sref("ref.noizu-env." <> identifier), do: "ref.noizu-env.#{identifier}"
+  def sref(%__MODULE__{} = entity), do: "ref.noizu-env.#{entity.identifier}"
 
   #-------------------
   # entity/2
   #-------------------
   def entity(ref, options \\ %{})
   def entity({:ref, __MODULE__, identifier}, _options), do: %__MODULE__{identifier: identifier}
-  def entity("ref.noizu-test." <> identifier, _options), do: %__MODULE__{identifier: identifier}
+  def entity("ref.noizu-env." <> identifier, _options), do: %__MODULE__{identifier: identifier}
   def entity(%__MODULE__{} = entity, _options), do: entity
 
   #-------------------
@@ -96,7 +96,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentWorkerEntity do
   #-------------------
   def entity!(ref, options \\ %{})
   def entity!({:ref, __MODULE__, identifier}, _options), do: %__MODULE__{identifier: identifier}
-  def entity!("ref.noizu-test." <> identifier, _options), do: %__MODULE__{identifier: identifier}
+  def entity!("ref.noizu-env." <> identifier, _options), do: %__MODULE__{identifier: identifier}
   def entity!(%__MODULE__{} = entity, _options), do: entity
 
 
@@ -105,7 +105,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentWorkerEntity do
   #-------------------
   def record(ref, options \\ %{})
   def record({:ref, __MODULE__, identifier}, _options), do: %__MODULE__{identifier: identifier}
-  def record("ref.noizu-test." <> identifier, _options), do: %__MODULE__{identifier: identifier}
+  def record("ref.noizu-env." <> identifier, _options), do: %__MODULE__{identifier: identifier}
   def record(%__MODULE__{} = entity, _options), do: entity
 
   #-------------------
@@ -113,7 +113,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentWorkerEntity do
   #-------------------
   def record!(ref, options \\ %{})
   def record!({:ref, __MODULE__, identifier}, _options), do: %__MODULE__{identifier: identifier}
-  def record!("ref.noizu-test." <> identifier, _options), do: %__MODULE__{identifier: identifier}
+  def record!("ref.noizu-env." <> identifier, _options), do: %__MODULE__{identifier: identifier}
   def record!(%__MODULE__{} = entity, _options), do: entity
 
 
@@ -128,7 +128,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentWorkerEntity do
     end # end ref/1
 
     def sref(obj) do
-      "ref.noizu-test.#{obj.identifier}"
+      "ref.noizu-env.#{obj.identifier}"
     end # end sref/1
 
     def record(obj, _options \\ nil) do
