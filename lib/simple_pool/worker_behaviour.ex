@@ -276,28 +276,59 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         else
           {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
         end
-      {reply, inner_state} ->
+      {:noreply, inner_state} ->
         if inactivity_check do
-          {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+          {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
         else
-          {reply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+          {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
         end
+      {:noreply, inner_state, hibernate} ->
+        if inactivity_check do
+          {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}, hibernate}
+        else
+          {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
+        end
+
     end
   end
 
   def default_handle_call_forwarding(worker_state_entity, inactivity_check, {:s, inner_call, context} = _call, from, %Noizu.SimplePool.Worker.State{initialized: true, inner_state: inner_state} = state) do
     case worker_state_entity.call_forwarding(inner_call, context, from, inner_state) do
+      {:stop, reason, inner_state} ->
+        if inactivity_check do
+          {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+        else
+          {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+        end
       {:stop, reason, response, inner_state} ->
         if inactivity_check do
           {:stop, reason, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
         else
           {:stop, reason, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
         end
-      {reply, response, inner_state} ->
+      {:reply, response, inner_state} ->
         if inactivity_check do
-          {reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+          {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
         else
-          {reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+          {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+        end
+      {:reply, response, inner_state, hibernate} ->
+        if inactivity_check do
+          {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}, hibernate}
+        else
+          {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
+        end
+      {:noreply, inner_state} ->
+        if inactivity_check do
+          {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
+        else
+          {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+        end
+      {:noreply, inner_state, hibernate} ->
+        if inactivity_check do
+          {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: :os.system_time(:seconds)}, hibernate}
+        else
+          {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
         end
     end
   end
