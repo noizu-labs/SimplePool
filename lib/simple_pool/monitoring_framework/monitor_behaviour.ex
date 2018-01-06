@@ -14,8 +14,8 @@ defmodule Noizu.SimplePool.MonitoringFramework.MonitorBehaviour do
 
   @callback rebalance(input :: server_group, output :: server_group, components :: component_group, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
 
-  @callback lock(input :: server_group, components :: component_group, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
-  @callback release(input :: server_group, components :: component_group, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
+  @callback lock_server(input :: server_group, components :: component_group, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
+  @callback release_server(input :: server_group, components :: component_group, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
 
   #@callback join(server :: atom, settings :: Map.t, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response
   #@callback leave(server :: atom, settings :: Map.t, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: job_response

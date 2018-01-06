@@ -11,7 +11,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   require Logger
 
   @callback option_settings() :: Map.t
-  @callback start_link(any) :: any
+  @callback start_link(any, any, any) :: any
 
   @methods ([
               :accept_transfer!, :verbose, :worker_state_entity, :option_settings, :options, :start_link, :init,
@@ -68,7 +68,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     end
   end
 
-  def default_run_on_host(mod, base, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
+  def default_run_on_host(mod, _base, worker_lookup_handler, ref, {m,f,a}, context, options \\ %{}, timeout \\ 30_000) do
     case worker_lookup_handler.host!(ref, mod, context, options) do
       {:ack, host} ->
         if host == node() do
@@ -80,7 +80,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     end
   end
 
-  def default_cast_to_host(mod, base, worker_lookup_handler, ref, {m,f,a}, context, options) do
+  def default_cast_to_host(mod, _base, worker_lookup_handler, ref, {m,f,a}, context, options) do
     case worker_lookup_handler.host!(ref, mod, context, options) do
       {:ack, host} ->
         if host == node() do

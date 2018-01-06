@@ -9,8 +9,8 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
   alias Noizu.ElixirCore.OptionList
   require Logger
   @callback option_settings() :: Map.t
-  @callback start_link() :: any
-  @callback start_children(any) :: any
+  @callback start_link(any, any) :: any
+  @callback start_children(any, any, any) :: any
 
   @methods ([:start_link, :start_children, :init, :verbose, :options, :option_settings])
 

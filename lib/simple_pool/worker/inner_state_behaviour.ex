@@ -1,7 +1,7 @@
 defmodule Noizu.SimplePool.InnerStateBehaviour do
   require Logger
   @callback call_forwarding(call :: any, context :: any, state :: any, outer_state :: any) :: {:noreply, state :: any}
-  @callback call_forwarding(call :: any, context :: any, from :: any,  state :: any, outer_state :: any) :: {atom, reply :: any, state :: any}
+  #@callback call_forwarding(call :: any, context :: any, from :: any,  state :: any, outer_state :: any) :: {atom, reply :: any, state :: any}
   @callback fetch(this :: any, options :: any, context :: any) :: {:reply, this :: any, this :: any}
 
   @callback load(ref :: any) ::  any
@@ -47,7 +47,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
         server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
         server.worker_lookup_handler().record_event!(state.worker_ref, :migrate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         reason
-      {:shutdown, details} ->
+      {:shutdown, _details} ->
         server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
         server.worker_lookup_handler().record_event!(state.worker_ref, :shutdown, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         reason

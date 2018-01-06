@@ -9,7 +9,7 @@ defmodule Noizu.SimplePool.TestHelpers do
     Process.sleep(100)
     case Noizu.SimplePool.WorkerLookupBehaviour.Dynamic.host!(ref, service, context) do
       {:ack, _h} -> :ok
-      j ->
+      _j ->
         t2 = :os.system_time(:millisecond)
         t3 = timeout - (t2 - t)
         if t3 > 0 do

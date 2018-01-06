@@ -60,7 +60,7 @@ defmodule Noizu.SimplePool.Dispatch.MonitorRepo do
       {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
       inner = cond do
         opts.limit == :infinity ->
-          concat(["<#{seperator}", to_doc(Map.from_struct(entity), opts), "#{seperator}>"])
+          concat(["<#{seperator}", to_doc(Map.from_struct(entity), opts), "#{end_seperator}>"])
         true -> "<>"
       end
       concat [heading, inner]

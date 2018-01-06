@@ -205,18 +205,18 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
 
 
 
-  def default_handle_cast_migrate(mod, server, worker_state_entity, migrate_shutdown, {:s, {:migrate!, ref, rebase, options}, context}, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
+  def default_handle_cast_migrate(_mod, server, _worker_state_entity, _migrate_shutdown, {:s, {:migrate!, ref, rebase, options}, context}, %Noizu.SimplePool.Worker.State{initialized: true} = state) do
     cond do
       (rebase == node() && ref == state.worker_ref) -> {:noreply, state}
       true ->
         case :rpc.call(rebase, server, :accept_transfer!, [ref, state, context, options], options[:timeout] || 60_000) do
-          {:ack, pid} -> {:noreply, state}
-          r -> {:noreply, state}
+          {:ack, _pid} -> {:stop, {:shutdown, :migrate}, state}
+          _r -> {:noreply, state}
         end
     end
   end
 
-  def default_handle_call_migrate(mod, server, worker_state_entity, migrate_shutdown, {:s, {:migrate!, ref, rebase, options}, context}, _from,  %Noizu.SimplePool.Worker.State{initialized: true} = state) do
+  def default_handle_call_migrate(_mod, server, _worker_state_entity, _migrate_shutdown, {:s, {:migrate!, ref, rebase, options}, context}, _from,  %Noizu.SimplePool.Worker.State{initialized: true} = state) do
     cond do
       (rebase == node() && ref == state.worker_ref) -> {:reply, {:ok, self()}, state}
       true ->

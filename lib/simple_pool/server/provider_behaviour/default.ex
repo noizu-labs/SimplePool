@@ -75,7 +75,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       {:reply, response, state}
     end
 
-    def lifecycle_events(state, filter, context, options) do
+    def lifecycle_events(state, filter, _context, _options) do
       (Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.read!(state.environment_details.effective.identifier) || [])
       |>  Enum.reduce([], fn(x, acc) ->
         if MapSet.member?(filter, x.event) do
@@ -86,7 +86,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       end)
     end
 
-    def update_health_check(state, allocated, events, context, options) do
+    def update_health_check(state, allocated, events, _context, options) do
       status = state.environment_details.effective.status
       current_time = options[:current_time] || :os.system_time(:seconds)
       {health_index, l_index, e_index} = health_tuple(state.environment_details.effective.definition, allocated, events, current_time)
@@ -135,12 +135,12 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       {l_factor + e_factor, l_factor, e_factor}
     end
 
-    def server_kill!(state, context, options) do
+    def server_kill!(_state, _context, _options) do
         raise "FORCE_KILL"
     end
 
 
-    def lock!(state, context, options) do
+    def lock!(state, _context, _options) do
       # TODO obtain lock, etc. - record event?
       state = state
         |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :maintenance)

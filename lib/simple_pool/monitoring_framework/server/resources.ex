@@ -29,10 +29,10 @@ defmodule Noizu.SimplePool.MonitoringFramework.Server.Resources do
       {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
       inner = cond do
         opts.limit == :infinity ->
-          concat(["<#{seperator}", to_doc(Map.from_struct(entity), opts), "#{seperator}>"])
+          concat(["<#{seperator}", to_doc(Map.from_struct(entity), opts), "#{end_seperator}>"])
         opts.limit > 100 ->
           bare = %{time_stamp: entity.time_stamp, cpu: entity.cpu, ram: entity.ram}
-          concat(["<#{seperator}", to_doc(bare, opts), "#{seperator}>"])
+          concat(["<#{seperator}", to_doc(bare, opts), "#{end_seperator}>"])
         true -> "<>"
       end
       concat [heading, inner]

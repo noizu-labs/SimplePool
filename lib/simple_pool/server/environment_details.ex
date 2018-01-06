@@ -4,8 +4,6 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.Server.EnvironmentDetails do
-  alias Noizu.SimplePool.Server.EnvironmentDetails
-
   @type t :: %__MODULE__{
                server: any,
                definition: any,

@@ -15,11 +15,11 @@ defmodule Noizu.SimplePool.MonitoringFramework.MonitorBehaviour.Default do
     {:ack, self()}
   end
 
-  def lock(_servers, _components, _context, _options \\ %{}) do
+  def lock_server(_servers, _components, _context, _options \\ %{}) do
     {:ack, self()}
   end
 
-  def release(_servers, _components, _context, _options \\ %{}) do
+  def release_server(_servers, _components, _context, _options \\ %{}) do
     {:ack, self()}
   end
 
@@ -28,7 +28,7 @@ defmodule Noizu.SimplePool.MonitoringFramework.MonitorBehaviour.Default do
   end
 
 
-  def record_server_event!(server, event, details, context, options \\ %{}), do: :ack
-  def record_service_event!(server, service, event, details, context, options \\ %{}), do: :ack
+  def record_server_event!(_server, _event, _details, _context, _options \\ %{}), do: :ack
+  def record_service_event!(_server, _service, _event, _details, _context, _options \\ %{}), do: :ack
 
 end

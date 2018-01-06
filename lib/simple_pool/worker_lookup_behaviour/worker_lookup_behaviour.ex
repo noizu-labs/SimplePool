@@ -8,7 +8,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
 
   @callback workers!(any, any, any, any) :: {:ack, list} | any
 
-  @callback host!(ref :: tuple, base :: module, server :: module, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ok, atom} | {:spawn, atom} | {:error, details :: any} | {:restricted, atom}
+  @callback host!(ref :: tuple, server :: module, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ok, atom} | {:spawn, atom} | {:error, details :: any} | {:restricted, atom}
   @callback record_event!(ref :: tuple, event :: atom, details :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: any
   @callback events!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: list
 
@@ -32,11 +32,11 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     alias Noizu.ElixirCore.CallingContext
 
 
-    def default_workers!({_mod, d, _m, sm, _r}, host, service_entity, context, options \\ %{}) do
+    def default_workers!({_mod, d, _m, _sm, _r}, host, service_entity, context, options \\ %{}) do
       d.workers!(host, service_entity, context, options)
     end
 
-    def default_host!({_mod, d, _m, sm, _r}, ref, base, server, context, options \\ %{spawn: true}) do
+    def default_host!({_mod, d, _m, sm, _r}, ref, base, _server, context, options \\ %{spawn: true}) do
 
       case d.get!(ref, context, options) do
         nil ->
@@ -71,7 +71,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
           if entity.server == :pending do
             options_b = update_in(options, [:lock], &(Map.merge(&1 || %{}, %{server: :pending, type: :spawn})))
             case d.obtain_lock!(ref, context, options_b) do
-              {:ack, lock} ->
+              {:ack, _lock} ->
                 case sm.select_host(ref, base, context, options_b) do
                   {:ack, host} ->
                     entity = entity
