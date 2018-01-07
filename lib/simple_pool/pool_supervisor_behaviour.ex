@@ -94,7 +94,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             Logger.info(fn -> {@base.banner("#{__MODULE__}.start_link"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
 
-          case Supervisor.start_link(__MODULE__, [context], [{:name, __MODULE__}]) do
+          case Supervisor.start_link(__MODULE__, [context], [{:name, __MODULE__}, {:restart, :permanent}]) do
             {:ok, sup} ->
               Logger.info(fn ->  {"#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}", Noizu.ElixirCore.CallingContext.metadata(context)} end)
               start_children(__MODULE__, context, definition)
@@ -126,10 +126,10 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             end)
           end
 
-          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [definition, context], [])) do
+          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [definition, context], [restart: :permanent])) do
             {:ok, _pool_supervisor} ->
 
-              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, definition, context], [])) do
+              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, definition, context], [restart: :permanent])) do
                 {:ok, pid} -> {:ok, pid}
                 {:error, {:already_started, process2_id}} ->
                   Supervisor.restart_child(__MODULE__, process2_id)
@@ -179,7 +179,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
           if verbose() || true do
             Logger.warn(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect arg}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
-          supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}])
+          supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}, {:restart, :permanent}])
         end
       end # end init
 

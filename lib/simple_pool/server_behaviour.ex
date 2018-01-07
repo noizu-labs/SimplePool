@@ -572,7 +572,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             end
             definition
           end
-          GenServer.start_link(__MODULE__, [@worker_supervisor, definition, context], name: __MODULE__)
+          GenServer.start_link(__MODULE__, [@worker_supervisor, definition, context], name: __MODULE__, restart: :permanent)
         end
       end # end start_link
 
