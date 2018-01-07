@@ -86,37 +86,4 @@ defmodule Noizu.SimplePool.DispatchEntity do
     end # end defimpl EntityReferenceProtocol, for: Tuple
   end
 
-
-  defimpl Noizu.ERP, for: Noizu.SimplePool.Database.DispatchTable do
-    def id(obj) do
-      obj.identifier
-    end # end sref/1
-
-    def ref(obj) do
-      {:ref, Noizu.SimplePool.DispatchEntity, obj.identifier}
-    end # end ref/1
-
-    def sref(obj) do
-      "ref.noizu-dispatch.[#{Noizu.ERP.sref(obj.identifier)}]"
-    end # end sref/1
-
-    def record(obj, _options \\ nil) do
-      obj
-    end # end record/2
-
-    def record!(obj, _options \\ nil) do
-      obj
-    end # end record/2
-
-    def entity(obj, _options \\ nil) do
-      obj.entity
-    end # end entity/2
-
-    def entity!(obj, _options \\ nil) do
-      obj.entity
-    end # end defimpl EntityReferenceProtocol, for: Tuple
-  end
-
-
-
 end
