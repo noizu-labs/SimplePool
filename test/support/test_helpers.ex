@@ -54,7 +54,8 @@ defmodule Noizu.SimplePool.TestHelpers do
         definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
           identifier: {node(), Noizu.SimplePool.Support.TestPool},
           server: node(),
-          pool: Noizu.SimplePool.Support.TestPool.Server,
+          pool: Noizu.SimplePool.Support.TestPool,
+          service: Noizu.SimplePool.Support.TestPool.Server,
           supervisor: Noizu.SimplePool.Support.TestPool.PoolSupervisor,
           time_stamp: DateTime.utc_now(),
           hard_limit: 200,
@@ -71,7 +72,8 @@ defmodule Noizu.SimplePool.TestHelpers do
           definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
             identifier: {node(), Noizu.SimplePool.Support.TestThreePool},
             server: node(),
-            pool: Noizu.SimplePool.Support.TestThreePool.Server,
+            pool: Noizu.SimplePool.Support.TestThreePool,
+            service: Noizu.SimplePool.Support.TestThreePool.Server,
             supervisor: Noizu.SimplePool.Support.TestThreePool.PoolSupervisor,
             time_stamp: DateTime.utc_now(),
             hard_limit: 200,
@@ -118,7 +120,8 @@ defmodule Noizu.SimplePool.TestHelpers do
             definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
               identifier: {node(), Noizu.SimplePool.Support.TestTwoPool},
               server: node(),
-              pool: Noizu.SimplePool.Support.TestTwoPool.Server,
+              pool: Noizu.SimplePool.Support.TestTwoPool,
+              service: Noizu.SimplePool.Support.TestTwoPool.Server,
               supervisor: Noizu.SimplePool.Support.TestTwoPool.PoolSupervisor,
               time_stamp: DateTime.utc_now(),
               hard_limit: 200,
@@ -135,7 +138,8 @@ defmodule Noizu.SimplePool.TestHelpers do
             definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
               identifier: {node(), Noizu.SimplePool.Support.TestThreePool},
               server: node(),
-              pool: Noizu.SimplePool.Support.TestThreePool.Server,
+              pool: Noizu.SimplePool.Support.TestThreePool,
+              service: Noizu.SimplePool.Support.TestThreePool.Server,
               supervisor: Noizu.SimplePool.Support.TestThreePool.PoolSupervisor,
               time_stamp: DateTime.utc_now(),
               hard_limit: 200,

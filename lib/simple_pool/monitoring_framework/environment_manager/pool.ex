@@ -59,7 +59,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
         acc ++ [Task.async( fn ->
-          h = v.definition.pool.service_health_check!(options[:health_check_options] || %{}, context, options)
+          h = v.definition.service.service_health_check!(options[:health_check_options] || %{}, context, options)
           {k,h} end)]
       end)
 
@@ -164,7 +164,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       tasks = Enum.reduce(c, [], fn(service, acc) ->
         if state.environment_details.effective.services[service] do
-          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.pool.lock!(context, options)} end)]
+          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.service.lock!(context, options)} end)]
         else
           acc
         end
@@ -198,7 +198,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       tasks = Enum.reduce(c, [], fn(service, acc) ->
         if state.environment_details.effective.services[service] do
-          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.pool.release!(context, options)} end)]
+          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.service.release!(context, options)} end)]
         else
           acc
         end
@@ -656,8 +656,8 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       IO.puts "INIT #{inspect definition}"
       state = %State{
-        pool: Noizu.MonitoringFramework.EnvironmentPool.WorkerSupervisor,
-        server: Noizu.MonitoringFramework.EnvironmentPool.Server,
+        worker_supervisor: Noizu.MonitoringFramework.EnvironmentPool.WorkerSupervisor, # @TODO should be worker_supervisor
+        service: Noizu.MonitoringFramework.EnvironmentPool.Server, # @TODO should be service
         status_details: :pending,
         extended: %{monitors: %{}},
         options: option_settings(),
@@ -736,7 +736,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     def update_effective(state, context, options) do
       tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
         acc ++ [Task.async( fn ->
-          h = v.definition.pool.service_health_check!(options[:health_check_options] || %{}, context, options)
+          h = v.definition.service.service_health_check!(options[:health_check_options] || %{}, context, options)
           {k,h} end)]
       end)
 

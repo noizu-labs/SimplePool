@@ -7,8 +7,8 @@ defmodule Noizu.SimplePool.Server.State do
 alias Noizu.SimplePool.Server.State
 
   @type t :: %State{
-    pool: any,
-    server: any,
+    worker_supervisor: any,
+    service: any,
     status_details: any,
     status: Map.t,
     extended: any,
@@ -18,8 +18,8 @@ alias Noizu.SimplePool.Server.State
   }
 
   defstruct [
-    pool: nil,
-    server: nil,
+    worker_supervisor: nil,
+    service: nil,
     status_details: nil,
     status: %{loading: :pending, state: :pending},
     extended: %{},
@@ -34,7 +34,7 @@ alias Noizu.SimplePool.Server.State
 defimpl Inspect, for: Noizu.SimplePool.Server.State do
   import Inspect.Algebra
   def inspect(entity, opts) do
-    heading = "#Server.State(#{inspect entity.server})"
+    heading = "#Server.State(#{inspect entity.service})"
     {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
     inner = cond do
       opts.limit == :infinity ->
