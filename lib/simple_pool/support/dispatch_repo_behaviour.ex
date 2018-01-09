@@ -124,34 +124,53 @@ defmodule Noizu.SimplePool.DispatchRepoBehaviour do
       end
 
       def workers!(host, service_entity, _context, options \\ %{}) do
-        v = @dispatch_table.match!([identifier: {:ref, service_entity, :_}, server: host])
-            |> Amnesia.Selection.values
-        {:ack, v}
+        if schema_online?() do
+          v = @dispatch_table.match!([identifier: {:ref, service_entity, :_}, server: host])
+              |> Amnesia.Selection.values
+          {:ack, v}
+        else
+          {:nack, []}
+        end
       end
 
       #-------------------------
       #
       #-------------------------
       def get!(id, _context, _options \\ %{}) do
-        id
-        |> @dispatch_table.read!()
-        |> Noizu.ERP.entity()
+        if schema_online?() do
+          id
+          |> @dispatch_table.read!()
+          |> Noizu.ERP.entity()
+        else
+          nil
+        end
       end
 
       def update!(%Noizu.SimplePool.DispatchEntity{} = entity, _context, options \\ %{}) do
-        %@dispatch_table{identifier: entity.identifier, server: entity.server, entity: entity}
-        |> @dispatch_table.write!()
-        |> Noizu.ERP.entity()
+        if schema_online?() do
+          %@dispatch_table{identifier: entity.identifier, server: entity.server, entity: entity}
+          |> @dispatch_table.write!()
+          |> Noizu.ERP.entity()
+        else
+          nil
+        end
+
       end
 
       def create!(%Noizu.SimplePool.DispatchEntity{} = entity, _context, options \\ %{}) do
-        %@dispatch_table{identifier: entity.identifier, server: entity.server, entity: entity}
-        |> @dispatch_table.write!()
-        |> Noizu.ERP.entity()
+        if schema_online?() do
+          %@dispatch_table{identifier: entity.identifier, server: entity.server, entity: entity}
+          |> @dispatch_table.write!()
+          |> Noizu.ERP.entity()
+        else
+          nil
+        end
       end
 
       def delete!(entity, _context, _options \\ %{}) do
-        @dispatch_table.delete!(entity.identifier)
+        if schema_online?() do
+          @dispatch_table.delete!(entity.identifier)
+        end
         entity
       end
 
@@ -159,26 +178,42 @@ defmodule Noizu.SimplePool.DispatchRepoBehaviour do
       #
       #-------------------------
       def get(id, _context, _options \\ %{}) do
-        id
-        |> @dispatch_table.read()
-        |> Noizu.ERP.entity()
+        if schema_online?() do
+          id
+          |> @dispatch_table.read()
+          |> Noizu.ERP.entity()
+        else
+          nil
+        end
       end
 
       def update(%Noizu.SimplePool.DispatchEntity{} = entity, _context, options \\ %{}) do
-        %@dispatch_table{identifier: entity.identifier, server: entity.server, entity: entity}
-        |> @dispatch_table.write()
-        |> Noizu.ERP.entity()
+        if schema_online?() do
+          %@dispatch_table{identifier: entity.identifier, server: entity.server, entity: entity}
+          |> @dispatch_table.write()
+          |> Noizu.ERP.entity()
+        else
+          nil
+        end
       end
 
       def create(%Noizu.SimplePool.DispatchEntity{} = entity, _context, options \\ %{}) do
-        %@dispatch_table{identifier: entity.identifier, server: entity.server, entity: entity}
-        |> @dispatch_table.write()
-        |> Noizu.ERP.entity()
+        if schema_online?() do
+          %@dispatch_table{identifier: entity.identifier, server: entity.server, entity: entity}
+          |> @dispatch_table.write()
+          |> Noizu.ERP.entity()
+        else
+          nil
+        end
       end
 
       def delete(entity, _context, _options \\ %{}) do
-        @dispatch_table.delete(entity.identifier)
-        entity
+        if schema_online?() do
+          @dispatch_table.delete(entity.identifier)
+          entity
+        else
+          nil
+        end
       end
 
       defimpl Noizu.ERP, for: @dispatch_table do
