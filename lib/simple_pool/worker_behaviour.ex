@@ -149,8 +149,8 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   def default_handle_activity_check(mod, server, _worker_state_entity, kill_interval_s, {:i, {:activity_check, ref}, context}, %Noizu.SimplePool.Worker.State{initialized: false} = state ) do
     if ref == state.worker_ref do
       if ((state.last_activity == nil) || ((state.last_activity + kill_interval_s) < :os.system_time(:seconds))) do
-        server.worker_remove!(ref, [force: true], context)
-        {:noreply, mod.clear_inactivity_check(state)}
+        #server.worker_remove!(ref, [force: true], context)
+        {:stop, {:shutdown, :inactive}, mod.clear_inactivity_check(state)}
       else
         {:noreply, mod.schedule_inactivity_check(context, state)}
       end
@@ -164,8 +164,8 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       if ((state.last_activity == nil) || ((state.last_activity + kill_interval_s) < :os.system_time(:seconds))) do
         case worker_state_entity.shutdown(state, [], context, nil) do
           {:ok, state} ->
-            server.worker_remove!(state.worker_ref, [force: true], context)
-            {:noreply, state}
+            #server.worker_remove!(state.worker_ref, [force: true], context)
+            {:stop, {:shutdown, :inactive}, mod.clear_inactivity_check(state)}
           {:wait, state} ->
             # @TODO force termination conditions needed.
             {:noreply, mod.schedule_inactivity_check(context, state)}
