@@ -27,21 +27,35 @@ defmodule Noizu.SimplePool.DispatchMonitorRepoBehaviour do
       #
       #-------------------------
       def get!(id, _context, _options \\ %{}) do
-        id |> @monitor_table.read!()
+        if schema_online?() do
+          id |> @monitor_table.read!()
+        else
+          nil
+        end
       end
 
       def update!(entity, _context, _options \\ %{}) do
-        entity
-        |> @monitor_table.write!()
+        if schema_online?() do
+          entity
+          |> @monitor_table.write!()
+        else
+          nil
+        end
       end
 
       def create!(entity, _context, _options \\ %{}) do
-        entity
-        |> @monitor_table.write!()
+        if schema_online?() do
+          entity
+          |> @monitor_table.write!()
+        else
+          nil
+        end
       end
 
       def delete!(entity, _context, _options \\ %{}) do
-        @monitor_table.delete!(entity)
+        if schema_online?() do
+          @monitor_table.delete!(entity)
+        end
         entity
       end
 
@@ -49,21 +63,35 @@ defmodule Noizu.SimplePool.DispatchMonitorRepoBehaviour do
       #
       #-------------------------
       def get(id, _context, _options \\ %{}) do
-        id |> @monitor_table.read()
+        if schema_online?() do
+          id |> @monitor_table.read()
+        else
+          nil
+        end
       end
 
       def update(entity, _context, _options \\ %{}) do
-        entity
-        |> @monitor_table.write()
+        if schema_online?() do
+          entity
+          |> @monitor_table.write()
+        else
+          nil
+        end
       end
 
       def create(entity, _context, _options \\ %{}) do
-        entity
-        |> @monitor_table.write()
+        if schema_online?() do
+          entity
+          |> @monitor_table.write()
+        else
+          nil
+        end
       end
 
       def delete(entity, _context, _options \\ %{}) do
-        @monitor_table.delete(entity)
+        if schema_online?() do
+          @monitor_table.delete(entity)
+        end
         entity
       end
 
