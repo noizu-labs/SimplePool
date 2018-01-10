@@ -172,7 +172,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                 end
               else
                 options_b = put_in(options, [:dispatch_record], record)
-                case :rpc.call(host, mod, :process!, [ref, base, server, context, options_b], 1_000) do
+                case :rpc.call(host, mod, :process!, [ref, base, server, context, options_b], 5_000) do
                   {:ack, process} -> {:ack, process}
                   {:nack, details} -> {:nack, details}
                   {:error, details} -> {:error, details}
@@ -183,7 +183,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                 end
               end
 
-            _ -> {:nack, :not_registered}
+            v -> {:nack, {:host_error, v}}
           end
 
         %{server: host} ->
@@ -207,7 +207,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                      o -> o
                    end
                  else
-                   :rpc.call(host2, mod, :process!, [ref, base, server, context, options], 1_000)
+                   :rpc.call(host2, mod, :process!, [ref, base, server, context, options], 5_000)
                  end
               else
                 {:nack, :not_registered}
@@ -240,7 +240,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
               end
             true ->
               options_b = put_in(options, [:dispatch_record], record)
-              case :rpc.call(host, mod, :process!, [ref, base, server, context, options_b], 1_000) do
+              case :rpc.call(host, mod, :process!, [ref, base, server, context, options_b], 5_000) do
                 {:ack, process} -> {:ack, process}
                 {:nack, details} -> {:nack, details}
                 {:error, details} -> {:error, details}
