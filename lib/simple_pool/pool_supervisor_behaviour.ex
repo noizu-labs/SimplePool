@@ -17,8 +17,8 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
-  @default_max_seconds (5)
-  @default_max_restarts (100_000)
+  @default_max_seconds (1)
+  @default_max_restarts (1_000_000)
   @default_strategy (:one_for_one)
 
   def prepare_options(options) do
@@ -126,10 +126,10 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             end)
           end
 
-          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [definition, context], [restart: :permanent])) do
+          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)] )) do
             {:ok, _pool_supervisor} ->
 
-              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, definition, context], [restart: :permanent])) do
+              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)])) do
                 {:ok, pid} -> {:ok, pid}
                 {:error, {:already_started, process2_id}} ->
                   Supervisor.restart_child(__MODULE__, process2_id)

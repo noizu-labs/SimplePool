@@ -48,15 +48,16 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   end
 
   def default_init({mod, server, base, worker_state_entity, inactivity_check, _lazy_load}, {:migrate, ref, initial_state, context}) do
+    server.worker_lookup_handler().register!(ref, context)
     {:ok, %Noizu.SimplePool.Worker.State{initialized: :delayed_init, worker_ref: ref, inner_state: {:transfer, initial_state}}}
   end
 
   def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, {ref, context}) do
+    server.worker_lookup_handler().register!(ref, context)
     {:ok, %Noizu.SimplePool.Worker.State{initialized: :delayed_init, worker_ref: ref, inner_state: :start}}
   end
 
   def default_delayed_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, state, context) do
-    server.worker_lookup_handler().register!(state.worker_ref, context)
     ref = state.worker_ref
     case state.inner_state do
       {:transfer, initial_state} ->
@@ -453,12 +454,12 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
          handle_call(call, from, state)
       end
 
-      def handle_cast({_a, _b, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+      def handle_cast({_a, _b, context} = call, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
         state = delayed_init(state, context)
         handle_cast(call, state)
       end
 
-      def handle_info({_a, _b, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+      def handle_info({_a, _b, context} = call, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
         state = delayed_init(state, context)
         handle_info(call, state)
       end

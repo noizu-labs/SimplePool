@@ -119,19 +119,19 @@ defmodule Noizu.SimplePool.BasicTest do
     Noizu.SimplePool.Support.TestPool.Server.fetch(ref, :process, @context)
 
     # simulate 3 recent crashes
-    for _i <- 1..2 do
+    for _i <- 1..3 do
       Process.sleep(1000)
       Noizu.SimplePool.Support.TestPool.Server.kill!(ref, @context)
       {_r,_p, _s} = wait_for_restart(ref)
       # Force sleep so that terminate/start entries are unique (have different time entry)
     end
 
-
+    Process.sleep(1000)
     r = Noizu.SimplePool.Support.TestPool.Server.health_check!(ref, @context)
     assert r.status == :degraded
-    assert r.event_frequency.start == 3
-    assert r.event_frequency.terminate == 2
-    assert r.event_frequency.exit >= 2
+    assert r.event_frequency.start == 4
+    assert r.event_frequency.terminate == 3
+    assert r.event_frequency.exit >= 3
   end
 
   @tag capture_log: true
@@ -147,6 +147,7 @@ defmodule Noizu.SimplePool.BasicTest do
       # Force sleep so that terminate/start entries are unique (have different time entry)
     end
 
+    Process.sleep(1000)
     r = Noizu.SimplePool.Support.TestPool.Server.health_check!(ref, @context)
     assert r.status == :critical
   end
@@ -164,6 +165,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert capture_log(fn ->
       ref = Noizu.SimplePool.TestHelpers.unique_ref()
       Noizu.SimplePool.Support.TestPool.Server.fetch(ref, :process, @context)
+      Process.sleep(500)
     end) =~ "[RecordEvent :start]"
   end
 
@@ -172,7 +174,7 @@ defmodule Noizu.SimplePool.BasicTest do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
     link = Noizu.SimplePool.Support.TestPool.Server.get_direct_link!(ref,  @context)
     assert link.handle == nil
-    assert link.state == {:error, {:nack, :not_registered}}
+    assert link.state == {:error, {:nack, {:host_error, {:nack, :no_registered_host}}}}
 
     {_rref, process, _server} = Noizu.SimplePool.Support.TestPool.Server.fetch(ref, :process, @context)
     link = Noizu.SimplePool.Support.TestPool.Server.get_direct_link!(ref,  @context)
@@ -215,6 +217,14 @@ defmodule Noizu.SimplePool.BasicTest do
   def wait_for_restart(ref, attempts \\ 10) do
     case Noizu.SimplePool.Support.TestPool.Server.fetch(ref, :process, @context) do
       r = {:error, {:exit, {{%RuntimeError{}, _stack}, _call}}} ->
+        if attempts > 0 do
+          Process.sleep(5)
+          wait_for_restart(ref, attempts - 1)
+        else
+          r
+        end
+
+      r = {:error, {:exit, {:noproc, _d}}} ->
         if attempts > 0 do
           Process.sleep(5)
           wait_for_restart(ref, attempts - 1)
