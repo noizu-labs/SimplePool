@@ -9,7 +9,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   alias Noizu.ElixirCore.OptionList
   require Logger
 
-  @methods ([:verbose, :options, :option_settings, :start_link, :terminate, :init, :schedule_migrate_shutdown, :clear_migrate_shutdown, :schedule_inactivity_check, :clear_inactivity_check, :save!, :fetch, :reload!])
+  @methods ([:verbose, :options, :option_settings, :start_link, :terminate, :init, :schedule_migrate_shutdown, :clear_migrate_shutdown, :schedule_inactivity_check, :clear_inactivity_check, :save!, :fetch, :reload!, :delayed_init])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
 
@@ -48,47 +48,58 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   end
 
   def default_init({mod, server, base, worker_state_entity, inactivity_check, _lazy_load}, {:migrate, ref, initial_state, context}) do
-    if (mod.verbose()) do
-      Logger.info(fn -> {base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-    end
-    server.worker_lookup_handler().register!(ref, context)
-    server.worker_lookup_handler().record_event!(ref, :start, :migrate, context, %{})
-    {initialized, inner_state} = worker_state_entity.transfer(ref, initial_state.inner_state, context)
-
-
-    if inactivity_check do
-      state = %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state, last_activity: :os.system_time(:seconds)}
-      state = mod.schedule_inactivity_check(nil, state)
-      {:ok, state}
-    else
-      {:ok, %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state}}
-    end
+    {:ok, %Noizu.SimplePool.Worker.State{initialized: :delayed_init, worker_ref: ref, inner_state: {:transfer, initial_state}}}
   end
 
   def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, {ref, context}) do
-    if (mod.verbose()) do
-      Logger.info(fn -> {base.banner("INIT/1 #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-    end
-    Noizu.ElixirCore.CallingContext.meta_update(context)
-    server.worker_lookup_handler().register!(ref, context)
-    server.worker_lookup_handler().record_event!(ref, :start, :normal, context, %{})
-    {initialized, inner_state} = if lazy_load do
-      case worker_state_entity.load(ref, context) do
-        nil -> {false, nil}
-        inner_state -> {true, inner_state}
-      end
-    else
-      {false, nil}
-    end
+    {:ok, %Noizu.SimplePool.Worker.State{initialized: :delayed_init, worker_ref: ref, inner_state: :start}}
+  end
 
-    if inactivity_check do
-      state = %Noizu.SimplePool.Worker.State{initialized: initialized, worker_ref: ref, inner_state: inner_state, last_activity: :os.system_time(:seconds)}
-      state = mod.schedule_inactivity_check(nil, state)
-      {:ok, state}
-    else
-      {:ok, %Noizu.SimplePool.Worker.State{initialized: initialized, worker_ref: ref, inner_state: inner_state}}
+  def default_delayed_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, state, context) do
+    server.worker_lookup_handler().register!(state.worker_ref, context)
+    ref = state.worker_ref
+    case state.inner_state do
+      {:transfer, initial_state} ->
+        if (mod.verbose()) do
+          Logger.info(fn -> {base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+        end
+        spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :migrate, context, %{}) end
+        {initialized, inner_state} = worker_state_entity.transfer(ref, initial_state.inner_state, context)
+        if inactivity_check do
+          state = %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state, last_activity: :os.system_time(:seconds)}
+          state = mod.schedule_inactivity_check(nil, state)
+          state
+        else
+          %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state}
+        end
+      :start ->
+        if (mod.verbose()) do
+          Logger.info(fn -> {base.banner("INIT/1 #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+        end
+        spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :normal, context, %{}) end
+        {initialized, inner_state} = if lazy_load do
+          case worker_state_entity.load(ref, context) do
+            nil -> {false, nil}
+            inner_state -> {true, inner_state}
+          end
+        else
+          {false, nil}
+        end
+
+        if inactivity_check do
+          state = %Noizu.SimplePool.Worker.State{initialized: initialized, worker_ref: ref, inner_state: inner_state, last_activity: :os.system_time(:seconds)}
+          state = mod.schedule_inactivity_check(nil, state)
+          state
+        else
+          %Noizu.SimplePool.Worker.State{initialized: initialized, worker_ref: ref, inner_state: inner_state}
+        end
     end
   end
+
+
+
+
+
 
   def default_schedule_migrate_shutdown(migrate_shutdown_interval_ms, context, state) do
     {:ok, mt_ref} = :timer.send_after(migrate_shutdown_interval_ms, self(), {:i, {:migrate_shutdown, state.worker_ref}, context})
@@ -414,6 +425,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       if unquote(MapSet.member?(features, :s_redirect)) || unquote(MapSet.member?(features, :s_redirect_handle)) do
         def handle_call({_type, {@server, _ref, _timeout}, call}, from, state), do: handle_call(call, from, state)
         def handle_cast({_type, {@server, _ref}, call}, state), do: handle_cast(call, state)
+        def handle_info({_type, {@server, _ref}, call}, state), do: handle_info(call, state)
 
         def handle_cast({:s_cast, {call_server, ref}, {:s, _inner, context} = call}, state) do
           Logger.info(fn -> "Dispatch Error: #{inspect call} ->  #{__MODULE__} #{inspect state}" end)
@@ -435,6 +447,27 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           {:reply, :s_retry, state}
         end # end handle_call/:s_call!
       end # if feature.s_redirect
+
+      def handle_call({_a, _b, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+         state = delayed_init(state, context)
+         handle_call(call, from, state)
+      end
+
+      def handle_cast({_a, _b, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+        state = delayed_init(state, context)
+        handle_cast(call, state)
+      end
+
+      def handle_info({_a, _b, context} = call, from, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+        state = delayed_init(state, context)
+        handle_info(call, state)
+      end
+
+      if (unquote(required.delayed_init)) do
+        def delayed_init(state, context) do
+          default_delayed_init({__MODULE__, @server, @base, @worker_state_entity, @inactivity_check, @lazy_load}, state, context)
+        end
+      end
 
       #-------------------------------------------------------------------------
       # Inactivity Check Handling Feature Section

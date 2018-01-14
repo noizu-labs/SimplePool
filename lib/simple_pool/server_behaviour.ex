@@ -47,7 +47,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         server_driver: %OptionValue{option: :server_driver, default: Application.get_env(:noizu_simple_pool, :default_server_driver, Noizu.SimplePool.ServerDriver.Default)},
         worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.Default)},
         server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)},
-        server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitor, Noizu.SimplePool.MonitoringFramework.MonitorBehaviour.Default)},
+        server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitr, Noizu.SimplePool.MonitoringFramework.MonitorBehaviour.Default)},
+        log_timeouts: %OptionValue{option: :log_timeouts, default: Application.get_env(:noizu_simple_pool, :default_log_timeouts, true)}
       }
     }
 
@@ -193,7 +194,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   end
 
 
-  def default_crash_protection_rs_call!({mod, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options, timeout) do
+  def default_crash_protection_rs_call!({mod, base, worker_lookup_handler, s_redirect_feature, log_timeout}, identifier, call, context, options, timeout) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_call!, {mod, identifier, timeout}, {:s, call, context}}, else: {:s, call, context}
     try do
       mod.s_call_unsafe(identifier, extended_call, context, options, timeout)
@@ -202,7 +203,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         case e do
           {:timeout, c} ->
             try do
-              worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
+              if log_timeout do
+                  worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
+              end
               {:error, {:timeout, c}}
             catch
               :exit, e ->  {:error, {:exit, e}}
@@ -236,7 +239,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     end
   end # end s_call!
 
-  def default_crash_protection_rs_cast!({mod, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options) do
+  def default_crash_protection_rs_cast!({mod, base, worker_lookup_handler, s_redirect_feature, log_timeout}, identifier, call, context, options) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast!, {mod, identifier}, {:s, call, context}}, else: {:s, call, context}
     try do
       mod.s_cast_unsafe(identifier, extended_call, context, options)
@@ -245,7 +248,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         case e do
           {:timeout, c} ->
             try do
-              worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+              if log_timeout do
+                worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+              end
               {:error, {:timeout, c}}
             catch
               :exit, e ->  {:error, {:exit, e}}
@@ -279,7 +284,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     end
   end # end s_cast!
 
-  def default_crash_protection_rs_call({mod, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options, timeout) do
+  def default_crash_protection_rs_call({mod, base, worker_lookup_handler, s_redirect_feature, log_timeout}, identifier, call, context, options, timeout) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_call, {mod, identifier, timeout}, {:s, call, context}}, else: {:s, call, context}
     try do
       mod.s_call_unsafe(identifier, extended_call, context, options, timeout)
@@ -288,7 +293,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         case e do
           {:timeout, c} ->
             try do
-              worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
+              if log_timeout do
+                worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
+              end
+
               {:error, {:timeout, c}}
             catch
               :exit, e ->  {:error, {:exit, e}}
@@ -322,7 +330,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     end
   end # end s_call!
 
-  def default_crash_protection_rs_cast({mod, base, worker_lookup_handler, s_redirect_feature}, identifier, call, context, options) do
+  def default_crash_protection_rs_cast({mod, base, worker_lookup_handler, s_redirect_feature, log_timeout}, identifier, call, context, options) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast, {mod, identifier}, {:s, call, context}}, else: {:s, call, context}
     try do
       mod.s_cast_unsafe(identifier, extended_call, context, options)
@@ -331,7 +339,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         case e do
           {:timeout, c} ->
             try do
-              worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+              if log_timeout do
+                worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+              end
+
               {:error, {:timeout, c}}
             catch
               :exit, e ->  {:error, {:exit, e}}
@@ -473,7 +484,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     default_timeout = options.default_timeout
     shutdown_timeout = options.shutdown_timeout
     server_monitor = options.server_monitor
-
+    log_timeouts = options.log_timeouts
     case Map.keys(option_settings.output.errors) do
       [] -> :ok
       l when is_list(l) ->
@@ -508,6 +519,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @shutdown_timeout (unquote(shutdown_timeout))
 
       @base_verbose unquote(verbose)
+
+      @log_timeouts unquote(log_timeouts)
 
       @server_monitor unquote(server_monitor)
       @option_settings unquote(Macro.escape(option_settings))
@@ -1140,7 +1153,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             Optomized call, assumed call already in ref form and on target server. Simply check if process is alive and forward.
           """
           def o_call(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}, timeout \\ @timeout) do
-            default_crash_protection_rs_call({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
+            default_crash_protection_rs_call({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature, @log_timeouts}, identifier, call, context, options, timeout)
           end # end s_call!
         end
 
@@ -1149,14 +1162,14 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             Optomized call, assumed call already in ref form and on target server. Simply check if process is alive and forward.
           """
           def o_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-            default_crash_protection_rs_cast({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
+            default_crash_protection_rs_cast({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature, @log_timeouts}, identifier, call, context, options)
           end # end s_call!
         end
 
 
         if (unquote(required.rs_call!)) do
           def rs_call!(identifier, call, context, options, timeout) do
-            default_crash_protection_rs_call!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
+            default_crash_protection_rs_call!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature, @log_timeouts}, identifier, call, context, options, timeout)
           end
         end
 
@@ -1170,7 +1183,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
         if (unquote(required.rs_cast!)) do
           def rs_cast!(identifier, call, context, options) do
-            default_crash_protection_rs_cast!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
+            default_crash_protection_rs_cast!({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature, @log_timeouts}, identifier, call, context, options)
           end
         end
         if (unquote(required.s_cast!)) do
@@ -1183,7 +1196,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
         if (unquote(required.rs_call)) do
           def rs_call(identifier, call, context, options, timeout) do
-            default_crash_protection_rs_call({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options, timeout)
+            default_crash_protection_rs_call({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature, @log_timeouts}, identifier, call, context, options, timeout)
           end
         end
         if (unquote(required.s_call)) do
@@ -1197,7 +1210,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
         if (unquote(required.rs_cast)) do
           def rs_cast(identifier, call, context, options) do
-            default_crash_protection_rs_cast({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature}, identifier, call, context, options)
+            default_crash_protection_rs_cast({__MODULE__, @base, @worker_lookup_handler, @s_redirect_feature, @log_timeouts}, identifier, call, context, options)
           end
         end
 
