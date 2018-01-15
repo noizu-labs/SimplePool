@@ -4,7 +4,7 @@ defmodule Noizu.SimplePool.Mixfile do
   def project do
     [
      app: :noizu_simple_pool,
-     version: "0.0.19",
+     version: "0.0.20",
      elixir: "~> 1.3",
      package: package(),
      deps: deps(),

@@ -7,8 +7,8 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
 
   defmacro __using__(options) do
     #process_identifier = Dict.get(options, :process_identifier)
-    max_restarts = Dict.get(options, :max_restarts, 50_000)
-    max_seconds = Dict.get(options, :max_seconds, 5)
+    max_restarts = Dict.get(options, :max_restarts, 1_000_000)
+    max_seconds = Dict.get(options, :max_seconds, 1)
     strategy = Dict.get(options, :strategy, :one_for_one)
     global_verbose = Dict.get(options, :verbose, false)
     module_verbose = Dict.get(options, :pool_supervisor_verbose, false)
@@ -60,10 +60,10 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             "|===============================================================================\n" |> IO.puts()
           end
 
-          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [], [])) do
+          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [], [max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds), restart: :permanent])) do
             {:ok, pool_supervisor} ->
 
-              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, @base.nmid_seed()], [])) do
+              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, @base.nmid_seed()], [max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds), restart: :permanent])) do
                 {:ok, pid} ->
                   {:ok, pid}
                 {:error, {:already_started, process2_id}} ->
@@ -79,7 +79,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
               Logger.warn "#{@base} - restart worker supervisor"
               case Supervisor.restart_child(__MODULE__, process_id) do
                 {:ok, pid} ->
-                  case Supervisor.start_child(__MODULE__, worker(@pool_server, [@worker_supervisor, @base.nmid_seed()], [])) do
+                  case Supervisor.start_child(__MODULE__, worker(@pool_server, [@worker_supervisor, @base.nmid_seed()], [max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds), restart: :permanent])) do
                     {:ok, pid} -> {:ok, pid}
                     {:error, {:already_started, process2_id}} ->
                       Supervisor.restart_child(__MODULE__, process2_id)

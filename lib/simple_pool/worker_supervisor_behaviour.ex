@@ -11,8 +11,8 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
   ]
 
   defmacro __using__(options) do
-    max_restarts = Dict.get(options, :max_restarts, 50_000)
-    max_seconds = Dict.get(options, :max_seconds, 5)
+    max_restarts = Dict.get(options, :max_restarts, 1_000_000)
+    max_seconds = Dict.get(options, :max_seconds, 1)
     strategy = Dict.get(options, :strategy, :one_for_one)
     global_verbose = Dict.get(options, :verbose, false)
     module_verbose = Dict.get(options, :worker_supervisor_verbose, false)
