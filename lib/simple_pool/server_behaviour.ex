@@ -619,14 +619,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if (unquote(required.worker_sup_start)) do
-
         def worker_sup_start(ref, transfer_state, context) do
           childSpec = @worker_supervisor.child(ref, transfer_state, context)
           case Supervisor.start_child(@worker_supervisor, childSpec) do
             {:ok, pid} -> {:ack, pid}
             {:error, {:already_started, pid}} ->
               timeout = @timeout
-              call = {:transfer_state, transfer_state}
+              call = {:transfer_state, {:state, transfer_state, time: :os.system_time(:second)}}
               extended_call = if @s_redirect_feature, do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
               GenServer.cast(pid, extended_call)
               Logger.warn(fn ->"#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}" end)
@@ -637,6 +636,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               Supervisor.delete_child(@worker_supervisor, ref)
               case Supervisor.start_child(@worker_supervisor, childSpec) do
                 {:ok, pid} -> {:ack, pid}
+                {:error, {:already_started, pid}} -> {:ack, pid}
                 error -> error
               end
             error -> error
@@ -655,6 +655,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               Supervisor.delete_child(@worker_supervisor, ref)
               case Supervisor.start_child(@worker_supervisor, childSpec) do
                 {:ok, pid} -> {:ack, pid}
+                {:error, {:already_started, pid}} -> {:ack, pid}
                 error -> error
               end
             error -> error
@@ -662,9 +663,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end # endstart/3
       end
 
-
       if (unquote(required.worker_sup_terminate)) do
-
         def worker_sup_terminate(ref, sup, context, options \\ %{}) do
           Supervisor.terminate_child(@worker_supervisor, ref)
           Supervisor.delete_child(@worker_supervisor, ref)
@@ -806,7 +805,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             {:ack, lock} ->
               case worker_sup_start(ref, state, context) do
                 {:ack, pid} ->
-                  @worker_lookup_handler.register!(ref, context, options)
                   {:ack, pid}
                 o -> {:error, {:worker_sup_start, o}}
               end

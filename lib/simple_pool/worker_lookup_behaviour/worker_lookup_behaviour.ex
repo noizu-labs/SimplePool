@@ -100,29 +100,48 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
       m.get!(ref, context)
     end
 
-    def default_register!({mod, d, _m, _sm, r}, ref, context, options \\ %{}) do
-      r = Registry.register(r, {:worker, ref}, :process)
-      options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
-        case x do
-          %{lock: {{_s, _p}, :transfer, _t}} -> true
-          %{lock: {{_s, _p}, :spawn, _t}} -> true
-          %{lock: {{_s, _p}, :init, _t}} -> true
-          _ -> false
-        end
-      end}
-      options_b = Map.merge(options_b, options)
+    def default_set_node!({mod, d, _m, _sm, r}, ref, context, options \\ %{}) do
+      Task.async(fn ->
+                    case d.get!(ref, context, options) do
+                      nil -> :unexpected
+                      entity ->
+                        if entity.server != node() do
+                          entity
+                          |> put_in([Access.key(:server)], node()) #@TODO standardize naming conventions.
+                          |> d.update!(context, options)
+                        end
+                    end
 
+                    inner = Task.async(fn ->
+                      # delay before releasing lock to allow a flood of node updates to update before removing locks.
+                      Process.sleep(60_000)
+                      # Release lock off main thread
+                      options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
+                        case x do
+                          %{lock: {{_s, _p}, :transfer, _t}} -> true
+                          %{lock: {{_s, _p}, :spawn, _t}} -> true
+                          %{lock: {{_s, _p}, :init, _t}} -> true
+                          _ -> false
+                        end
+                      end}
+                      options_b = Map.merge(options_b, options)
+                      {:ack, mod.release_lock!(ref, context, options_b)}
+                    end)
+                    {:ack, inner}
+      end)
+    end
 
-      case d.get!(ref, context, options) do
-        nil -> :unexpected
-        entity ->
-          entity
-          |> put_in([Access.key(:server)], node()) #@TODO standardize naming conventions.
-          |> d.update!(context, options)
-      end
-
-      mod.release_lock!(ref, context, options_b)
-      r
+    def default_register!({_mod, _d, _m, _sm, r}, ref, _context, _options \\ %{}) do
+      #if options[:set_node] do
+      #  task = mod.set_node!(ref, context, options)
+      #  Registry.register(r, {:worker, ref}, :process)
+      #  if options[:set_node_yield] do
+      #    Task.yield(task, options[:set_node_yield])
+      #  end
+      #  task
+      #else
+        Registry.register(r, {:worker, ref}, :process)
+      #end
     end
 
     def default_unregister!({_mod, _d, _m, _s, r}, ref, _context, _options \\ %{}) do
@@ -147,6 +166,9 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
               if host == node() do
                 case Registry.lookup(r, {:worker, ref}) do
                   [] ->
+
+
+
                     if options[:spawn] do
                       options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
                         case x do
@@ -158,6 +180,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                         {:ack, _lock} ->
                           case server.worker_sup_start(ref, context) do
                             {:ok, pid} -> {:ack, pid}
+                            {:ack, pid} -> {:ack, pid}
                             o -> o
                           end
                         o -> o
@@ -165,6 +188,9 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                     else
                       {:nack, :not_registered}
                     end
+
+
+
                   [{pid, _v}] -> {:ack, pid}
                   v ->
                     mod.record_event!(ref, :registry_lookup_fail, v, context, options)
@@ -202,6 +228,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                      {:ack, _lock} ->
                        case server.worker_sup_start(ref, context) do
                          {:ok, pid} -> {:ack, pid}
+                         {:ack, pid} -> {:ack, pid}
                          o -> o
                        end
                      o -> o
@@ -226,6 +253,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                       {:ack, _lock} ->
                         case server.worker_sup_start(ref, context) do
                           {:ok, pid} -> {:ack, pid}
+                          {:ack, pid} -> {:ack, pid}
                           o -> o
                         end
                       o -> o
@@ -253,7 +281,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
       end
     end
 
-    @methods [:host!, :record_event!, :register!, :unregister!, :obtain_lock!, :release_lock!, :process!, :events!, :workers!]
+    @methods [:host!, :record_event!, :register!, :unregister!, :obtain_lock!, :release_lock!, :process!, :events!, :workers!, :set_node!]
     def prepare_options(options) do
       settings = %OptionSettings{
         option_settings: %{
@@ -306,6 +334,11 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
         if unquote(required.events!) do
           def events!(ref, context), do: default_events!(@pass_thru, ref, context)
           def events!(ref, context, options), do: default_events!(@pass_thru, ref, context, options)
+        end
+
+        if unquote(required.set_node!) do
+          def set_node!(ref, context), do: default_set_node!(@pass_thru, ref, context)
+          def set_node!(ref, context, options), do: default_set_node!(@pass_thru, ref, context, options)
         end
 
         if unquote(required.register!) do

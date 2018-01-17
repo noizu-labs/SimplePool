@@ -116,8 +116,6 @@ defmodule Noizu.MonitoringFramework.EnvironmentWorkerEntity do
   def record!("ref.noizu-env." <> identifier, _options), do: %__MODULE__{identifier: identifier}
   def record!(%__MODULE__{} = entity, _options), do: entity
 
-
-
   defimpl Noizu.ERP, for: Noizu.MonitoringFramework.EnvironmentWorkerEntity do
     def id(obj) do
       obj.identifier
