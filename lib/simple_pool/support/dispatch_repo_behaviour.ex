@@ -69,12 +69,12 @@ defmodule Noizu.SimplePool.DispatchRepoBehaviour do
   def default_release_lock!(mod, ref, context, options \\ %{}) do
     if mod.schema_online?() do
       time = options[:time] || :os.system_time()
-      _lock = {{lock_server, lock_process}, lock_type, _lock_until} = mod.prepare_lock(options, true)
       entity = mod.get!(ref, context, options)
       if entity do
         case entity.lock do
           nil -> {:ack, entity}
           {{s,p}, lt, lu} ->
+            _lock = {{lock_server, lock_process}, lock_type, _lock_until} = mod.prepare_lock(options, true)
             cond do
               options[:force] ->
                 {:ack, put_in(entity, [Access.key(:lock)], nil) |> mod.update!(context, options)}
