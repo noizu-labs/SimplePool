@@ -193,7 +193,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
 
                   [{pid, _v}] -> {:ack, pid}
                   v ->
-                    mod.record_event!(ref, :registry_lookup_fail, v, context, options)
+                    #@PRI-0 disabled until rate limite added - mod.record_event!(ref, :registry_lookup_fail, v, context, options)
                     {:error, {:unexpected_response, v}}
                 end
               else
@@ -203,7 +203,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                   {:nack, details} -> {:nack, details}
                   {:error, details} -> {:error, details}
                   {:badrpc, details} ->
-                    mod.record_event!(ref, :process_check_fail, {:badrpc, details}, context, options)
+                    #@PRI-0 disabled until rate limite added - mod.record_event!(ref, :process_check_fail, {:badrpc, details}, context, options)
                     {:error, {:badrpc, details}}
                   o -> {:error, o}
                 end
@@ -263,7 +263,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                   end
                 [{pid, _v}] -> {:ack, pid}
                 v ->
-                  mod.record_event!(ref, :registry_lookup_fail, v, context, options)
+                  #@PRI-0 disabled until rate limite added - mod.record_event!(ref, :registry_lookup_fail, v, context, options)
                   {:error, {:unexpected_response, v}}
               end
             true ->
@@ -273,7 +273,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                 {:nack, details} -> {:nack, details}
                 {:error, details} -> {:error, details}
                 {:badrpc, details} ->
-                  mod.record_event!(ref, :process_check_fail, {:badrpc, details}, context, options)
+                  #@PRI-0 disabled until rate limite added - mod.record_event!(ref, :process_check_fail, {:badrpc, details}, context, options)
                   {:error, {:badrpc, details}}
                 o -> {:error, o}
               end

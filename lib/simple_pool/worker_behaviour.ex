@@ -98,7 +98,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           if (mod.verbose()) do
             Logger.info(fn -> {base.banner("INIT/1.stale_transfer#{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end
-          spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :normal, context, %{}) end
+          #PRI-0 - disabled until rate limit available - spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :normal, context, %{}) end
           {initialized, inner_state} = if lazy_load do
             case worker_state_entity.load(ref, context) do
               nil -> {false, nil}
@@ -112,7 +112,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           if (mod.verbose()) do
             Logger.info(fn -> {base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end
-          spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :migrate, context, %{}) end
+          #PRI-0 - disabled until rate limit available - spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :migrate, context, %{}) end
           {initialized, inner_state} = worker_state_entity.transfer(ref, initial_state.inner_state, context)
           %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state}
         end
@@ -121,14 +121,14 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
         if (mod.verbose()) do
           Logger.info(fn -> {base.banner("INIT/1.transfer #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
         end
-        spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :migrate, context, %{}) end
+        #PRI-0 - disabled until rate limit available - spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :migrate, context, %{}) end
         {initialized, inner_state} = worker_state_entity.transfer(ref, initial_state.inner_state, context)
           %Noizu.SimplePool.Worker.State{initial_state| initialized: initialized, worker_ref: ref, inner_state: inner_state}
       :start ->
         if (mod.verbose()) do
           Logger.info(fn -> {base.banner("INIT/1 #{__MODULE__} (#{inspect ref }"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
         end
-        spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :normal, context, %{}) end
+        #PRI-0 - disabled until rate limit available - spawn fn -> server.worker_lookup_handler().record_event!(ref, :start, :normal, context, %{}) end
         {initialized, inner_state} = if lazy_load do
           case worker_state_entity.load(ref, context) do
             nil -> {false, nil}
