@@ -51,6 +51,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
     def handle_cast({:m, {:start_services, options}, context}, state) do
+      await_timeout = options[:wait] || 60_000
       monitors = Enum.reduce(state.environment_details.effective.services, %{}, fn({k,v}, acc) ->
         {:ok, sup_pid} = v.definition.supervisor.start_link(context, v.definition)
         m = Process.monitor(sup_pid)
@@ -64,7 +65,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end)
 
       state = Enum.reduce(tasks, state, fn(t, acc) ->
-        {k, v} = Task.await(t)
+        {k, v} = Task.await(t, await_timeout)
         Process.sleep(1_000)
 
         case v do
@@ -160,6 +161,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
     def handle_call({:i, {:lock_server, components, options}, context}, _from, state) do
+      await_timeout = options[:wait] || 60_000
       c = components == :all && Map.keys(state.environment_details.effective.services) || MapSet.to_list(components)
 
       tasks = Enum.reduce(c, [], fn(service, acc) ->
@@ -171,7 +173,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end)
 
       state = Enum.reduce(tasks, state, fn(task, acc) ->
-        case Task.await(task) do
+        case Task.await(task, await_timeout) do
           {k, {:ack, s}} -> put_in(acc, [Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], s)
           _ -> acc
         end
@@ -194,6 +196,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
 
     def handle_call({:i, {:release_server, components, options}, context}, _from, state) do
+      await_timeout = options[:wait] || 60_000
       c = components == :all && Map.keys(state.environment_details.effective.services) || MapSet.to_list(components)
 
       tasks = Enum.reduce(c, [], fn(service, acc) ->
@@ -205,7 +208,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end)
 
       state = Enum.reduce(tasks, state, fn(task, acc) ->
-        case Task.await(task) do
+        case Task.await(task, await_timeout) do
           {k, {:ack, s}} -> put_in(acc, [Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], s)
           _ -> acc
         end
@@ -256,7 +259,8 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
     def rebalance(input_server_list, output_server_list, component_set, context, options \\ %{}) do
       # 1. Data Setup
-
+      await_timeout = options[:wait] || 60_000
+      bulk_await_timeout = options[:bulk_wait] || 1_000_000
       # Services
       cl = MapSet.to_list(component_set)
       service_list = Enum.reduce(cl, [], fn(c, acc) -> acc ++ [Module.concat([c, "Server"])] end)
@@ -269,14 +273,14 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       htasks = Enum.reduce(pool, [], fn(server, acc) ->  acc ++ [Task.async(fn -> {server, server_health_check!(server, context, options)} end)] end)
       wtasks = Enum.reduce(pool, [], fn(server, acc) -> Enum.reduce(service_list, acc, fn(service, a2) -> a2 ++ [Task.async(fn -> {server, {service, service.workers!(server, context)}} end)] end) end)
       server_health = Enum.reduce(htasks, %{}, fn(task, acc) ->
-        case Task.await(task) do
+        case Task.await(task, await_timeout) do
           {server, {:ack, h}} -> put_in(acc, [server], h)
           {server, error} -> put_in(acc, [server], error)
         end
       end)
 
       service_workers = Enum.reduce(wtasks, %{}, fn(task, acc) ->
-        t = Task.await(task)
+        t = Task.await(task, await_timeout)
         case t do
           {server, {service, {:ack, workers}}} ->
             update_in(acc, [server], &(  &1 && put_in(&1, [service], workers) || %{service => workers}))
@@ -390,7 +394,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end)
 
       r = Enum.reduce(tasks, %{}, fn(task, acc) ->
-        {server, outcome} = Task.await(task)
+        {server, outcome} = Task.await(task, bulk_await_timeout)
         put_in(acc, [server], outcome)
       end)
       {:ack, r}
@@ -398,12 +402,13 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
 
     def server_bulk_migrate!(services, context, options) do
+      await_timeout = options[:wait] || 1_000_000
       tasks = Enum.reduce(services, [], fn({service, transfer_servers}, acc) ->
         acc ++ [Task.async(fn -> {service, service.bulk_migrate!(transfer_servers, context, options)} end)]
       end)
 
       r = Enum.reduce(tasks, %{}, fn(task, acc) ->
-        {service, outcome} = Task.await(task)
+        {service, outcome} = Task.await(task, await_timeout)
         put_in(acc, [service], outcome)
       end)
 
@@ -500,73 +505,16 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end
     end
 
-
-
-
-    def _temp_rebalance(input, output, components, context, options \\ %{}) do
-
-      server_list = MapSet.to_list(input)
-      component_list = MapSet.to_list(components)
-
-      all_tasks = Enum.reduce(component_list, [], fn(component, acc) ->
-        cs = (Module.concat([component, "Server"]))
-
-        tasks = Enum.reduce(server_list, [], fn(server, acc2) ->
-          acc2 ++ [Task.async(fn ->  {server, cs.workers!(server, context, options)} end)]
-        end)
-
-        workers = Enum.reduce(tasks, %{}, fn(task, acc3) ->
-          {s, {:ack, workers}} = Task.await(task)
-          Map.put(acc3, s, workers)
-        end)
-
-        total_workers = Enum.reduce(workers, 0, fn({_s,v}, acc4) -> acc4 + length(v) end)
-        oc = MapSet.size(output)
-        wps = div(total_workers, oc)
-
-        p_one = Enum.reduce(workers, {%{}, []}, fn({k,v}, {om, ol}) ->
-          if MapSet.member?(output, k) do
-            {a,b} = Enum.split(v, wps)
-            {Map.put(om, k, a), ol ++ b}
-          else
-            {om, ol ++ v}
-          end
-        end)
-
-        output_list = MapSet.to_list(output)
-        {p_two, _r_p} = Enum.reduce(output_list, p_one, fn(s, {om, ol}) ->
-          if om[s] do
-            oml = length(om[s])
-            {a, b} = Enum.split(ol, wps - oml)
-            {put_in(om, [s], om[s] ++ a), b}
-          else
-            {a, b} = Enum.split(ol, wps)
-            {put_in(om, [s], a), b}
-          end
-        end)
-
-        remap_tasks = Enum.reduce(p_two, [], fn({s,p}, acc5) ->
-          Enum.reduce(p, acc5, fn(process, acc6) ->
-            {_source, ref} = process
-            acc6 ++ [Task.async(fn -> cs.worker_migrate!(ref, s, context, options) end)]
-          end)
-        end)
-        acc ++ remap_tasks
-      end)
-
-      for t <- all_tasks, do: Task.await(t)
-      :ack
-    end
-
     def lock_server(context), do: lock_servers([node()], :all, context, %{})
     def lock_server(context, options), do: lock_servers([node()], :all, context, options)
     def lock_server(components, context, options), do: lock_servers([node()], components, context, options)
     def lock_server(server, components, context, options), do: lock_servers([server], components, context, options)
 
     def lock_servers(servers, components, context, options \\ %{}) do
+      await_timeout = options[:wait] || 60_000
       options_b = Map.has_key?(options, :update_hints) && options || put_in(options, [:update_hints], false)
       locks = for server <- servers, do:  Task.async(fn -> remote_call(server, {:lock_server, components, options_b}, context, options_b) end)
-      for lock <- locks, do: Task.await(lock)
+      for lock <- locks, do: Task.await(lock, await_timeout)
       if Map.get(options, :update_hints, true), do: internal_update_hints(components, context, options)
       :ack
     end
@@ -577,9 +525,10 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     def release_server(server, components, context, options), do: release_servers([server], components, context, options)
 
     def release_servers(servers, components, context, options \\ %{}) do
+      await_timeout = options[:wait] || 60_000
       options_b = Map.has_key?(options, :update_hints) && options || put_in(options, [:update_hints], false)
       locks = for server <- servers, do: Task.async(fn -> remote_call(server, {:release_server, components, options}, context, options_b) end)
-      for lock <- locks, do: Task.await(lock)
+      for lock <- locks, do: Task.await(lock, await_timeout)
       if Map.get(options, :update_hints, true), do: internal_update_hints(components, context, options)
       :ack
     end
@@ -678,7 +627,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     # Convenience Methods
     #---------------------------------------------------------------------------
     def register(initial, context, options \\ %{}) do
-      GenServer.call(__MODULE__, {:m, {:register, initial, options}, context}, 30_000)
+      GenServer.call(__MODULE__, {:m, {:register, initial, options}, context}, 60_000)
     end
 
     def start_services(context, options \\ %{}) do
@@ -734,6 +683,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
 
     def update_effective(state, context, options) do
+      await_timeout = options[:wait] || 60_000
       tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
         acc ++ [Task.async( fn ->
           h = v.definition.service.service_health_check!(options[:health_check_options] || %{}, context, options)
@@ -741,7 +691,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end)
 
       effective = Enum.reduce(tasks, state.environment_details.effective, fn(t, acc) ->
-        {k, v} = Task.await(t)
+        {k, v} = Task.await(t, await_timeout)
         put_in(acc, [Access.key(:services), k], v)
       end)
 
@@ -763,13 +713,13 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
     def perform_hint_update(state, components, context, options) do
+      await_timeout = options[:wait] || 60_000
       # call each service node to get current health checks.
       # 1. Grab nodes
       servers_raw = Amnesia.Fragment.async(fn ->
         Noizu.SimplePool.Database.MonitoringFramework.NodeTable.where(1 == 1)
         |> Amnesia.Selection.values
       end)
-
       state = update_effective(state, context, options)
 
       # 2. Grab Server Status
@@ -785,16 +735,14 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         end
       end)
 
-
       servers = Enum.reduce(tasks, %{}, fn (task, acc) ->
-        {k, {:ack, v}} = Task.await(task)
+        {k, {:ack, v}} = Task.await(task, await_timeout)
         Map.put(acc, k, v)
       end)
 
       # 3. Calculate Hints
       valid_status = MapSet.new([:online, :degraded, :critical])
       valid_status_weight = %{online: 1, degraded: 2, critical: 3}
-
 
       update = case components do
         %MapSet{} -> MapSet.to_list(components)
