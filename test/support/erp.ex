@@ -1,3 +1,8 @@
+#-------------------------------------------------------------------------------
+# Author: Keith Brings
+# Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
+#-------------------------------------------------------------------------------
+
 defimpl Noizu.ERP, for: Atom do
   def sref(nil), do: nil
   def ref(nil), do: nil

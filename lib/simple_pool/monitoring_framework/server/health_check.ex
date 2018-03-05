@@ -1,6 +1,6 @@
 #-------------------------------------------------------------------------------
-# Author: Keith Brings <keith.brings@noizu.com>
-# Copyright (C) 2017 Noizu Labs, Inc. All rights reserved.
+# Author: Keith Brings
+# Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
 defmodule  Noizu.SimplePool.MonitoringFramework.Server.HealthCheck do
@@ -53,4 +53,3 @@ defmodule  Noizu.SimplePool.MonitoringFramework.Server.HealthCheck do
     end # end inspect/2
   end # end defimpl
 end
-
