@@ -166,9 +166,6 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
               if host == node() do
                 case Registry.lookup(r, {:worker, ref}) do
                   [] ->
-
-
-
                     if options[:spawn] do
                       options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
                         case x do
@@ -188,9 +185,6 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                     else
                       {:nack, :not_registered}
                     end
-
-
-
                   [{pid, _v}] -> {:ack, pid}
                   v ->
                     #@PRI-0 disabled until rate limite added - mod.record_event!(ref, :registry_lookup_fail, v, context, options)

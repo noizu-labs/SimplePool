@@ -69,7 +69,6 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, {ref, context}) do
     #server.worker_lookup_handler().set_node!(ref, context)
     #server.worker_lookup_handler().register!(ref, context)
-
     # Temp debug code
     br = :os.system_time(:millisecond)
     task = server.worker_lookup_handler().set_node!(ref, context)
@@ -89,7 +88,6 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
 
   def default_delayed_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, state, context) do
     ref = state.worker_ref
-
     ustate = case state.inner_state do
       # @TODO - investigate strategies for avoiding keeping full state in child def. Aka put into state that accepts a transfer/reads a transfer form a table, etc.
       {:transfer, {:state, initial_state, :time, time}} ->
@@ -240,7 +238,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   end
 
   def default_handle_cast_load(worker_state_entity, inactivity_check, {:s, {:load, options}, context}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
-    case worker_state_entity.load(state.worker_ref, options, context) do
+    case worker_state_entity.load(state.worker_ref, context, options) do
       nil -> {:noreply, state}
       inner_state ->
         if inactivity_check do
@@ -253,7 +251,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
 
 
   def default_handle_call_load(worker_state_entity, inactivity_check, {:s, {:load, options}, context}, _from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
-    case worker_state_entity.load(state.worker_ref, options, context) do
+    case worker_state_entity.load(state.worker_ref, context, options) do
       nil -> {:reply, :not_found, state}
       inner_state ->
         if inactivity_check do
@@ -435,11 +433,11 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
 
       # @start_link
       if (unquote(required.start_link)) do
-        def start_link(args, context) do
+        def start_link(ref, context) do
           if (verbose()) do
-            Logger.info(fn -> @base.banner("START_LINK/1 #{__MODULE__} (#{inspect args})") end)
+            Logger.info(fn -> @base.banner("START_LINK/1 #{__MODULE__} (#{inspect ref})") end)
           end
-          GenServer.start_link(__MODULE__, {args, context})
+          GenServer.start_link(__MODULE__, {ref, context})
         end
 
         def start_link(ref, args, context) do

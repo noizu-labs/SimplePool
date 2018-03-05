@@ -233,7 +233,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     Forward a call to appopriate worker, along with delivery redirect details if s_redirect enabled. Spawn worker if not currently active.
   """
   def default_crash_protection_s_call!(mod, identifier, call, context , options, timeout) do
-    case  mod.worker_ref!(identifier, context) do
+    case mod.worker_ref!(identifier, context) do
       {:error, details} -> {:error, details}
       ref ->
         try do
@@ -616,7 +616,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           if verbose() do
             Logger.info(fn -> {@base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})\n args: #{inspect args, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end
-          @server_provider.init(__MODULE__, @worker_supervisor, definition, option_settings(), context)
+          @server_provider.init(__MODULE__, @worker_supervisor, definition, context, option_settings())
         end
       end # end init
 
@@ -726,11 +726,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.load) do
-        def load(context \\ Noizu.ElixirCore.CallingContext.system(%{}), settings \\ %{}), do: @server_provider.load(__MODULE__, settings, context)
+        def load(context \\ Noizu.ElixirCore.CallingContext.system(%{}), settings \\ %{}), do: @server_provider.load(__MODULE__, context, settings)
       end
 
       if unquote(required.load_complete) do
-        def load_complete(process, state, context), do: @server_provider.load_complete(process, state, context)
+        def load_complete(this, process, context), do: @server_provider.load_complete(this, process, context)
       end
 
       if unquote(required.ref) do

@@ -11,7 +11,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     # GenServer Lifecycle
     #---------------------------------------------------------------------------
-    def init(server, sup, definition, options, context) do
+    def init(server, sup, definition, context, options) do
       #server.enable_server!(node())
 
       # TODO load real effective
@@ -36,10 +36,10 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       {:ok, state}
     end
 
-    def terminate(server, reason, %State{} = state, context, options) do
+    def terminate(server, reason, %State{} = this, context, options) do
       server.record_service_event!(:terminate, %{reason: reason}, context, options)
-      Logger.warn( fn -> server.base().banner("Terminate #{inspect state, pretty: true}\nReason: #{inspect reason}") end)
-      #state.server.disable_server!(node())
+      Logger.warn( fn -> server.base().banner("Terminate #{inspect this, pretty: true}\nReason: #{inspect reason}") end)
+      #this.server.disable_server!(node())
       :ok
     end
 
@@ -48,7 +48,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # Blocking/Lazy Initialization, Loading Strategy.
     #---------------------------------------------------------------------------
     def status(server, context), do: server.internal_call(:status, context)
-    def load(server, settings, context), do: server.internal_system_call({:load, settings}, context, %{})
+    def load(server, context, options), do: server.internal_system_call({:load, options}, context, %{})
 
     def as_cast({:reply, _reply, state}), do: {:noreply, state}
     def as_cast({:noreply, state}), do: {:noreply, state}
@@ -58,25 +58,25 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     # Internal Routing
     #---------------------------------------------------------------------------
 
-    def get_health_check(state, context, options) do
-      allocated = Supervisor.count_children(state.service.pool_supervisor())
-      events = lifecycle_events(state, MapSet.new([:start, :exit, :terminate, :timeout]), context, options)
-      state = update_health_check(state, allocated, events, context, options)
+    def get_health_check(this, context, options) do
+      allocated = Supervisor.count_children(this.service.pool_supervisor())
+      events = lifecycle_events(this, MapSet.new([:start, :exit, :terminate, :timeout]), context, options)
+      this = update_health_check(this, allocated, events, context, options)
 
       response = if options[:events] do
-        state.environment_details.effective
+        this.environment_details.effective
           |> put_in([Access.key(:events)], events)
           |> put_in([Access.key(:process)], self())
       else
-        state.environment_details.effective
+        this.environment_details.effective
           |> put_in([Access.key(:process)], self())
       end
 
-      {:reply, response, state}
+      {:reply, response, this}
     end
 
-    def lifecycle_events(state, filter, _context, _options) do
-      (Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.read!(state.environment_details.effective.identifier) || [])
+    def lifecycle_events(this, filter, _context, _options) do
+      (Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.read!(this.environment_details.effective.identifier) || [])
       |>  Enum.reduce([], fn(x, acc) ->
         if MapSet.member?(filter, x.event) do
           acc ++ [x.entity]
@@ -86,10 +86,10 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       end)
     end
 
-    def update_health_check(state, allocated, events, _context, options) do
-      status = state.environment_details.effective.status
+    def update_health_check(this, allocated, events, _context, options) do
+      status = this.environment_details.effective.status
       current_time = options[:current_time] || :os.system_time(:seconds)
-      {health_index, l_index, e_index} = health_tuple(state.environment_details.effective.definition, allocated, events, current_time)
+      {health_index, l_index, e_index} = health_tuple(this.environment_details.effective.definition, allocated, events, current_time)
       cond do
         Enum.member?([:online, :degraded, :critical], status) ->
           updated_status = cond do
@@ -100,14 +100,14 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
             health_index > 9.0 -> :degraded
             true -> :online
           end
-          state = state
-                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], updated_status)
-                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:health_index)], health_index)
-                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:allocated)], allocated)
+          this
+          |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], updated_status)
+          |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:health_index)], health_index)
+          |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:allocated)], allocated)
         true ->
-          state = state
-                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:health_index)], health_index)
-                  |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:allocated)], allocated)
+          this
+          |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:health_index)], health_index)
+          |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:allocated)], allocated)
       end
     end
 
@@ -135,58 +135,57 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       {l_factor + e_factor, l_factor, e_factor}
     end
 
-    def server_kill!(_state, _context, _options) do
+    def server_kill!(_this, _context, _options) do
         raise "FORCE_KILL"
     end
 
-
-    def lock!(state, _context, _options) do
+    def lock!(this, _context, _options) do
       # TODO obtain lock, etc. - record event?
-      state = state
+      this = this
         |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :maintenance)
         |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :locked)
-      {:reply, {:ack, state.environment_details.effective}, state}
+      {:reply, {:ack, this.environment_details.effective}, this}
     end
 
-    def release!(state, context, options) do
+    def release!(this, context, options) do
       # TODO obtain lock, etc. - record event?
-      state = state
+      this = this
               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :active)
               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
-      {_, e, state} = get_health_check(state, context, options)
-      {:reply, {:ack, e}, state}
+      {_, e, this} = get_health_check(this, context, options)
+      {:reply, {:ack, e}, this}
     end
 
     #---------------------------------------------------------------------------
     # Internal Routing - internal_call_handler
     #---------------------------------------------------------------------------
-    def internal_call_handler({:lock!, options}, context, _from, %State{} = state), do: lock!(state, context, options)
-    def internal_call_handler({:release!, options}, context, _from, %State{} = state), do: release!(state, context, options)
-    def internal_call_handler({:health_check!, health_check_options}, context, _from, %State{} = state), do: get_health_check(state, context, health_check_options)
-    def internal_call_handler({:load, options}, context, _from, %State{} = state), do: load_workers(options, context, state)
-    def internal_call_handler(call, context, _from, %State{} = state) do
-        Logger.error(fn -> {"#{__MODULE__} #{inspect state.service} unsupported call(#{inspect call})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
-      {:reply, {:error, {:unsupported, call}}, state}
+    def internal_call_handler({:lock!, options}, context, _from, %State{} = this), do: lock!(this, context, options)
+    def internal_call_handler({:release!, options}, context, _from, %State{} = this), do: release!(this, context, options)
+    def internal_call_handler({:health_check!, health_check_options}, context, _from, %State{} = this), do: get_health_check(this, context, health_check_options)
+    def internal_call_handler({:load, options}, context, _from, %State{} = this), do: load_workers(this, context, options)
+    def internal_call_handler(call, context, _from, %State{} = this) do
+        Logger.error(fn -> {"#{__MODULE__} #{inspect this.service} unsupported call(#{inspect call})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+      {:reply, {:error, {:unsupported, call}}, this}
     end
     #---------------------------------------------------------------------------
     # Internal Routing - internal_cast_handler
     #---------------------------------------------------------------------------
-    def internal_cast_handler({:server_kill!, options}, context, %State{} = state) do
-      server_kill!(state, context, options)
+    def internal_cast_handler({:server_kill!, options}, context, %State{} = this) do
+      server_kill!(this, context, options)
     end
 
-    def internal_cast_handler(call, context, %State{} = state) do
-      Logger.error(fn -> {"#{__MODULE__} #{inspect state.service} unsupported cast(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
-      {:noreply, state}
+    def internal_cast_handler(call, context, %State{} = this) do
+      Logger.error(fn -> {"#{__MODULE__} #{inspect this.service} unsupported cast(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+      {:noreply, this}
     end
 
     #---------------------------------------------------------------------------
     # Internal Routing - internal_info_handler
     #---------------------------------------------------------------------------
-    def internal_info_handler(call, context, %State{} = state) do
-        Logger.error(fn -> {"#{__MODULE__} #{inspect state.service} unsupported info(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+    def internal_info_handler(call, context, %State{} = this) do
+        Logger.error(fn -> {"#{__MODULE__} #{inspect this.service} unsupported info(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
 
-      {:noreply, state}
+      {:noreply, this}
     end
 
     #---------------------------------------------------------------------------
@@ -196,14 +195,14 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     # worker_add!()
     #------------------------------------------------
-    def worker_add!(ref, options, context, state) do
-      if Enum.member?(state.options.effective_options.features, :async_load) do
-        {:reply, state.service.worker_sup_start(ref, state.worker_supervisor, context), state}
+    def worker_add!(this, ref, context, options) do
+      if Enum.member?(this.options.effective_options.features, :async_load) do
+        {:reply, this.service.worker_sup_start(ref, context), this}
       else
-        case state.service.worker_sup_start(ref, state.worker_supervisor, context) do
+        case this.service.worker_sup_start(ref, this.worker_supervisor, context) do
           {:ok, pid} -> GenServer.cast(pid, {:s, {:load, options}, context})
-            {:reply, {:ok, pid}, state}
-          error -> {:reply, error, state}
+            {:reply, {:ok, pid}, this}
+          error -> {:reply, error, this}
         end
       end
     end
@@ -211,84 +210,82 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #------------------------------------------------
     # load_workers
     #------------------------------------------------
-    def load_workers(options, context, state) do
-      if Enum.member?(state.options.effective_options.features, :async_load) do
-        Logger.info( fn -> {state.service.base().banner("Load Workers Async"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
-        pid = spawn(fn -> load_workers_async(options, context, state) end)
-        status = %{state.status| loading: :in_progress, state: :initialization}
+    def load_workers(this, context, options) do
+      if Enum.member?(this.options.effective_options.features, :async_load) do
+        Logger.info( fn -> {this.service.base().banner("Load Workers Async"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+        pid = spawn(fn -> load_workers_async(this, context, options) end)
+        status = %{this.status| loading: :in_progress, state: :initialization}
 
-        state = state
+        this = this
                 |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :loading)
                 |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :loading)
 
-        state = %State{state| status: status, extended: Map.put(state.extended, :load_process, pid)}
-        {:reply, {:ok, :loading}, state}
+        this = %State{this| status: status, extended: Map.put(this.extended, :load_process, pid)}
+        {:reply, {:ok, :loading}, this}
       else
-        if Enum.member?(state.options.effective_options.features, :lazy_load) do
-          Logger.info(fn -> {state.service.base().banner("Lazy Load Workers #{inspect state.environment_details}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+        if Enum.member?(this.options.effective_options.features, :lazy_load) do
+          Logger.info(fn -> {this.service.base().banner("Lazy Load Workers #{inspect this.environment_details}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           # nothing to do,
-          state = state
+          this = this
                   |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
                   |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :online)
 
-          state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
-          {:reply, {:ok, :loaded}, state}
+          this = %State{this| status: %{this.status| loading: :complete, state: :ready}}
+          {:reply, {:ok, :loaded}, this}
         else
-          Logger.info(fn -> {state.service.base().banner("Load Workers"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
-          :ok = load_workers_sync(options, context, state)
-          state = state
+          Logger.info(fn -> {this.service.base().banner("Load Workers"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+          :ok = load_workers_sync(this, context, options)
+          this = this
                   |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
                   |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :online)
 
-          state = %State{state| status: %{state.status| loading: :complete, state: :ready}}
-          {:reply, {:ok, :loaded}, state}
+          this = %State{this| status: %{this.status| loading: :complete, state: :ready}}
+          {:reply, {:ok, :loaded}, this}
         end
       end
     end
 
-    def load_complete(_source, state, _context) do
-      status = %{state.status| loading: :complete, state: :ready}
-      state = state
+    def load_complete(this, _source, _context) do
+      status = %{this.status| loading: :complete, state: :ready}
+      this = this
         |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
         |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :online)
 
-      state = %State{state| status: status, extended: Map.put(state.extended, :load_process, nil)}
-      {:noreply, state}
+      this = %State{this| status: status, extended: Map.put(this.extended, :load_process, nil)}
+      {:noreply, this}
     end
 
     #------------------------------------------------
     # load_workers_async
     #------------------------------------------------
-    def load_workers_async(options, context, state) do
+    def load_workers_async(this, context, options) do
       Amnesia.Fragment.transaction do
-        load_workers_async(state.service.worker_state_entity().worker_refs(options, context, state), options, context, state)
+        load_workers_async(this, this.service.worker_state_entity().worker_refs(this, context, options), context, options)
       end
     end
-    def load_workers_async(nil, _options, context, state), do: state.service.load_complete({self(), node()}, context, state)
-    def load_workers_async(sel, options, context, state) do
+    def load_workers_async(this, nil, context, options), do: this.service.load_complete(this, {self(), node()}, context)
+    def load_workers_async(this, sel, context, options) do
       values = Amnesia.Selection.values(sel)
       for value <- values do
-        ref = state.service.ref(value)
-        worker_add!(ref, options, context, state)
+        worker_add!(this, this.service.ref(value), context, options)
       end
-      load_workers_async(Amnesia.Selection.next(sel), options, context, state)
+      load_workers_async(this, Amnesia.Selection.next(sel), context, options)
     end
 
     #------------------------------------------------
     # load_workers_sync
     #------------------------------------------------
-    def load_workers_sync(options, context, state) do
+    def load_workers_sync(this, context, options) do
       Amnesia.Fragment.transaction do
-        load_workers_sync(state.service.worker_state_entity().worker_refs(), options, context, state)
+        load_workers_sync(this, this.service.worker_state_entity().worker_refs(), context, options)
       end
     end
-    def load_workers_sync(nil, _options, _context, _state), do: :ok
-    def load_workers_sync(sel, options, context, state) do
+    def load_workers_sync(this, nil, _context, _options), do: :ok
+    def load_workers_sync(this, sel, context, options) do
       values = Amnesia.Selection.values(sel)
       for value <- values do
-        ref = state.service.ref(value)
-        worker_add!(ref, options, context, state)
+        worker_add!(this, this.service.ref(value), context, options)
       end
-      load_workers_sync(Amnesia.Selection.next(sel), options, context, state)
+      load_workers_sync(this, Amnesia.Selection.next(sel), context, options)
     end
 end

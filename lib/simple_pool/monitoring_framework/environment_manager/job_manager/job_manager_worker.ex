@@ -33,7 +33,7 @@ defmodule Noizu.Environment.JobManagerWorkerEntity do
   #-----------------------------------------------------------------------------
   def load(ref), do: load(ref, nil, nil)
   def load(ref, context), do: load(ref, nil, context)
-  def load(ref, _options, _context) do
+  def load(ref, _context, _options) do
     %__MODULE__{
       identifier: id(ref)
     }

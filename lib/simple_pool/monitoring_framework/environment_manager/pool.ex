@@ -580,7 +580,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     #----------------------------------------------------------------------------
 
     def handle_info({:DOWN, ref, :process, _process, _msg} = event, state) do
-      IO.puts "LINK MONITOR: #{inspect event, pretty: true}"
+      Logger.info "LINK MONITOR: #{inspect event, pretty: true}"
       monitors = Enum.reduce(state.environment_details.monitors, %{}, fn({k,v}, acc) ->
         if ref == v do
           Map.put(acc, k, nil)
@@ -603,7 +603,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       # @TODO load real effective PRI-1
       effective = %{}
 
-      IO.puts "INIT #{inspect definition}"
+      Logger.info "INIT #{inspect definition}"
       state = %State{
         worker_supervisor: Noizu.MonitoringFramework.EnvironmentPool.WorkerSupervisor, # @TODO should be worker_supervisor
         service: Noizu.MonitoringFramework.EnvironmentPool.Server, # @TODO should be service

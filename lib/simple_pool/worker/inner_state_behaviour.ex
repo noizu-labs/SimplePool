@@ -6,10 +6,10 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
 
   @callback load(ref :: any) ::  any
   @callback load(ref :: any, context :: any) :: any
-  @callback load(ref :: any, options :: any, context :: any) :: any
+  @callback load(ref :: any, context :: any, options :: any) :: any
 
   @callback terminate_hook(reason :: any,  Noizu.SimplePool.Worker.State.t) :: {:ok, Noizu.SimplePool.Worker.State.t}
-  @callback shutdown(Noizu.SimplePool.Worker.State.t, options :: any, context :: any, from :: any) :: {:ok | :wait, Noizu.SimplePool.Worker.State.t}
+  @callback shutdown(Noizu.SimplePool.Worker.State.t, context :: any, options :: any, from :: any) :: {:ok | :wait, Noizu.SimplePool.Worker.State.t}
   @callback worker_refs(any, any, any) :: any | nil
 
   alias Noizu.ElixirCore.OptionSettings

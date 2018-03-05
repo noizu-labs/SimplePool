@@ -4,18 +4,17 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.Server.ProviderBehaviour do
-
   #-------------------------------------------------------------------------------
   # GenServer Lifecycle
   #-------------------------------------------------------------------------------
-  @callback init(module :: Module, sup :: any, options :: Noizu.SimplePool.OptionSettings.t, any) :: any
-  @callback terminate(reason :: any, state :: Noizu.SimplePool.Server.State.t) :: any
+  @callback init(module :: Module, sup :: any, context :: any, options :: Noizu.SimplePool.OptionSettings.t) :: any
+  @callback terminate(server :: Module, reason :: any, state :: Noizu.SimplePool.Server.State.t, context :: any, options :: any) :: any
 
   #-------------------------------------------------------------------------------
   # Startup: Lazy Loading/Async Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
   #-------------------------------------------------------------------------------
   @callback status(module :: Module, context :: any) :: any
-  @callback load(module :: Module, settings :: any, context :: any) :: any
+  @callback load(module :: Module, context :: any, options :: any) :: any
   @callback load_complete(any, any, any) :: any
 
   #-------------------------------------------------------------------------------
