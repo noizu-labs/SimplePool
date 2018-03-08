@@ -262,7 +262,8 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
               end
             true ->
               options_b = put_in(options, [:dispatch_record], record)
-              case :rpc.call(host, mod, :process!, [ref, base, server, context, options_b], 5_000) do
+              timeout = options_b[:timeout] || 30_000
+              case :rpc.call(host, mod, :process!, [ref, base, server, context, options_b], timeout) do
                 {:ack, process} -> {:ack, process}
                 {:nack, details} -> {:nack, details}
                 {:error, details} -> {:error, details}

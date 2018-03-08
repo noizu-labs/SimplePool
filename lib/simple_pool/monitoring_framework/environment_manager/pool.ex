@@ -13,7 +13,6 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
   use Amnesia
   use Noizu.SimplePool.Database.MonitoringFramework.NodeTable
 
-
   defmodule Worker do
     @vsn 1.0
     use Noizu.SimplePool.WorkerBehaviour,
@@ -346,8 +345,18 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       """
       end
 
+      # include all services for any servers not in target allocation
+      unallocated = Enum.reduce(pool, %{}, fn(server, acc) ->
+        Enum.reduce(service_list, acc, fn(service, acc) ->
+           cond do
+             target_allocation[server] == nil && service_workers[server][service] -> update_in(acc, [service], &((&1 || []) ++ service_workers[server][service]))
+             true -> acc
+           end
+        end)
+      end)
+
       # first pass, strip overages into general pull
-      {unallocated, target_allocation} = Enum.reduce(target_allocation, {%{}, target_allocation}, fn({server, v}, {u, wa}) ->
+      {unallocated, target_allocation} = Enum.reduce(target_allocation, {unallocated, target_allocation}, fn({server, v}, {u, wa}) ->
         Enum.reduce(v, {u, wa}, fn({service, target}, {u2, wa2}) ->
           # 1. Grab any currently allocated.
           case service_workers[server][service] do
@@ -390,7 +399,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end)
 
       tasks = Enum.reduce(broadcast_grouping, [], fn({server, services}, acc) ->
-        acc ++ [Task.async(fn -> {server, :rpc.call(server, __MODULE__, :server_bulk_migrate!, [services, context, options])} end)]
+        acc ++ [Task.async(fn -> {server, :rpc.call(server, __MODULE__, :server_bulk_migrate!, [services, context, options], bulk_await_timeout)} end)]
       end)
 
       r = Enum.reduce(tasks, %{}, fn(task, acc) ->

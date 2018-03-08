@@ -101,11 +101,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
   def default_bulk_migrate!(mod, transfer_server, context, options) do
     tasks = if options[:sync] do
       to = options[:timeout] || 60_000
+      options_b = put_in(options, [:timeout], to)
       Enum.reduce(transfer_server, [], fn({server, refs}, acc) ->
         acc ++ [
           Task.async( fn ->
             i_tasks = Enum.reduce(refs, [], fn(ref, a2) ->
-              a2 ++ [Task.async(fn -> {ref, mod.o_call(ref, {:migrate!, ref, server, options}, context, options, to)} end)]
+              a2 ++ [Task.async(fn -> {ref, mod.o_call(ref, {:migrate!, ref, server, options_b}, context, options_b, to)} end)]
             end)
             o = for(i_task <- i_tasks) do
               Task.await(i_task)
@@ -115,11 +116,13 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         ]
       end)
     else
+      to = options[:timeout] || 60_000
+      options_b = put_in(options, [:timeout], to)
       Enum.reduce(transfer_server, [], fn({server, refs}, acc) ->
         acc ++ [
           Task.async( fn ->
             i_tasks = Enum.reduce(refs, [], fn(ref, a2) ->
-              a2 ++ [Task.async(fn -> {ref, mod.o_cast(ref, {:migrate!, ref, server, options}, context)} end)]
+              a2 ++ [Task.async(fn -> {ref, mod.o_cast(ref, {:migrate!, ref, server, options_b}, context)} end)]
             end)
             o = for(i_task <- i_tasks) do
               Task.await(i_task)
