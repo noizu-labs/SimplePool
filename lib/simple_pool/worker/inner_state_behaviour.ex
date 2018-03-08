@@ -1,3 +1,8 @@
+#-------------------------------------------------------------------------------
+# Author: Keith Brings
+# Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
+#-------------------------------------------------------------------------------
+
 defmodule Noizu.SimplePool.InnerStateBehaviour do
   require Logger
   @callback call_forwarding(call :: any, context :: any, state :: any, outer_state :: any) :: {:noreply, state :: any}

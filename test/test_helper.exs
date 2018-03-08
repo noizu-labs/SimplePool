@@ -1,3 +1,8 @@
+#-------------------------------------------------------------------------------
+# Author: Keith Brings
+# Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
+#-------------------------------------------------------------------------------
+
 ExUnit.start()
 
 alias Noizu.SimplePool.Support.TestPool
@@ -60,8 +65,3 @@ end
 
 :ok = Noizu.SimplePool.TestHelpers.unique_ref(:two)
       |> Noizu.SimplePool.TestHelpers.wait_hint_release(TestTwoPool.Server, context)
-
-
-
-
-
