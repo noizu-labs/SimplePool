@@ -102,41 +102,31 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     tasks = if options[:sync] do
       to = options[:timeout] || 60_000
       options_b = put_in(options, [:timeout], to)
-      Enum.reduce(transfer_server, [], fn({server, refs}, acc) ->
-        acc ++ [
-          Task.async( fn ->
-            i_tasks = Enum.reduce(refs, [], fn(ref, a2) ->
-              a2 ++ [Task.async(fn -> {ref, mod.o_call(ref, {:migrate!, ref, server, options_b}, context, options_b, to)} end)]
-            end)
-            o = for(i_task <- i_tasks) do
-              Task.await(i_task)
-            end
-            {server, o}
-          end)
-        ]
-      end)
+
+      Task.async_stream(transfer_server, fn({server, refs}) ->
+        o = Task.async_stream(refs, fn(ref) ->
+          {ref, mod.o_call(ref, {:migrate!, ref, server, options_b}, context, options_b, to)}
+        end)
+        {server, o}
+      end, timeout: to)
     else
       to = options[:timeout] || 60_000
       options_b = put_in(options, [:timeout], to)
-      Enum.reduce(transfer_server, [], fn({server, refs}, acc) ->
-        acc ++ [
-          Task.async( fn ->
-            i_tasks = Enum.reduce(refs, [], fn(ref, a2) ->
-              a2 ++ [Task.async(fn -> {ref, mod.o_cast(ref, {:migrate!, ref, server, options_b}, context)} end)]
-            end)
-            o = for(i_task <- i_tasks) do
-              Task.await(i_task)
-            end
-            {server, o}
-          end)
-        ]
-      end)
+      Task.async_stream(transfer_server, fn({server, refs}) ->
+        o = Task.async_stream(refs, fn(ref) ->
+          {ref, mod.o_cast(ref, {:migrate!, ref, server, options_b}, context)}
+        end)
+        {server, o}
+      end, timeout: to)
     end
 
-    r = Enum.reduce(tasks, %{}, fn(task, acc) ->
-      {server, outcome} = Task.await(task)
-      put_in(acc, [server], outcome)
+    r = Enum.reduce(tasks, %{}, fn(task_outcome, acc) ->
+      case task_outcome do
+        {:ok, {server, outcome}} -> put_in(acc, [server], outcome)
+        error -> acc
+      end
     end)
+
     {:ack, r}
   end
 
