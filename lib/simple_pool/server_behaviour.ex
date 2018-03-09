@@ -157,6 +157,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     end
   end
 
+
   #-------------------------------------------------------------------------
   # s_call unsafe implementations
   #-------------------------------------------------------------------------

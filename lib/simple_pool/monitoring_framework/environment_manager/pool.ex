@@ -403,10 +403,12 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end)
 
       r = Enum.reduce(tasks, %{}, fn(task, acc) ->
-        {server, outcome} = Task.await(task, bulk_await_timeout)
-        put_in(acc, [server], outcome)
+        case Task.await(task, await_timeout) do
+          {service, {:ack, outcome}} ->         o = Enum.reduce(outcome, [], fn({_k, v},a) -> a ++ (v|> Enum.to_list) end)
+                                                put_in(acc, [service], o)
+          _ -> acc
+        end
       end)
-      {:ack, r}
     end
 
 
