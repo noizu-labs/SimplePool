@@ -107,7 +107,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         o = Task.async_stream(refs, fn(ref) ->
           {ref, mod.o_call(ref, {:migrate!, ref, server, options_b}, context, options_b, to)}
         end, timeout: to)
-        {server, o}
+        {server, o |> Enum.to_list()}
       end, timeout: to)
     else
       to = options[:timeout] || 60_000
@@ -116,7 +116,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         o = Task.async_stream(refs, fn(ref) ->
           {ref, mod.o_cast(ref, {:migrate!, ref, server, options_b}, context)}
         end, timeout: to)
-        {server, o}
+        {server, o |> Enum.to_list()}
       end, timeout: to)
     end
 
