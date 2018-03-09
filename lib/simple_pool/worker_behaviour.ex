@@ -52,7 +52,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     #server.worker_lookup_handler().register!(ref, context)
      # br = :os.system_time(:millisecond)
       server.worker_lookup_handler().register!(ref, context)
-      task = server.worker_lookup_handler().set_node!(ref, context)
+
       #r = Task.yield(task, 50)
       #ar = :os.system_time(:millisecond)
       #td = ar - br
@@ -62,7 +62,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       #  td > 15 -> Logger.info(fn -> {base.banner("[Reg Time] - Slow #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
       #  true -> :ok
       #end
-    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task: task}, initialized: :delayed_init, worker_ref: ref, inner_state: {:transfer, initial_state}}}
+    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task: nil}, initialized: :delayed_init, worker_ref: ref, inner_state: {:transfer, initial_state}}}
   end
 
   def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, {ref, context}) do
@@ -71,7 +71,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
     # Temp debug code
     #br = :os.system_time(:millisecond)
     server.worker_lookup_handler().register!(ref, context)
-    task = server.worker_lookup_handler().set_node!(ref, context)
+
       #r = Task.yield(task, 505)
       #ar = :os.system_time(:millisecond)
       #td = ar - br
@@ -81,11 +81,12 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       #  td > 45 -> Logger.info(fn -> {base.banner("[Reg Time Inner] - Slow #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
       #  true -> :ok
       #end
-    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task:  task}, initialized: :delayed_init, worker_ref: ref, inner_state: :start}}
+    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task:  nil}, initialized: :delayed_init, worker_ref: ref, inner_state: :start}}
   end
 
   def default_delayed_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, state, context) do
     ref = state.worker_ref
+    task = server.worker_lookup_handler().set_node!(ref, context)
     ustate = case state.inner_state do
       # @TODO - investigate strategies for avoiding keeping full state in child def. Aka put into state that accepts a transfer/reads a transfer form a table, etc.
       {:transfer, {:state, initial_state, :time, time}} ->
