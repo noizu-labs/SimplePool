@@ -106,7 +106,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       Task.async_stream(transfer_server, fn({server, refs}) ->
         o = Task.async_stream(refs, fn(ref) ->
           {ref, mod.o_call(ref, {:migrate!, ref, server, options_b}, context, options_b, to)}
-        end)
+        end, timeout: to)
         {server, o}
       end, timeout: to)
     else
@@ -115,7 +115,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       Task.async_stream(transfer_server, fn({server, refs}) ->
         o = Task.async_stream(refs, fn(ref) ->
           {ref, mod.o_cast(ref, {:migrate!, ref, server, options_b}, context)}
-        end)
+        end, timeout: to)
         {server, o}
       end, timeout: to)
     end
