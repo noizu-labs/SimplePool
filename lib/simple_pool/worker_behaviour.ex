@@ -50,40 +50,38 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   def default_init({mod, server, base, worker_state_entity, inactivity_check, _lazy_load}, {:migrate, ref, initial_state, context}) do
     #server.worker_lookup_handler().set_node!(ref, context)
     #server.worker_lookup_handler().register!(ref, context)
-      br = :os.system_time(:millisecond)
+     # br = :os.system_time(:millisecond)
       server.worker_lookup_handler().register!(ref, context)
       task = server.worker_lookup_handler().set_node!(ref, context)
-      r = Task.yield(task, 50)
-      ar = :os.system_time(:millisecond)
-      td = ar - br
-      cond do
-        td > 50 -> Logger.error(fn -> {base.banner("[Reg Time] - Critical #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-        td > 25 -> Logger.warn(fn -> {base.banner("[Reg Time] - Delayed #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-        td > 15 -> Logger.info(fn -> {base.banner("[Reg Time] - Slow #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-        true -> :ok
-      end
-    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task: r || task}, initialized: :delayed_init, worker_ref: ref, inner_state: {:transfer, initial_state}}}
+      #r = Task.yield(task, 50)
+      #ar = :os.system_time(:millisecond)
+      #td = ar - br
+      #cond do
+      #  td > 50 -> Logger.error(fn -> {base.banner("[Reg Time] - Critical #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+      #  td > 25 -> Logger.warn(fn -> {base.banner("[Reg Time] - Delayed #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+      #  td > 15 -> Logger.info(fn -> {base.banner("[Reg Time] - Slow #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+      #  true -> :ok
+      #end
+    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task: task}, initialized: :delayed_init, worker_ref: ref, inner_state: {:transfer, initial_state}}}
   end
 
   def default_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, {ref, context}) do
     #server.worker_lookup_handler().set_node!(ref, context)
     #server.worker_lookup_handler().register!(ref, context)
     # Temp debug code
-    br = :os.system_time(:millisecond)
+    #br = :os.system_time(:millisecond)
     server.worker_lookup_handler().register!(ref, context)
     task = server.worker_lookup_handler().set_node!(ref, context)
-      r = Task.yield(task, 505)
-      ar = :os.system_time(:millisecond)
-      td = ar - br
-      cond do
-        td > 500 -> Logger.error(fn -> {base.banner("[Reg Time Inner] - Critical #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-        td > 100 -> Logger.warn(fn -> {base.banner("[Reg Time Inner] - Delayed #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-        td > 45 -> Logger.info(fn -> {base.banner("[Reg Time Inner] - Slow #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-        true -> :ok
-      end
-
-
-    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task: r || task}, initialized: :delayed_init, worker_ref: ref, inner_state: :start}}
+      #r = Task.yield(task, 505)
+      #ar = :os.system_time(:millisecond)
+      #td = ar - br
+      #cond do
+      #  td > 500 -> Logger.error(fn -> {base.banner("[Reg Time Inner] - Critical #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+      #  td > 100 -> Logger.warn(fn -> {base.banner("[Reg Time Inner] - Delayed #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+      #  td > 45 -> Logger.info(fn -> {base.banner("[Reg Time Inner] - Slow #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+      #  true -> :ok
+      #end
+    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task:  task}, initialized: :delayed_init, worker_ref: ref, inner_state: :start}}
   end
 
   def default_delayed_init({mod, server, base, worker_state_entity, inactivity_check, lazy_load}, state, context) do
