@@ -12,7 +12,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
   @callback start_link(any, any) :: any
   @callback start_children(any, any, any) :: any
 
-  @methods ([:start_link, :start_children, :init, :verbose, :options, :option_settings])
+  @methods ([:start_link, :start_children, :init, :verbose, :options, :option_settings, :start_worker_supervisors])
 
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -91,7 +91,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       if (unquote(required.start_link)) do
         def start_link(context, definition \\ :auto) do
           if verbose() do
-            Logger.info(fn -> {@base.banner("#{__MODULE__}.start_link"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+            Logger.info(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__}.start_link", "args: #{inspect %{context: context, definition: definition}} "), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
 
           case Supervisor.start_link(__MODULE__, [context], [{:name, __MODULE__}, {:restart, :permanent}]) do
@@ -112,66 +112,71 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
         def start_children(sup, context, definition) do
           if verbose() do
             Logger.info(fn -> {
-              @base.banner(
-                """
+                              Noizu.SimplePool.Behaviour.banner("#{__MODULE__}.start_children",
+                                  """
 
-                #{__MODULE__} START_CHILDREN
-                Options: #{inspect options()}
-                worker_supervisor: #{@worker_supervisor}
-                worker_server: #{@pool_server}
-                definition: #{inspect definition}
-                """),
-                               Noizu.ElixirCore.CallingContext.metadata(context)
-                             }
+                                  #{__MODULE__} START_CHILDREN
+                                  Options: #{inspect options()}
+                                  worker_supervisor: #{@worker_supervisor}
+                                  worker_server: #{@pool_server}
+                                  definition: #{inspect definition}
+                                  """),
+                                Noizu.ElixirCore.CallingContext.metadata(context)
+                              }
             end)
           end
-
-          case Supervisor.start_child(sup, supervisor(@worker_supervisor, [definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)] )) do
-            {:ok, _pool_supervisor} ->
-
-              case Supervisor.start_child(sup, worker(@pool_server, [@worker_supervisor, definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)])) do
-                {:ok, pid} -> {:ok, pid}
-                {:error, {:already_started, process2_id}} ->
-                  Supervisor.restart_child(__MODULE__, process2_id)
-                error ->
-                  Logger.error(fn ->
-                         {
-                    """
-
-                    #{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
-                    #{inspect error}
-                    """, Noizu.ElixirCore.CallingContext.metadata(context)}
-                  end)
-              end
-
-            {:error, {:already_started, process_id}} ->
-              case Supervisor.restart_child(__MODULE__, process_id) do
-                {:ok, pid} -> {:ok, pid}
-                error ->
-                  Logger.info(fn ->{
-                    """
-
-                    #{__MODULE__}.start_children(3) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
-                    #{inspect error}
-                    """, Noizu.ElixirCore.CallingContext.metadata(context)}
-                                                                    end)
-              end
-
+          o = start_worker_supervisors(sup, definition, context)
+          case Supervisor.start_child(sup, worker(@pool_server, [:deprecated, definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)])) do
+            {:ok, pid} -> {:ok, pid}
+            {:error, {:already_started, process2_id}} ->
+              Supervisor.restart_child(__MODULE__, process2_id)
             error ->
-              Logger.info(fn -> {
-                """
+              Logger.error(fn ->
+                {
+                  """
 
-                #{__MODULE__}.start_children(4) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
-                #{inspect error}
-                """, Noizu.ElixirCore.CallingContext.metadata(context)}
+                  #{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
+                  #{inspect error}
+                  """, Noizu.ElixirCore.CallingContext.metadata(context)}
               end)
           end
+        end # end start_children
+      end # end if required
 
-          # Lazy Load Children Load Children
-          @pool_server.load(context, nil)
-        end
-      end # end start_children
 
+      if (unquote(required.start_worker_supervisors)) do
+        def start_worker_supervisors(sup, definition, context) do
+          supervisors = @pool_server.available_supervisors()
+          for s <- supervisors do
+
+            case Supervisor.start_child(sup, supervisor(s, [definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)] )) do
+              {:ok, _pool_supervisor} ->  :ok
+              {:error, {:already_started, process_id}} ->
+                case Supervisor.restart_child(__MODULE__, process_id) do
+                  {:ok, pid} -> :ok
+                  error ->
+                    Logger.info(fn ->{
+                                       """
+
+                                       #{__MODULE__}.start_children(3) #{inspect s} Already Started. Handling unexepected state.
+                                       #{inspect error}
+                                       """, Noizu.ElixirCore.CallingContext.metadata(context)}
+                    end)
+                    :error
+                end
+              error ->
+                Logger.info(fn -> {
+                                    """
+
+                                    #{__MODULE__}.start_children(4) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
+                                    #{inspect error}
+                                    """, Noizu.ElixirCore.CallingContext.metadata(context)}
+                end)
+                :error
+            end # end case
+          end # end for
+        end # end start_worker_supervisors
+      end # end if required
 
       # @init
       if (unquote(required.init)) do

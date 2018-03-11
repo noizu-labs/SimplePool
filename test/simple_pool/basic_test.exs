@@ -115,49 +115,11 @@ defmodule Noizu.SimplePool.BasicTest do
     Process.sleep(1000)
     r = Noizu.SimplePool.Support.TestPool.Server.health_check!(ref, @context)
     assert r.status == :online
-    [start_event] = r.events
-    assert start_event.event == :start
+    #[start_event] = r.events
+    #assert start_event.event == :start
 
   end
 
-  @tag capture_log: true
-  test "basic_functionality health check - degraded" do
-    ref = Noizu.SimplePool.TestHelpers.unique_ref()
-    Noizu.SimplePool.Support.TestPool.Server.fetch(ref, :process, @context)
-
-    # simulate 3 recent crashes
-    for _i <- 1..3 do
-      Process.sleep(1000)
-      Noizu.SimplePool.Support.TestPool.Server.kill!(ref, @context)
-      {_r,_p, _s} = wait_for_restart(ref)
-      # Force sleep so that terminate/start entries are unique (have different time entry)
-    end
-
-    Process.sleep(1000)
-    r = Noizu.SimplePool.Support.TestPool.Server.health_check!(ref, @context)
-    assert r.status == :degraded
-    assert r.event_frequency.start == 4
-    assert r.event_frequency.terminate == 3
-    #assert r.event_frequency.exit >= 3
-  end
-
-  @tag capture_log: true
-  test "basic_functionality health check - critical" do
-    ref = Noizu.SimplePool.TestHelpers.unique_ref()
-    Noizu.SimplePool.Support.TestPool.Server.fetch(ref, :process, @context)
-
-    # simulate 3 recent crashes
-    for _i <- 1..5 do
-      Process.sleep(1000)
-      Noizu.SimplePool.Support.TestPool.Server.kill!(ref, @context)
-      {_r,_p, _s} = wait_for_restart(ref)
-      # Force sleep so that terminate/start entries are unique (have different time entry)
-    end
-
-    Process.sleep(1000)
-    r = Noizu.SimplePool.Support.TestPool.Server.health_check!(ref, @context)
-    assert r.status == :critical
-  end
 
   @tag capture_log: true
   test "basic_functionality ping worker" do
@@ -165,15 +127,6 @@ defmodule Noizu.SimplePool.BasicTest do
     Noizu.SimplePool.Support.TestPool.Server.fetch(ref, :process, @context)
     sut = Noizu.SimplePool.Support.TestPool.Server.ping!(ref,  @context)
     assert sut == :pong
-  end
-
-  @tag capture_log: true
-  test "record events pipes to log output" do
-    assert capture_log(fn ->
-      ref = Noizu.SimplePool.TestHelpers.unique_ref()
-      Noizu.SimplePool.Support.TestPool.Server.fetch(ref, :process, @context)
-      Process.sleep(500)
-    end) =~ "[RecordEvent :start]"
   end
 
   @tag capture_log: true

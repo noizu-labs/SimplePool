@@ -96,6 +96,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
         def start_link(definition, context) do
           if verbose() do
             Logger.info(fn -> {@base.banner("#{__MODULE__}.start_link"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+            :skip
           end
           Supervisor.start_link(__MODULE__, [definition, context], [{:name, __MODULE__}])
         end

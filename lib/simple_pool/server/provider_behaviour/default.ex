@@ -11,20 +11,20 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
     # GenServer Lifecycle
     #---------------------------------------------------------------------------
-    def init(server, sup, definition, context, options) do
+    def init(server, _sup, definition, context, options) do
       #server.enable_server!(node())
 
       # TODO load real effective
       effective = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
         identifier: {node(), server.base()},
         time_stamp: DateTime.utc_now(),
-        status: :offline,
+        status: :online,
         directive: :init,
         definition: definition,
       }
 
       state = %State{
-          worker_supervisor: sup,
+          worker_supervisor: :deprecated,
           service: server,
           status_details: :pending,
           extended: %{},
@@ -59,7 +59,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
 
     def get_health_check(this, context, options) do
-      allocated = Supervisor.count_children(this.service.pool_supervisor())
+      allocated = this.service.count_supervisor_chidren()
       events = lifecycle_events(this, MapSet.new([:start, :exit, :terminate, :timeout]), context, options)
       this = update_health_check(this, allocated, events, context, options)
 
@@ -199,7 +199,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
       if Enum.member?(this.options.effective_options.features, :async_load) do
         {:reply, this.service.worker_sup_start(ref, context), this}
       else
-        case this.service.worker_sup_start(ref, this.worker_supervisor, context) do
+        case this.service.worker_sup_start(ref, :deprecated, context) do
           {:ok, pid} -> GenServer.cast(pid, {:s, {:load, options}, context})
             {:reply, {:ok, pid}, this}
           error -> {:reply, error, this}
@@ -263,7 +263,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
         load_workers_async(this, this.service.worker_state_entity().worker_refs(this, context, options), context, options)
       end
     end
-    def load_workers_async(this, nil, context, options), do: this.service.load_complete(this, {self(), node()}, context)
+    def load_workers_async(this, nil, context, _options), do: this.service.load_complete(this, {self(), node()}, context)
     def load_workers_async(this, sel, context, options) do
       values = Amnesia.Selection.values(sel)
       for value <- values do
@@ -280,7 +280,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
         load_workers_sync(this, this.service.worker_state_entity().worker_refs(), context, options)
       end
     end
-    def load_workers_sync(this, nil, _context, _options), do: :ok
+    def load_workers_sync(_this, nil, _context, _options), do: :ok
     def load_workers_sync(this, sel, context, options) do
       values = Amnesia.Selection.values(sel)
       for value <- values do

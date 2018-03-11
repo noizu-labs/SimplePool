@@ -64,26 +64,12 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
     assert hint_3_keys == [{:"first@127.0.0.1", Noizu.SimplePool.Support.TestThreePool}, {:"second@127.0.0.1", Noizu.SimplePool.Support.TestThreePool}]
   end
 
-  @tag capture_log: true
-  test "service events" do
-    ref = Noizu.SimplePool.TestHelpers.unique_ref(:two)
-    TestTwoPool.Server.test_s_call!(ref, :bannana, @context)
-    TestTwoPool.Server.kill!(ref, @context)
-    Process.sleep(100)
-    [start_event, terminate_event] = Noizu.SimplePool.Database.Dispatch.MonitorTable.read!(ref)
-    assert start_event.event == :start
-    assert terminate_event.event == :terminate
 
-    service_events = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.read!({:"second@127.0.0.1", Noizu.SimplePool.Support.TestTwoPool})
-    start_event = List.first(service_events)
-    assert start_event.entity.identifier == :start
-
-  end
 
   @tag capture_log: true
   test "service health_check" do
     health_check = TestPool.Server.service_health_check!(@context)
-    assert health_check.status == :online
+    assert Enum.member?([:online, :degraded, :critical], health_check.status)
     assert health_check.health_index > 0
     assert health_check.health_index < 4
   end
@@ -165,7 +151,7 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
 
 
   @tag :rebalance
-  @tag capture_log: true
+  @tag capture_log: false
   test "rebalance server" do
 
     for _i <- 0 .. 200 do

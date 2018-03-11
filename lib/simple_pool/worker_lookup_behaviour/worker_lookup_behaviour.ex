@@ -100,7 +100,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
       m.get!(ref, context)
     end
 
-    def default_set_node!({mod, d, _m, _sm, r}, ref, context, options \\ %{}) do
+    def default_set_node!({mod, d, _m, _sm, _r}, ref, context, options \\ %{}) do
       Task.async(fn ->
                     case d.get!(ref, context, options) do
                       nil -> :unexpected
@@ -360,6 +360,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
           def process!(ref, base, server, context), do: default_process!(@pass_thru, ref, base, server, context)
           def process!(ref, base, server, context, options), do: default_process!(@pass_thru, ref, base, server, context, options)
         end
+
       end
     end
 

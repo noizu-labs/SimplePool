@@ -25,7 +25,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :service_health_check!, :health_check!, :get_direct_link!, :s_call_unsafe, :s_cast_unsafe, :rs_call!,
               :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
               :link_forward!, :record_service_event!, :lock!, :release!, :status_wait, :entity_status,
-              :bulk_migrate!, :o_call, :o_cast
+              :bulk_migrate!, :o_call, :o_cast,
+
+              :active_supervisors, :supervisor_by_index, :available_supervisors, :current_supervisor, :count_supervisor_chidren
             ])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -94,7 +96,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     end
   end
 
-
   #-------------------------------------------------------------------------
   # default_bulk_migrate!
   #-------------------------------------------------------------------------
@@ -104,26 +105,27 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       options_b = put_in(options, [:timeout], to)
 
       Task.async_stream(transfer_server, fn({server, refs}) ->
-        o = Task.async_stream(refs, fn(ref) ->
-          {ref, mod.o_call(ref, {:migrate!, ref, server, options_b}, context, options_b, to)}
-        end, timeout: to)
-        {server, o |> Enum.to_list()}
+                                           o = Task.async_stream(refs, fn(ref) ->
+                                                                         {ref, mod.o_call(ref, {:migrate!, ref, server, options_b}, context, options_b, to)}
+                                           end, timeout: to)
+                                           {server, o |> Enum.to_list()}
       end, timeout: to)
     else
       to = options[:timeout] || 60_000
       options_b = put_in(options, [:timeout], to)
       Task.async_stream(transfer_server, fn({server, refs}) ->
-        o = Task.async_stream(refs, fn(ref) ->
-          {ref, mod.o_cast(ref, {:migrate!, ref, server, options_b}, context)}
-        end, timeout: to)
-        {server, o |> Enum.to_list()}
+                                           o = Task.async_stream(refs, fn(ref) ->
+                                                                         {ref, mod.o_cast(ref, {:migrate!, ref, server, options_b}, context)}
+                                           end, timeout: to)
+                                           {server, o |> Enum.to_list()}
       end, timeout: to)
     end
 
     r = Enum.reduce(tasks, %{}, fn(task_outcome, acc) ->
       case task_outcome do
-        {:ok, {server, outcome}} -> put_in(acc, [server], outcome)
-        error -> acc
+        {:ok, {server, outcome}} ->
+          put_in(acc, [server], outcome)
+        _error -> acc
       end
     end)
 
@@ -250,7 +252,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             try do
               if log_timeout do
                 worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
-                else
+              else
                 Logger.warn fn -> base.banner("#{mod}.s_cast! - timeout.\n call: #{inspect extended_call}") end
 
               end
@@ -302,7 +304,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             try do
               if log_timeout do
                 worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
-                else
+              else
                 Logger.warn fn -> base.banner("#{mod}.s_call - timeout.\n call: #{inspect extended_call}") end
               end
 
@@ -520,7 +522,31 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       use GenServer
       @base (Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat)
       @worker (Module.concat([@base, "Worker"]))
-      @worker_supervisor (Module.concat([@base, "WorkerSupervisor"]))
+      @worker_supervisor (Module.concat([@base, "WorkerSupervisor_S1"]))
+
+      @worker_supervisors %{
+        1 => Module.concat([@base, "WorkerSupervisor_S1"]),
+        2 => Module.concat([@base, "WorkerSupervisor_S2"]),
+        3 => Module.concat([@base, "WorkerSupervisor_S3"]),
+        4 => Module.concat([@base, "WorkerSupervisor_S4"]),
+        5 => Module.concat([@base, "WorkerSupervisor_S5"]),
+        6 => Module.concat([@base, "WorkerSupervisor_S6"]),
+        7 => Module.concat([@base, "WorkerSupervisor_S7"]),
+        8 => Module.concat([@base, "WorkerSupervisor_S8"]),
+        9 => Module.concat([@base, "WorkerSupervisor_S9"]),
+        10 => Module.concat([@base, "WorkerSupervisor_S10"]),
+        11 => Module.concat([@base, "WorkerSupervisor_S11"]),
+        12 => Module.concat([@base, "WorkerSupervisor_S12"]),
+        13 => Module.concat([@base, "WorkerSupervisor_S13"]),
+        14 => Module.concat([@base, "WorkerSupervisor_S14"]),
+        15 => Module.concat([@base, "WorkerSupervisor_S15"]),
+        16 => Module.concat([@base, "WorkerSupervisor_S16"]),
+        17 => Module.concat([@base, "WorkerSupervisor_S17"]),
+        18 => Module.concat([@base, "WorkerSupervisor_S18"]),
+        19 => Module.concat([@base, "WorkerSupervisor_S19"]),
+        20 => Module.concat([@base, "WorkerSupervisor_S20"]),
+      }
+
       @server (__MODULE__)
       @pool_supervisor (Module.concat([@base, "PoolSupervisor"]))
       @pool_async_load (unquote(Map.get(options, :async_load, false)))
@@ -545,6 +571,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @default_definition @options.default_definition
 
       @graceful_stop unquote(MapSet.member?(features, :graceful_stop))
+
 
       if (unquote(required.verbose)) do
         def verbose(), do: default_verbose(@base_verbose, @base)
@@ -585,6 +612,56 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       #=========================================================================
+      # Multiple Supervisor Updated
+      #=========================================================================
+      if unquote(required.count_supervisor_chidren) do
+        def count_supervisor_chidren() do
+          Enum.reduce(available_supervisors(), %{active: 0, specs: 0, supervisors: 0, workers: 0}, fn(s, acc) ->
+            u = Supervisor.count_children(s)
+            %{acc| active: acc.active + u.active, specs: acc.specs + u.specs, supervisors: acc.supervisors + u.supervisors, workers: acc.workers + u.workers}
+          end)
+        end
+      end
+
+      if unquote(required.active_supervisors) do
+        def active_supervisors() do
+          e =  Application.get_env(:noizu_simple_pool, :num_supervisors, %{})
+          num_supervisors = e[@base] || e[:default] || 1
+        end
+      end
+
+      if unquote(required.supervisor_by_index) do
+        def supervisor_by_index(index) do
+          @worker_supervisors[index]
+        end
+      end
+
+      if unquote(required.available_supervisors) do
+        def available_supervisors() do
+          Map.values(@worker_supervisors)
+        end
+      end
+
+      if unquote(required.current_supervisor) do
+        def current_supervisor(ref) do
+          num_supervisors = active_supervisors()
+          if num_supervisors == 1 do
+            @worker_supervisor
+          else
+            hint = @worker_state_entity.supervisor_hint(ref)
+            num_supervisors = active_supervisors()
+            # The logic is designed so that the selected supervisor only changes for a subset of items when adding new supervisors
+            # So that, for example, when going from 5 to 6 supervisors only a 6th of entries will be re-assigned to the new bucket.
+            index = Enum.reduce(1 .. num_supervisors, 1, fn(x, acc) ->
+              n = rem(hint, x) + 1
+              (n == x) && n || acc
+            end)
+            supervisor_by_index(index)
+          end
+        end
+      end
+
+      #=========================================================================
       # Genserver Lifecycle
       #=========================================================================
       if unquote(required.start_link) do
@@ -601,16 +678,16 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             end
             definition
           end
-          GenServer.start_link(__MODULE__, [@worker_supervisor, definition, context], name: __MODULE__, restart: :permanent)
+          GenServer.start_link(__MODULE__, [:deprecated, definition, context], name: __MODULE__, restart: :permanent)
         end
       end # end start_link
 
       if (unquote(required.init)) do
-        def init([sup, definition, context] = args) do
+        def init([_sup, definition, context] = args) do
           if verbose() do
             Logger.info(fn -> {@base.banner("INIT #{__MODULE__} (#{inspect @worker_supervisor}@#{inspect self()})\n args: #{inspect args, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end
-          @server_provider.init(__MODULE__, @worker_supervisor, definition, context, option_settings())
+          @server_provider.init(__MODULE__, :deprecated, definition, context, option_settings())
         end
       end # end init
 
@@ -636,8 +713,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.worker_sup_start)) do
         def worker_sup_start(ref, transfer_state, context) do
-          childSpec = @worker_supervisor.child(ref, transfer_state, context)
-          case Supervisor.start_child(@worker_supervisor, childSpec) do
+
+          worker_sup = current_supervisor(ref)
+
+          childSpec = worker_sup.child(ref, transfer_state, context)
+          case Supervisor.start_child(worker_sup, childSpec) do
             {:ok, pid} -> {:ack, pid}
             {:error, {:already_started, pid}} ->
               timeout = @timeout
@@ -649,8 +729,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             {:error, :already_present} ->
               # We may no longer simply restart child as it may have been initilized
               # With transfer_state and must be restarted with the correct context.
-              Supervisor.delete_child(@worker_supervisor, ref)
-              case Supervisor.start_child(@worker_supervisor, childSpec) do
+              Supervisor.delete_child(worker_sup, ref)
+              case Supervisor.start_child(worker_sup, childSpec) do
                 {:ok, pid} -> {:ack, pid}
                 {:error, {:already_started, pid}} -> {:ack, pid}
                 error -> error
@@ -660,16 +740,17 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end # endstart/3
 
         def worker_sup_start(ref, context) do
-          childSpec = @worker_supervisor.child(ref, context)
-          case Supervisor.start_child(@worker_supervisor, childSpec) do
+          worker_sup = current_supervisor(ref)
+          childSpec = worker_sup.child(ref, context)
+          case Supervisor.start_child(worker_sup, childSpec) do
             {:ok, pid} -> {:ack, pid}
             {:error, {:already_started, pid}} ->
               {:ack, pid}
             {:error, :already_present} ->
               # We may no longer simply restart child as it may have been initilized
               # With transfer_state and must be restarted with the correct context.
-              Supervisor.delete_child(@worker_supervisor, ref)
-              case Supervisor.start_child(@worker_supervisor, childSpec) do
+              Supervisor.delete_child(worker_sup, ref)
+              case Supervisor.start_child(worker_sup, childSpec) do
                 {:ok, pid} -> {:ack, pid}
                 {:error, {:already_started, pid}} -> {:ack, pid}
                 error -> error
@@ -681,19 +762,21 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       if (unquote(required.worker_sup_terminate)) do
         def worker_sup_terminate(ref, sup, context, options \\ %{}) do
-          Supervisor.terminate_child(@worker_supervisor, ref)
-          Supervisor.delete_child(@worker_supervisor, ref)
+          worker_sup = current_supervisor(ref)
+          Supervisor.terminate_child(worker_sup, ref)
+          Supervisor.delete_child(worker_sup, ref)
         end # end remove/3
       end
 
       if (unquote(required.worker_sup_remove)) do
-        def worker_sup_remove(ref, sup, context, options \\ %{}) do
+        def worker_sup_remove(ref, _sup, context, options \\ %{}) do
           g = if Map.has_key?(options, :graceful_stop), do: options[:graceful_stop], else: @graceful_stop
           if g do
             s_call(ref, {:shutdown, [force: true]}, context, options, @shutdown_timeout)
           end
-          Supervisor.terminate_child(@worker_supervisor, ref)
-          Supervisor.delete_child(@worker_supervisor, ref)
+          worker_sup = current_supervisor(ref)
+          Supervisor.terminate_child(worker_sup, ref)
+          Supervisor.delete_child(worker_sup, ref)
         end # end remove/3
       end
 
@@ -763,7 +846,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def r_remove!(ref, context, options) do
           options_b = put_in(options, [:lock], %{type: :reap, for: 60})
           case @worker_lookup_handler.obtain_lock!(ref, context, options) do
-            {:ack, _lock} -> worker_sup_remove(ref, @worker_supervisor, context, options)
+            {:ack, _lock} -> worker_sup_remove(ref, :deprecated, context, options)
             o -> o
           end
         end
@@ -777,7 +860,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def r_terminate!(ref, context, options) do
           options_b = put_in(options, [:lock], %{type: :reap, for: 60})
           case @worker_lookup_handler.obtain_lock!(ref, context, options) do
-            {:ack, _lock} -> worker_sup_terminate(ref, @worker_supervisor, context, options)
+            {:ack, _lock} -> worker_sup_terminate(ref, :deprecated, context, options)
             o -> o
           end
         end
@@ -816,7 +899,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.accept_transfer!) do
         def accept_transfer!(ref, state, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           options_b = options
-            |> put_in([:lock], %{type: :transfer})
+                      |> put_in([:lock], %{type: :transfer})
           case @worker_lookup_handler.obtain_lock!(ref, context, options_b) do
             {:ack, lock} ->
               case worker_sup_start(ref, state, context) do
@@ -824,7 +907,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                   {:ack, pid}
                 o -> {:error, {:worker_sup_start, o}}
               end
-             o -> {:error, {:get_lock, o}}
+            o -> {:error, {:get_lock, o}}
           end
         end
       end
@@ -838,83 +921,61 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.status_wait) do
-      def status_wait(target_state, context, timeout \\ :infinity)
-      def status_wait(target_state, context, timeout) when is_atom(target_state) do
-        status_wait(MapSet.new([target_state]), context, timeout)
-      end
+        def status_wait(target_state, context, timeout \\ :infinity)
+        def status_wait(target_state, context, timeout) when is_atom(target_state) do
+          status_wait(MapSet.new([target_state]), context, timeout)
+        end
 
-      def status_wait(target_state, context, timeout) when is_list(target_state) do
-        status_wait(MapSet.new(target_state), context, timeout)
-      end
+        def status_wait(target_state, context, timeout) when is_list(target_state) do
+          status_wait(MapSet.new(target_state), context, timeout)
+        end
 
-      def status_wait(%MapSet{} = target_state, context, timeout) do
-        if timeout == :infinity do
-          case entity_status(context) do
-            {:ack, state} -> if MapSet.member?(target_state, state), do: state, else: status_wait(target_state, context, timeout)
-            _ -> status_wait(target_state, context, timeout)
-          end
-        else
-          ts = :os.system_time(:millisecond)
-          case entity_status(context, %{timeout: timeout}) do
+        def status_wait(%MapSet{} = target_state, context, timeout) do
+          if timeout == :infinity do
+            case entity_status(context) do
+              {:ack, state} -> if MapSet.member?(target_state, state), do: state, else: status_wait(target_state, context, timeout)
+              _ -> status_wait(target_state, context, timeout)
+            end
+          else
+            ts = :os.system_time(:millisecond)
+            case entity_status(context, %{timeout: timeout}) do
 
-            {:ack, state} ->
-              if MapSet.member?(target_state, state) do
-                state
-              else
+              {:ack, state} ->
+                if MapSet.member?(target_state, state) do
+                  state
+                else
+                  t = timeout - (:os.system_time(:millisecond) - ts)
+                  if t > 0 do
+                    status_wait(target_state, context, t)
+                  else
+                    {:timeout, state}
+                  end
+                end
+              v ->
                 t = timeout - (:os.system_time(:millisecond) - ts)
                 if t > 0 do
                   status_wait(target_state, context, t)
                 else
-                  {:timeout, state}
+                  {:timeout, v}
                 end
-              end
-            v ->
-              t = timeout - (:os.system_time(:millisecond) - ts)
-              if t > 0 do
-                status_wait(target_state, context, t)
-              else
-                {:timeout, v}
-              end
+            end
           end
         end
       end
-      end
 
       if unquote(required.entity_status) do
-
-      def entity_status(context, options \\ %{}) do
-        timeout = options[:timeout] || 5_000
-        try do
-          GenServer.call(__MODULE__, {:m, {:status, options}, context}, timeout)
-        catch
-          :exit, e ->
-            case e do
-              {:timeout, c} -> {:timeout, c}
-            end
-        end # end try
+        def entity_status(context, options \\ %{}) do
+          timeout = options[:timeout] || 5_000
+          try do
+            GenServer.call(__MODULE__, {:m, {:status, options}, context}, timeout)
+          catch
+            :exit, e ->
+              case e do
+                {:timeout, c} -> {:timeout, c}
+              end
+          end # end try
+        end
       end
-
-      end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       if (unquote(required.self_call)) do
         @doc """
@@ -1127,7 +1188,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: internal_system_call({:health_check!, health_check_options}, context)
         def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options) do
           internal_system_call({:health_check!, health_check_options}, context, options)
-          end
+        end
       end
 
       if unquote(required.health_check!) do
@@ -1306,12 +1367,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
 
       if unquote(required.record_service_event!) do
-          def record_service_event!(event, details, context, options) do
-              @server_monitor.record_service_event!(node(), @base, event, details, context, options)
-          end
+        def record_service_event!(event, details, context, options) do
+          @server_monitor.record_service_event!(node(), @base, event, details, context, options)
+        end
       end
 
-        @before_compile unquote(__MODULE__)
+      @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__
 
@@ -1345,8 +1406,4 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
     end # end quote
   end # end __before_compile__
-
-
-
-
 end

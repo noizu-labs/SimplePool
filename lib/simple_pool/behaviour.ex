@@ -129,7 +129,64 @@ defmodule Noizu.SimplePool.Behaviour do
       end
 
       if (unquote(default_modules.worker_supervisor)) do
-        defmodule WorkerSupervisor do
+        defmodule WorkerSupervisor_S1 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S2 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S3 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S4 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S5 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S6 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S7 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S8 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S9 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S10 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S11 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S12 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S13 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S14 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S15 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S16 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S17 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S18 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S19 do
+          use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+        end
+        defmodule WorkerSupervisor_S20 do
           use Noizu.SimplePool.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
         end
       end

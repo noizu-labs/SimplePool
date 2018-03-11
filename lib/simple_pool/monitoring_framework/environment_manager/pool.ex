@@ -402,13 +402,41 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         acc ++ [Task.async(fn -> {server, :rpc.call(server, __MODULE__, :server_bulk_migrate!, [services, context, options], bulk_await_timeout)} end)]
       end)
 
-      r = Enum.reduce(tasks, %{}, fn(task, acc) ->
+    {:ack, Enum.reduce(tasks, %{}, fn(task, acc) ->
         case Task.await(task, await_timeout) do
-          {service, {:ack, outcome}} ->         o = Enum.reduce(outcome, [], fn({_k, v},a) -> a ++ (v|> Enum.to_list) end)
-                                                put_in(acc, [service], o)
+          {service, {:ack, outcome}} ->
+
+
+            o = Enum.reduce(outcome, [],
+              fn({_k, {:ack, v}} = x ,a) ->
+
+                cond do
+                  options[:return_worrkers] ->
+                    process_map = for {server, v2} <- v do
+                                    for e <- v2 do
+                                      case e do
+                                        {:ok, {ref, {:ack, pid}}} -> [{server, ref, pid}]
+                                        _ -> {server, :error}
+                                      end
+                                    end
+                                  end |> List.flatten
+
+                    a ++ process_map
+
+                  true -> a ++ Map.keys(v)
+                end
+
+              end)
+
+
+            put_in(acc, [service], o)
           _ -> acc
         end
       end)
+      }
+
+
+
     end
 
 
@@ -731,6 +759,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         Noizu.SimplePool.Database.MonitoringFramework.NodeTable.where(1 == 1)
         |> Amnesia.Selection.values
       end)
+
       state = update_effective(state, context, options)
 
       # 2. Grab Server Status

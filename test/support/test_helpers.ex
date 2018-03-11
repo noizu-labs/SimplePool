@@ -59,10 +59,10 @@ defmodule Noizu.SimplePool.TestHelpers do
         definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
           identifier: {node(), Noizu.SimplePool.Support.TestPool},
           server: node(),
+          time_stamp: DateTime.utc_now(),
           pool: Noizu.SimplePool.Support.TestPool,
           service: Noizu.SimplePool.Support.TestPool.Server,
           supervisor: Noizu.SimplePool.Support.TestPool.PoolSupervisor,
-          time_stamp: DateTime.utc_now(),
           hard_limit: 200,
           soft_limit: 150,
           target: 100,
@@ -106,6 +106,9 @@ defmodule Noizu.SimplePool.TestHelpers do
       node: #{node()}
       ============================================================
       """
+
+      :ok = Amnesia.Table.wait(Noizu.SimplePool.Database.tables(), 5_000)
+
       context = Noizu.ElixirCore.CallingContext.system(%{})
 
       Registry.start_link(keys: :unique, name: Noizu.SimplePool.DispatchRegister,  partitions: System.schedulers_online())

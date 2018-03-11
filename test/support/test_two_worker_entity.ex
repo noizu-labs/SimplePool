@@ -28,7 +28,12 @@ defmodule Noizu.SimplePool.Support.TestTwoWorkerEntity do
 
   use Noizu.SimplePool.InnerStateBehaviour,
       pool: Noizu.SimplePool.Support.TestTwoPool,
-      override: [:load]
+      override: [:load, :supervisor_hint]
+
+  def supervisor_hint(ref) do
+    "test_" <> ts = id(ref)
+    String.to_integer(ts)
+  end
 
   #-----------------------------------------------------------------------------
   # Behaviour

@@ -17,12 +17,14 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
   @callback shutdown(Noizu.SimplePool.Worker.State.t, context :: any, options :: any, from :: any) :: {:ok | :wait, Noizu.SimplePool.Worker.State.t}
   @callback worker_refs(any, any, any) :: any | nil
 
+  @callback supervisor_hint(ref :: any) :: integer
+
   alias Noizu.ElixirCore.OptionSettings
   alias Noizu.ElixirCore.OptionValue
   alias Noizu.ElixirCore.OptionList
 
   @required_methods ([:call_forwarding, :load])
-  @provided_methods ([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!, :migrate_shutdown, :on_migrate, :transfer, :save!, :reload!])
+  @provided_methods ([:call_forwarding_catchall, :fetch, :shutdown, :terminate_hook, :get_direct_link!, :worker_refs, :ping!, :kill!, :crash!, :health_check!, :migrate_shutdown, :on_migrate, :transfer, :save!, :reload!, :supervisor_hint])
 
   @methods (@required_methods ++ @provided_methods)
   @features ([:auto_identifier, :lazy_load, :inactivitiy_check, :s_redirect])
@@ -86,6 +88,16 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       @simple_pool_group ({@base, @worker, @worker_supervisor, @server, @pool_supervisor})
 
       alias Noizu.SimplePool.Worker.Link
+
+
+      if unquote(required.supervisor_hint) do
+        def supervisor_hint(ref) do
+          case id(ref) do
+            v when is_integer(v) -> v
+            {a, v} when is_atom(a) and is_integer(v) -> v # To allow for a common id pattern in a number of noizu related projects.
+          end
+        end
+      end
 
       if (unquote(required.get_direct_link!)) do
         def get_direct_link!(ref, context), do: @server.get_direct_link!(ref, context)
