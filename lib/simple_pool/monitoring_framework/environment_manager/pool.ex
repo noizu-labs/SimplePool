@@ -33,17 +33,39 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         worker_state_entity: Noizu.MonitoringFramework.EnvironmentWorkerEntity,
         override: [:init]
 
+    def fetch_internal_state(server, context, options) do
+      :rpc.call(server, __MODULE__, :fetch_internal_state, [context, options])
+    end
+
+    def fetch_internal_state(context, options) do
+      internal_system_call({:fetch_internal_state, options}, context, options)
+    end
+
+    def set_internal_state(server, state, context, options) do
+      :rpc.call(server, __MODULE__, :set_internal_state, [state, context, options])
+    end
+
+    def set_internal_state(state, context, options) do
+      internal_system_call({:set_internal_state, state, options}, context, options)
+    end
+
+    def handle_call({:i, {:fetch_internal_state, options}, context}, _from, state) do
+      {:reply, state, state}
+    end
+
+    def handle_call({:i, {:set_internal_state, update, options}, context}, _from, state) do
+      {:reply, %{old: state, new: update}, update}
+    end
+
     def handle_cast({:i, {:update_hints, options}, context}, state) do
       internal_update_hints(state.environment_details.effective, context, options)
       {:noreply, state}
     end
 
-
     def handle_cast({:i, {:prep_hint_update, components, options}, context}, state) do
       remote_system_cast(state.environment_details.effective.master_node, {:hint_update, components, options}, context)
       {:noreply, state}
     end
-
 
     def handle_cast({:i, {:hint_update, components, options}, context}, state) do
       perform_hint_update(state, components, context, options)
@@ -718,24 +740,28 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       {:reply, effective, state}
     end
 
-
-
-
     def update_effective(state, context, options) do
-      await_timeout = options[:wait] || 60_000
-      tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
-        acc ++ [Task.async( fn ->
-          h = v.definition.service.service_health_check!(options[:health_check_options] || %{}, context, options)
-          {k,h} end)]
-      end)
+      if state.environment_details.effective && state.environment_details.effective.services do
+        await_timeout = options[:wait] || 60_000
+        tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
+          acc ++ [Task.async( fn ->
+            h = v.definition.service.service_health_check!(options[:health_check_options] || %{}, context, options)
+            {k,h} end)]
+        end)
 
-      effective = Enum.reduce(tasks, state.environment_details.effective, fn(t, acc) ->
-        {k, v} = Task.await(t, await_timeout)
-        put_in(acc, [Access.key(:services), k], v)
-      end)
+        effective = Enum.reduce(tasks, state.environment_details.effective, fn(t, acc) ->
+          {k, v} = Task.await(t, await_timeout)
+          put_in(acc, [Access.key(:services), k], v)
+        end)
 
-      state = put_in(state, [Access.key(:environment_details), Access.key(:effective)], effective)
-      state
+        state = put_in(state, [Access.key(:environment_details), Access.key(:effective)], effective)
+        state
+      else
+        Logger.error """
+        #{__MODULE__}.update_effective Malformed State: #{inspect state, pretty: true, limit: :infinity}
+        """
+        state
+      end
     end
 
 
@@ -766,7 +792,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       tasks = Enum.reduce(servers_raw, [], fn(x, acc) ->
         if (x.identifier != node()) do
           task = Task.async( fn ->
-            {x.identifier, :rpc.call(x.identifier, __MODULE__, :node_health_check!, [context, options])}
+            {x.identifier, server_health_check!(x.identifier, context, options)}
           end)
           acc ++ [task]
         else
