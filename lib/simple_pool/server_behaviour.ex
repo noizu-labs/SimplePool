@@ -472,6 +472,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           {:nack, details} -> {:error, %Link{link| handle: nil, state: {:error, {:nack, details}}}}
           {:error, details} ->
             {:error, %Link{link| handle: nil, state: {:error, details}}}
+          error ->
+            {:error, %Link{link| handle: nil, state: {:error, error}}}
         end # end case worker_pid!
       end # end if else
     catch
