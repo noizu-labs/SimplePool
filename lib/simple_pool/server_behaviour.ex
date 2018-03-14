@@ -485,6 +485,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           :exit, e ->
             {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
         end # end inner try
+      e -> {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
     end # end try
   end # end link_forward!
 
