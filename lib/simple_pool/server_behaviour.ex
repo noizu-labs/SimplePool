@@ -537,6 +537,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         8 => Module.concat([@base, "WorkerSupervisor_S8"]),
         9 => Module.concat([@base, "WorkerSupervisor_S9"]),
         10 => Module.concat([@base, "WorkerSupervisor_S10"]),
+
         11 => Module.concat([@base, "WorkerSupervisor_S11"]),
         12 => Module.concat([@base, "WorkerSupervisor_S12"]),
         13 => Module.concat([@base, "WorkerSupervisor_S13"]),
@@ -548,7 +549,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         19 => Module.concat([@base, "WorkerSupervisor_S19"]),
         20 => Module.concat([@base, "WorkerSupervisor_S20"]),
 
-        20 => Module.concat([@base, "WorkerSupervisor_S20"]),
         21 => Module.concat([@base, "WorkerSupervisor_S21"]),
         22 => Module.concat([@base, "WorkerSupervisor_S22"]),
         23 => Module.concat([@base, "WorkerSupervisor_S23"]),
@@ -560,7 +560,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         29 => Module.concat([@base, "WorkerSupervisor_S29"]),
         30 => Module.concat([@base, "WorkerSupervisor_S30"]),
 
-        30 => Module.concat([@base, "WorkerSupervisor_S30"]),
         31 => Module.concat([@base, "WorkerSupervisor_S31"]),
         32 => Module.concat([@base, "WorkerSupervisor_S32"]),
         33 => Module.concat([@base, "WorkerSupervisor_S33"]),
