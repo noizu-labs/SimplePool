@@ -26,8 +26,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
               :link_forward!, :record_service_event!, :lock!, :release!, :status_wait, :entity_status,
               :bulk_migrate!, :o_call, :o_cast,
-
-              :active_supervisors, :supervisor_by_index, :available_supervisors, :current_supervisor, :count_supervisor_chidren
+              :active_supervisors, :supervisor_by_index, :available_supervisors, :current_supervisor, :count_supervisor_children, :group_supervisor_children
             ])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -548,6 +547,30 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         18 => Module.concat([@base, "WorkerSupervisor_S18"]),
         19 => Module.concat([@base, "WorkerSupervisor_S19"]),
         20 => Module.concat([@base, "WorkerSupervisor_S20"]),
+
+        20 => Module.concat([@base, "WorkerSupervisor_S20"]),
+        21 => Module.concat([@base, "WorkerSupervisor_S21"]),
+        22 => Module.concat([@base, "WorkerSupervisor_S22"]),
+        23 => Module.concat([@base, "WorkerSupervisor_S23"]),
+        24 => Module.concat([@base, "WorkerSupervisor_S24"]),
+        25 => Module.concat([@base, "WorkerSupervisor_S25"]),
+        26 => Module.concat([@base, "WorkerSupervisor_S26"]),
+        27 => Module.concat([@base, "WorkerSupervisor_S27"]),
+        28 => Module.concat([@base, "WorkerSupervisor_S28"]),
+        29 => Module.concat([@base, "WorkerSupervisor_S29"]),
+        30 => Module.concat([@base, "WorkerSupervisor_S30"]),
+
+        30 => Module.concat([@base, "WorkerSupervisor_S30"]),
+        31 => Module.concat([@base, "WorkerSupervisor_S31"]),
+        32 => Module.concat([@base, "WorkerSupervisor_S32"]),
+        33 => Module.concat([@base, "WorkerSupervisor_S33"]),
+        34 => Module.concat([@base, "WorkerSupervisor_S34"]),
+        35 => Module.concat([@base, "WorkerSupervisor_S35"]),
+        36 => Module.concat([@base, "WorkerSupervisor_S36"]),
+        37 => Module.concat([@base, "WorkerSupervisor_S37"]),
+        38 => Module.concat([@base, "WorkerSupervisor_S38"]),
+        39 => Module.concat([@base, "WorkerSupervisor_S39"]),
+        40 => Module.concat([@base, "WorkerSupervisor_S40"]),
       }
 
       @server (__MODULE__)
@@ -574,6 +597,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @default_definition @options.default_definition
 
       @graceful_stop unquote(MapSet.member?(features, :graceful_stop))
+
+
+      @dynamic_supervisors unquote(MapSet.member?(features, :dynamic_supervisor))
+      @simple_supervisors unquote(MapSet.member?(features, :simple_supervisor)) || !@dynamic_supervisors
 
 
       if (unquote(required.verbose)) do
@@ -617,8 +644,9 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       #=========================================================================
       # Multiple Supervisor Updated
       #=========================================================================
-      if unquote(required.count_supervisor_chidren) do
-        def count_supervisor_chidren() do
+
+      if unquote(required.count_supervisor_children) do
+        def count_supervisor_children() do
           Enum.reduce(available_supervisors(), %{active: 0, specs: 0, supervisors: 0, workers: 0}, fn(s, acc) ->
             u = Supervisor.count_children(s)
             %{acc| active: acc.active + u.active, specs: acc.specs + u.specs, supervisors: acc.supervisors + u.supervisors, workers: acc.workers + u.workers}
@@ -626,10 +654,37 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
+      if unquote(required.group_supervisor_children) do
+        def group_supervisor_children(group_fun) do
+          Task.async_stream(available_supervisors(), fn(s) ->
+            children = Supervisor.which_children(s)
+            sg = Enum.reduce(children, %{}, fn(worker, acc) ->
+               g = group_fun.(worker)
+               if g do
+                update_in(acc, [g], &((&1 || 0) + 1))
+               else
+                acc
+               end
+            end)
+            {s, sg}
+          end, timeout: 60_000)
+          |> Enum.reduce(%{total: %{}}, fn(outcome, acc) ->
+            case outcome do
+              {:ok, {s, sg}} ->
+                total = Enum.reduce(sg, acc.total, fn({g, c}, a) ->  update_in(a, [g], &((&1 || 0) ++ c)) end)
+                acc = acc
+                      |> put_in([s], sg)
+                      |> put_in([:total], total)
+              _ -> acc
+            end
+          end)
+        end
+      end
+
       if unquote(required.active_supervisors) do
         def active_supervisors() do
           e =  Application.get_env(:noizu_simple_pool, :num_supervisors, %{})
-          num_supervisors = e[@base] || e[:default] || 1
+          num_supervisors = e[@base] || e[:default] || 40
         end
       end
 
@@ -646,21 +701,41 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end
 
       if unquote(required.current_supervisor) do
-        def current_supervisor(ref) do
-          num_supervisors = active_supervisors()
-          if num_supervisors == 1 do
-            @worker_supervisor
-          else
-            hint = @worker_state_entity.supervisor_hint(ref)
-            num_supervisors = active_supervisors()
-            # The logic is designed so that the selected supervisor only changes for a subset of items when adding new supervisors
-            # So that, for example, when going from 5 to 6 supervisors only a 6th of entries will be re-assigned to the new bucket.
-            index = Enum.reduce(1 .. num_supervisors, 1, fn(x, acc) ->
-              n = rem(hint, x) + 1
-              (n == x) && n || acc
-            end)
-            supervisor_by_index(index)
+        if @dynamic_supervisors do
+          def current_supervisor(ref) do
+            current_supervisor_dynamic(ref)
           end
+        else
+          def current_supervisor(ref) do
+            current_supervisor_simple(ref)
+          end
+        end
+      end
+
+      def current_supervisor_simple(ref) do
+        num_supervisors = active_supervisors()
+        if num_supervisors == 1 do
+          @worker_supervisor
+        else
+          hint = @worker_state_entity.supervisor_hint(ref)
+          pick = rem(hint, num_supervisors) + 1
+          supervisor_by_index(pick)
+        end
+      end
+
+      def current_supervisor_dynamic(ref) do
+        num_supervisors = active_supervisors()
+        if num_supervisors == 1 do
+          @worker_supervisor
+        else
+          hint = @worker_state_entity.supervisor_hint(ref)
+          # The logic is designed so that the selected supervisor only changes for a subset of items when adding new supervisors
+          # So that, for example, when going from 5 to 6 supervisors only a 6th of entries will be re-assigned to the new bucket.
+          index = Enum.reduce(1 .. num_supervisors, 1, fn(x, acc) ->
+            n = rem(hint, x) + 1
+            (n == x) && n || acc
+          end)
+          supervisor_by_index(index)
         end
       end
 
