@@ -59,7 +59,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     #---------------------------------------------------------------------------
 
     def get_health_check(this, context, options) do
-      allocated = this.service.count_supervisor_chidren()
+      allocated = this.service.count_supervisor_children()
       events = lifecycle_events(this, MapSet.new([:start, :exit, :terminate, :timeout]), context, options)
       this = update_health_check(this, allocated, events, context, options)
 
