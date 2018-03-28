@@ -466,7 +466,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         case mod.worker_pid!(link.ref, context, options_b) do
           {:ack, pid} ->
             GenServer.cast(pid, extended_call)
-            rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after
+            rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after + :rand.uniform(div(link.update_after, 2))
             {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
           {:nack, details} -> {:error, %Link{link| handle: nil, state: {:error, {:nack, details}}}}
           {:error, details} ->

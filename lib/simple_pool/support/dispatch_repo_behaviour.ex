@@ -40,7 +40,6 @@ defmodule Noizu.SimplePool.DispatchRepoBehaviour do
               time > lu -> {:ack, put_in(entity, [Access.key(:lock)], lock) |> mod.update!(context, options)}
               s == lock_server and p == lock_process -> {:ack, put_in(entity, [Access.key(:lock)], lock) |> mod.update!(context, options)}
               options[:conditional_checkout] ->
-
                 check = case options[:conditional_checkout] do
                   v when is_function(v) -> v.(entity)
                   {m,f,1} -> apply(m, f, [entity])
