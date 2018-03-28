@@ -18,7 +18,7 @@ defmodule Noizu.SimplePool.DispatchRepoBehaviour do
       time = options[:time] || :os.system_time()
       lock_server = options[:lock][:server] || node()
       lock_process = options[:lock][:process] || self()
-      lock_until = (options[:lock][:until]) || (options[:lock][:for] && :os.system_time(:seconds) + options[:lock][:for]) || (time + 600 + :rand.uniform(600))
+      lock_until = (options[:lock][:until]) || (options[:lock][:for] && :os.system_time(:seconds) + options[:lock][:for]) || (time + 5 + :rand.uniform(15))
       lock_type = options[:lock][:type] || :spawn
       {{lock_server, lock_process}, lock_type, lock_until}
     else

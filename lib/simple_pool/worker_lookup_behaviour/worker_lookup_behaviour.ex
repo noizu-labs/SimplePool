@@ -31,37 +31,34 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
     alias Noizu.ElixirCore.OptionList
     alias Noizu.ElixirCore.CallingContext
 
-
     def default_workers!({_mod, d, _m, _sm, _r}, host, service_entity, context, options \\ %{}) do
       d.workers!(host, service_entity, context, options)
     end
 
     def default_host!({_mod, d, _m, sm, _r}, ref, base, _server, context, options \\ %{spawn: true}) do
-
       case d.get!(ref, context, options) do
         nil ->
           if options[:spawn] do
-            options_b = update_in(options, [:lock], &(Map.merge(&1 || %{}, %{server: :pending, type: :spawn})))
-            entity = d.new(ref, context, options_b)
-                     |> put_in([Access.key(:lock)], d.prepare_lock(options_b, true))
-                     |> d.create!(context, options_b)
+              options_b = update_in(options, [:lock], &(Map.merge(&1 || %{}, %{server: :pending, type: :spawn})))
+              entity = d.new(ref, context, options_b)
+                       |> put_in([Access.key(:lock)], d.prepare_lock(options_b, true))
+                       |> d.create!(context, options_b)
 
-
-            case sm.select_host(ref, base, context, options_b) do
-              {:ack, host} ->
-                entity = entity
-                         |> put_in([Access.key(:server)], host)
-                         |> put_in([Access.key(:lock)], nil)
-                         |> d.update!(context, options_b)
-                {:ack, entity.server}
-              {:nack, details} ->
-                entity = entity
-                         |> put_in([Access.key(:lock)], nil)
-                         |> d.update!(context, options_b)
-                {:error, {:host_pick, {:nack, details}}}
-              o ->
-                o
-            end
+              case sm.select_host(ref, base, context, options_b) do
+                {:ack, host} ->
+                  entity = entity
+                           |> put_in([Access.key(:server)], host)
+                           |> put_in([Access.key(:lock)], nil)
+                           |> d.update!(context, options_b)
+                  {:ack, entity.server}
+                {:nack, details} ->
+                  entity = entity
+                           |> put_in([Access.key(:lock)], nil)
+                           |> d.update!(context, options_b)
+                  {:error, {:host_pick, {:nack, details}}}
+                o ->
+                  o
+              end
           else
             {:nack, :no_registered_host}
           end
@@ -70,19 +67,32 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
         entity ->
           if entity.server == :pending do
             options_b = update_in(options, [:lock], &(Map.merge(&1 || %{}, %{server: :pending, type: :spawn})))
-            case d.obtain_lock!(ref, context, options_b) do
-              {:ack, _lock} ->
-                case sm.select_host(ref, base, context, options_b) do
-                  {:ack, host} ->
-                    entity = entity
-                             |> put_in([Access.key(:server)], host)
-                             |> put_in([Access.key(:lock)], nil)
-                             |> d.update!(context, options_b)
-                    {:ack, entity.server}
-                  {:nack, details} -> {:error, {:host_pick, {:nack, details}}}
-                  o -> o
-                end
-              {:nack, details} -> {:error, {:obtain_lock, {:nack, details}}}
+            if options[:dirty] do
+              case sm.select_host(ref, base, context, options_b) do
+                {:ack, host} ->
+                  entity = entity
+                           |> put_in([Access.key(:server)], host)
+                           |> put_in([Access.key(:lock)], nil)
+                           |> d.update!(context, options_b)
+                  {:ack, entity.server}
+                {:nack, details} -> {:error, {:host_pick, {:nack, details}}}
+                o -> o
+              end
+            else
+              case d.obtain_lock!(ref, context, options_b) do
+                {:ack, _lock} ->
+                  case sm.select_host(ref, base, context, options_b) do
+                    {:ack, host} ->
+                      entity = entity
+                               |> put_in([Access.key(:server)], host)
+                               |> put_in([Access.key(:lock)], nil)
+                               |> d.update!(context, options_b)
+                      {:ack, entity.server}
+                    {:nack, details} -> {:error, {:host_pick, {:nack, details}}}
+                    o -> o
+                  end
+                {:nack, details} -> {:error, {:obtain_lock, {:nack, details}}}
+              end
             end
           else
             {:ack, entity.server}
@@ -167,20 +177,28 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviour do
                 case Registry.lookup(r, {:worker, ref}) do
                   [] ->
                     if options[:spawn] do
-                      options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
-                        case x do
-                          %{lock: {{_s, _p}, :spawn, _t}} -> true
-                          _ -> false
+                      if options[:dirty] do
+                        case server.worker_sup_start(ref, context) do
+                          {:ok, pid} -> {:ack, pid}
+                          {:ack, pid} -> {:ack, pid}
+                          o -> o
                         end
-                      end}
-                      case mod.obtain_lock!(ref, context, options_b) do
-                        {:ack, _lock} ->
-                          case server.worker_sup_start(ref, context) do
-                            {:ok, pid} -> {:ack, pid}
-                            {:ack, pid} -> {:ack, pid}
-                            o -> o
+                      else
+                        options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
+                          case x.lock do
+                            {{_s, _p}, :spawn, _t} -> true
+                            _ -> false
                           end
-                        o -> o
+                        end}
+                        case mod.obtain_lock!(ref, context, options_b) do
+                          {:ack, _lock} ->
+                            case server.worker_sup_start(ref, context) do
+                              {:ok, pid} -> {:ack, pid}
+                              {:ack, pid} -> {:ack, pid}
+                              o -> o
+                            end
+                          o -> o
+                        end
                       end
                     else
                       {:nack, :not_registered}
