@@ -277,6 +277,133 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end
     end
 
+    def optomized_rebalance(input_server_list, output_server_list, component_set, context, options \\ %{}) do
+      pfs = profile_start(%{}, :optomized_rebalance)
+      #--------------------
+      # 1. Data Setup
+      #--------------------
+      pfs = profile_start(pfs, :data_setup)
+      await_timeout = options[:wait] || 60_000
+      bulk_await_timeout = options[:bulk_wait] || 1_000_000
+      # Services
+      component_list = MapSet.to_list(component_set)
+      service_list = Enum.map(component_list, fn(c) -> Module.concat([c, "Server"]) end)
+      # Servers
+      pool = Enum.uniq(input_server_list ++ output_server_list)
+      pfs = profile_end(pfs, :data_setup)
+
+      #------------------------------------------------------
+      # 2. Asynchronously grab Server rules and worker lists.
+      #------------------------------------------------------
+      pfs = profile_start(pfs, :fetch_worker_list)
+      htasks = Task.async_stream(pool, fn(server) -> {server, server_health_check!(server, context, options)} end, timeout: await_timeout)
+      wtasks = pool
+               |> Enum.map(fn(server) -> Enum.map(service_list, fn(service) -> {server, service} end) end)
+               |> List.flatten()
+               |> Task.async_stream(fn({server, service}) -> {server, {service, service.workers!(server, context)}} end, timeout: await_timeout)
+      {server_health, server_health_errors} = Enum.reduce(htasks, {%{}, %{}}, fn(outcome, {acc, ecc}) ->
+        case outcome do
+          {:ok, {server, {:ack, h}}} -> {put_in(acc, [server], h), ecc}
+          {:ok, {server, error}} -> {acc, put_in(ecc, [server], error)}
+          e -> {acc, update_in(ecc, [:unknown], &((&1 || []) ++ [e]))}
+        end
+      end)
+      {service_workers, service_workers_errors, _i} = Enum.reduce(wtasks, {%{}, %{}, 0}, fn(outcome, {acc, ecc, i}) ->
+        case outcome do
+          {:ok, {server, {service, {:ack, workers}}}} -> {put_in(acc, [{server, service}], %{workers: workers, allocation: length(workers)}), ecc, i + 1}
+          {:ok, {server, {service, error}}} -> {acc, put_in(ecc, [{server, service}], error), i + 1}
+          e -> {acc, update_in(ecc, [:unknown], &((&1 || []) ++ [{i, e}])), i + 1}
+        end
+      end)
+      pfs = profile_end(pfs, :fetch_worker_list, %{info: 30_000, warn: 60_000, error: 90_000})
+
+      #------------------------------------------------------------------
+      # 3. Prepare per server.service allocation and target details.
+      #------------------------------------------------------------------
+      pfs = profile_start(pfs, :service_allocation)
+      component_service_map = Enum.reduce(component_list, %{}, fn(x, acc) -> put_in(acc, [x], Module.concat([x, "Server"])) end)
+      per_server_targets = Enum.reduce(server_health, %{}, fn({server, rules}, acc) ->
+        case rules do
+          %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{} ->
+            server_targets = Enum.reduce(component_list, %{}, fn(component, sa) ->
+              case rules.services[component] do
+                sr = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{} ->
+                  # @TODO refactor out need to do this. pri2
+                  put_in(sa, [component_service_map[component]], %{target: sr.definition.target, soft: sr.definition.soft_limit, hard: sr.definition.hard_limit})
+                _ -> sa
+              end
+            end)
+            put_in(acc, [server], server_targets)
+          _ -> acc
+        end
+      end)
+
+      # 5. Calculate target allocation
+      service_allocation = Enum.reduce(Map.keys(service_workers), %{}, fn({server, service} = k, acc) ->
+        v = service_workers[k].allocation
+        update_in(acc, [server], fn(p) -> p && put_in(p, [service], v) || %{service => v} end)
+      end)
+      {outcome, target_allocation} = optimize_balance(input_server_list, output_server_list, service_list, per_server_targets, service_allocation)
+
+      # include all services for any servers not in target allocation
+      pull_servers = input_server_list -- output_server_list
+      unallocated = Enum.reduce(service_list, %{}, fn(service, acc) -> put_in(acc, [service], Enum.map([pull_servers], fn(server) -> service_workers[{server, service}][:workers] || [] end) |> List.flatten()) end)
+
+      # first pass, strip overages into general pull
+      {additional_unallocated, target_allocation} = Enum.reduce(target_allocation, {%{}, target_allocation}, fn({server, v}, {u, wa}) ->
+        Enum.reduce(v, {u, wa}, fn({service, target}, {u2, wa2}) ->
+          # 1. Grab any currently allocated.
+          allocation = service_workers[{server, service}][:allocation]
+          cond do
+            allocation == nil -> {u2, wa2}
+            allocation < target ->
+              {u2, put_in(wa2, [server, service], (target - allocation))}
+            true ->
+              {_l, r} = Enum.split(service_workers[{server, service}][:workers], target)
+              m_u2 = update_in(u2, [service], &((&1 || []) ++ r))
+              m_wa2 = put_in(wa2, [server, service], 0)
+              {m_u2, m_wa2}
+          end
+        end)
+      end)
+
+      # second pass -> assign
+      final_allocation = Enum.reduce(service_list, %{}, fn(service, acc) ->
+        su = (unallocated[service] || []) ++ (additional_unallocated[service] || [])
+        {_u, uacc} = Enum.reduce(target_allocation, {su, acc}, fn({server, v}, {u, wa}) ->
+          cond do
+            u == nil || u == [] -> {u, wa}
+            v[service] > 0 ->
+              {l, r} = Enum.split(u, v[service])
+              {r, put_in(wa, [{server, service}], l)}
+            true -> {u, wa}
+          end
+        end)
+        uacc
+      end)
+      pfs = profile_end(pfs, :service_allocation, %{info: 30_000, warn: 60_000, error: 90_000})
+
+      #------------
+      # Dispatch
+      #----------------
+      pfs = profile_start(pfs, :dispatch)
+      # @TODO third pass - group by origin server.service
+      broadcast_grouping = Enum.reduce(final_allocation, %{}, fn({{server, service}, workers}, acc) ->
+        Enum.reduce(workers, acc, fn(worker) ->
+          cond do
+            acc[worker.server][service][server] -> update_in(acc, [worker.server, service, server], &(&1 ++ [worker.identifier]))
+            acc[worker.server][service] -> put_in(acc, [worker.server, service, server], [worker.identifier])
+            acc[worker.server] -> put_in(acc, [worker.server, service], %{server => [worker.identifier]})
+            true -> put_in(acc, [worker.server], %{service => %{server => [worker.identifier]}})
+          end
+        end)
+      end)
+      tasks = Task.async_stream(broadcast_grouping, fn({server, services}) -> {server, :rpc.call(server, __MODULE__, :server_bulk_migrate!, [services, context, options], bulk_await_timeout)} end, timeout: bulk_await_timeout)
+      r = Enum.map(tasks, &(&1))
+      pfs = profile_end(pfs, :dispatch, %{info: 30_000, warn: 60_000, error: 90_000})
+      pfs = profile_end(pfs, :optomized_rebalance, %{info: 30_000, warn: 60_000, error: 90_000})
+      {:ack, {r, pfs}}
+    end
 
     def rebalance(input_server_list, output_server_list, component_set, context, options \\ %{}) do
       # 1. Data Setup
@@ -594,7 +721,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       :ack
     end
 
-    def select_host(_ref, component, _context, _options \\ %{}) do
+    def select_host(_ref, component, _context, options \\ %{}) do
       case Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.read!(component) do
         nil -> {:nack, :hint_required}
         v ->
@@ -604,13 +731,49 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
             if Enum.empty?(v.hint) do
               {:nack, :none_available}
             else
-              # TODO handle no hints, illegal format, etc.
-              {{host, _service}, _v} = Enum.random(v.hint)
-              {:ack, host}
+              if options[:sticky] do
+                n = case options[:sticky] do
+                  true -> node()
+                  v -> v
+                end
+                case Enum.find(v.hint, fn({{host, _service}, _v}) -> host == n end) do
+                  {{host, _service}, _v} -> {:ack, host}
+                  _ ->
+                    {{host, _service}, _v} = Enum.random(v.hint)
+                    {:ack, host}
+                end
+              else
+                # TODO handle no hints, illegal format, etc.
+                {{host, _service}, _v} = Enum.random(v.hint)
+                {:ack, host}
+              end
             end
           end
       end
     end
+
+
+    def profile_start(profiles \\ %{}, profile \\ :default) do
+      put_in(profiles, [profile], %{start: :os.system_time(:milliseconds)})
+    end
+
+    def profile_end(profiles, profile \\ :default, options \\ %{info: 100, warn: 300, error: 700, log: true}) do
+      profiles = update_in(profiles, [profile], fn(p) -> put_in(p || %{}, [:end], :os.system_time(:milliseconds)) end)
+      if options[:log] !== false do
+        cond do
+          profiles[profile][:start] == nil -> Logger.warn("#{__MODULE__} - profile_start not invoked for #{profile}")
+          options[:error] && (profiles[profile][:end] - profiles[profile][:start]) >= options[:error] ->
+            Logger.error("#{__MODULE__} #{profile} exceeded #{options[:error]} milliseconds @#{(profiles[profile][:end] - profiles[profile][:start])}")
+          options[:warn] && (profiles[profile][:end] - profiles[profile][:start]) >= options[:warn] ->
+            Logger.warn(fn -> "#{__MODULE__} #{profile} exceeded #{options[:warn]} milliseconds @#{(profiles[profile][:end] - profiles[profile][:start])}"  end)
+          options[:info] && (profiles[profile][:end] - profiles[profile][:start]) >= options[:info] ->
+            Logger.info(fn -> "#{__MODULE__} #{profile} exceeded #{options[:info]} milliseconds @#{(profiles[profile][:end] - profiles[profile][:start])}"  end)
+          true -> :ok
+        end
+      end
+      profiles
+    end
+
 
     def record_server_event!(server, event, details, _context, options \\ %{}) do
       time = options[:time] || DateTime.utc_now()
