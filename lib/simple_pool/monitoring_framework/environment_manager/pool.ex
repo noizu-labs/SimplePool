@@ -49,13 +49,6 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       internal_system_call({:set_internal_state, state, options}, context, options)
     end
 
-    def handle_call({:i, {:fetch_internal_state, options}, context}, _from, state) do
-      {:reply, state, state}
-    end
-
-    def handle_call({:i, {:set_internal_state, update, options}, context}, _from, state) do
-      {:reply, %{old: state, new: update}, update}
-    end
 
     def handle_cast({:i, {:update_hints, options}, context}, state) do
       internal_update_hints(state.environment_details.effective, context, options)
@@ -116,6 +109,14 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       internal_update_hints(state.environment_details.effective, context, options)
       {:noreply, state}
+    end
+
+    def handle_call({:i, {:fetch_internal_state, _options}, _context}, _from, state) do
+      {:reply, state, state, :hibernate}
+    end
+
+    def handle_call({:i, {:set_internal_state, update, _options}, _context}, _from, state) do
+      {:reply, %{old: state, new: update}, update, :hibernate}
     end
 
     def handle_call({:i, {:join, server, initial, options}, context}, from, state) do
@@ -301,14 +302,14 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
                |> Enum.map(fn(server) -> Enum.map(service_list, fn(service) -> {server, service} end) end)
                |> List.flatten()
                |> Task.async_stream(fn({server, service}) -> {server, {service, service.workers!(server, context)}} end, timeout: await_timeout)
-      {server_health, server_health_errors} = Enum.reduce(htasks, {%{}, %{}}, fn(outcome, {acc, ecc}) ->
+      {server_health, _server_health_errors} = Enum.reduce(htasks, {%{}, %{}}, fn(outcome, {acc, ecc}) ->
         case outcome do
           {:ok, {server, {:ack, h}}} -> {put_in(acc, [server], h), ecc}
           {:ok, {server, error}} -> {acc, put_in(ecc, [server], error)}
           e -> {acc, update_in(ecc, [:unknown], &((&1 || []) ++ [e]))}
         end
       end)
-      {service_workers, service_workers_errors, _i} = Enum.reduce(wtasks, {%{}, %{}, 0}, fn(outcome, {acc, ecc, i}) ->
+      {service_workers, _service_workers_errors, _i} = Enum.reduce(wtasks, {%{}, %{}, 0}, fn(outcome, {acc, ecc, i}) ->
         case outcome do
           {:ok, {server, {service, {:ack, workers}}}} -> {put_in(acc, [{server, service}], %{workers: workers, allocation: length(workers)}), ecc, i + 1}
           {:ok, {server, {service, error}}} -> {acc, put_in(ecc, [{server, service}], error), i + 1}
@@ -343,7 +344,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         v = service_workers[k].allocation
         update_in(acc, [server], fn(p) -> p && put_in(p, [service], v) || %{service => v} end)
       end)
-      {outcome, target_allocation} = optimize_balance(input_server_list, output_server_list, service_list, per_server_targets, service_allocation)
+      {_outcome, target_allocation} = optimize_balance(input_server_list, output_server_list, service_list, per_server_targets, service_allocation)
 
       # include all services for any servers not in target allocation
       pull_servers = input_server_list -- output_server_list
@@ -557,7 +558,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
 
             o = Enum.reduce(outcome, [],
-              fn({_k, {:ack, v}} = x ,a) ->
+              fn({_k, {:ack, v}} = _x ,a) ->
 
                 cond do
                   options[:return_worrkers] ->
