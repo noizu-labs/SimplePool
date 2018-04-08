@@ -34,7 +34,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             "************************************************\n" |> Logger.info
           end
 
-          case Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__}]) do
+          case Supervisor.start_link(__MODULE__, [], [{:name, __MODULE__},  {:restart, :permanent}]) do
             {:ok, sup} ->
               Logger.info "#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}"
               start_children(__MODULE__)

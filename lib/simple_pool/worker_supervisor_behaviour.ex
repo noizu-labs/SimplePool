@@ -44,11 +44,11 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       # @child
       if (unquote(only.child) && !unquote(override.child)) do
         def child(nmid) do
-          worker(@worker, [nmid], [id: nmid])
+          worker(@worker, [nmid], [id: nmid, restart: :transient])
         end
 
         def child(id, params) do
-          worker(@worker, [params], [id: id])
+          worker(@worker, [params], [id: id, restart: :transient])
         end
       end # end child
 

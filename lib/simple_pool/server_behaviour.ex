@@ -115,7 +115,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           "* START_LINK #{__MODULE__} (#{inspect {@worker_supervisor, nmid_generator}})\n" <>
           "************************************************\n" |> Logger.info
         end
-        GenServer.start_link(__MODULE__, {@worker_supervisor, nmid_generator}, name: __MODULE__)
+        GenServer.start_link(__MODULE__, {@worker_supervisor, nmid_generator}, name: __MODULE__, restart: :permanent)
       end
     end # end start_link
 
@@ -168,7 +168,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :error
                 _ ->
                   Logger.error "#{@base} - dead worker: caught (#{inspect e})"
-                  unquote(worker_lookup_handler).dereg_worker!(@base, worker)
+                  #unquote(worker_lookup_handler).dereg_worker!(@base, worker)
                   case pid_or_spawn!(worker) do
                     {:ok, pid} -> GenServer.call(pid, call, timeout)
                     _ -> :error
@@ -193,7 +193,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :error
                 _ ->
                   Logger.warn "#{@base} - dead worker (#{inspect worker})"
-                  unquote(worker_lookup_handler).dereg_worker!(@base, worker)
+                  #unquote(worker_lookup_handler).dereg_worker!(@base, worker)
                   case pid_or_spawn!(worker) do
                     {:ok, pid} -> GenServer.cast(pid, call)
                     _ -> :error
@@ -220,7 +220,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :error
                 _ ->
                   Logger.warn "#{@base} - dead worker (#{inspect worker})"
-                  unquote(worker_lookup_handler).dereg_worker!(@base, worker)
+                  #unquote(worker_lookup_handler).dereg_worker!(@base, worker)
                   case pid_or_spawn!(worker) do
                     {:ok, pid} -> GenServer.call(pid, call, timeout)
                     _ -> :error
@@ -247,7 +247,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :error
                 _ ->
                   Logger.warn "#{@base} - dead worker (#{inspect worker})"
-                  unquote(worker_lookup_handler).dereg_worker!(@base, worker)
+                  #unquote(worker_lookup_handler).dereg_worker!(@base, worker)
                   case pid_or_spawn!(worker) do
                     {:ok, pid} -> GenServer.cast(pid, call)
                     _ -> :error
