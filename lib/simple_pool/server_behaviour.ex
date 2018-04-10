@@ -168,11 +168,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :error
                 _ ->
                   Logger.error "#{@base} - dead worker: caught (#{inspect e})"
-                  #unquote(worker_lookup_handler).dereg_worker!(@base, worker)
-                  case pid_or_spawn!(worker) do
-                    {:ok, pid} -> GenServer.call(pid, call, timeout)
-                    _ -> :error
-                  end  # end case
+                  unquote(worker_lookup_handler).dereg_worker!(@base, worker)
+                  #case pid_or_spawn!(worker) do
+                  #  {:ok, pid} -> GenServer.call(pid, call, timeout)
+                  #  _ -> :error
+                  #end  # end case
+                  :error
             end
         end # end try
       end # end s_call!
@@ -193,11 +194,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :error
                 _ ->
                   Logger.warn "#{@base} - dead worker (#{inspect worker})"
-                  #unquote(worker_lookup_handler).dereg_worker!(@base, worker)
-                  case pid_or_spawn!(worker) do
-                    {:ok, pid} -> GenServer.cast(pid, call)
-                    _ -> :error
-                  end # end case
+                  unquote(worker_lookup_handler).dereg_worker!(@base, worker)
+                  #case pid_or_spawn!(worker) do
+                  #  {:ok, pid} -> GenServer.cast(pid, call)
+                  #  _ -> :error
+                  #end # end case
+                  :error
             end
 
 
@@ -220,11 +222,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :error
                 _ ->
                   Logger.warn "#{@base} - dead worker (#{inspect worker})"
-                  #unquote(worker_lookup_handler).dereg_worker!(@base, worker)
-                  case pid_or_spawn!(worker) do
-                    {:ok, pid} -> GenServer.call(pid, call, timeout)
-                    _ -> :error
-                  end # end case
+                  unquote(worker_lookup_handler).dereg_worker!(@base, worker)
+                  #case pid_or_spawn!(worker) do
+                  #  {:ok, pid} -> GenServer.call(pid, call, timeout)
+                  #  _ -> :error
+                  #end # end case
+                  :error
             end
 
 
@@ -247,11 +250,12 @@ defmodule Noizu.SimplePool.ServerBehaviour do
                 :error
                 _ ->
                   Logger.warn "#{@base} - dead worker (#{inspect worker})"
-                  #unquote(worker_lookup_handler).dereg_worker!(@base, worker)
-                  case pid_or_spawn!(worker) do
-                    {:ok, pid} -> GenServer.cast(pid, call)
-                    _ -> :error
-                  end # end case
+                  unquote(worker_lookup_handler).dereg_worker!(@base, worker)
+                  #case pid_or_spawn!(worker) do
+                  #  {:ok, pid} -> GenServer.cast(pid, call)
+                  #  _ -> :error
+                  #end # end case
+                  :error
             end
 
         end
