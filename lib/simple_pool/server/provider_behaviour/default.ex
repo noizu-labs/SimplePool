@@ -136,7 +136,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
     end
 
     def server_kill!(_this, _context, _options) do
-        raise "FORCE_KILL"
+        throw "FORCE_KILL"
     end
 
     def lock!(this, _context, _options) do

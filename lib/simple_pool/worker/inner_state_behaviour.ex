@@ -127,7 +127,7 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
 
       if (unquote(required.crash!)) do
         def crash!(%__MODULE__{} = this, context, options) do
-           raise "#{__MODULE__} - Crash Forced: #{inspect context}, #{inspect options}"
+           throw "#{__MODULE__} - Crash Forced: #{inspect context}, #{inspect options}"
         end
       end
 
