@@ -145,9 +145,13 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
       if master do
         if master == node() do
-          effective = case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(node()) do
-            nil -> initial
-            v = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{} -> v.entity
+          effective = cond do
+            options[:update_node] -> initial
+            true ->
+              case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(node()) do
+                nil -> initial
+                v = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{} -> v.entity
+              end
           end
           effective = put_in(effective, [Access.key(:master_node)], master)
           %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
@@ -882,13 +886,15 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     #---------------------------------------------------------------------------
     # Handlers
     #---------------------------------------------------------------------------
-    def perform_join(state, server, {pid, _ref}, initial, _context, _options) do
-
-      effective = case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(server) do
-        nil -> initial
-        v -> v.entity
+    def perform_join(state, server, {pid, _ref}, initial, _context, options) do
+      effective = cond do
+        options[:update_node] -> initial
+        true ->
+          case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(server) do
+            nil -> initial
+            v = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{} -> v.entity
+          end
       end
-
       effective = put_in(effective, [Access.key(:master_node)], node())
 
       _s = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
