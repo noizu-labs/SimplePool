@@ -158,7 +158,6 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
             end # end inner try
           o  ->
             try do
-
               if log_timeout do
                 worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
               else

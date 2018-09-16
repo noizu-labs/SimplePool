@@ -26,7 +26,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :s_call!, :rs_cast!, :s_cast!, :rs_call, :s_call, :rs_cast, :s_cast,
               :link_forward!, :record_service_event!, :lock!, :release!, :status_wait, :entity_status,
               :bulk_migrate!, :o_call, :o_cast,
-              :active_supervisors, :supervisor_by_index, :available_supervisors, :current_supervisor, :count_supervisor_children, :group_supervisor_children
+              :active_supervisors, :supervisor_by_index, :available_supervisors, :current_supervisor, :count_supervisor_children, :group_supervisor_children,
+              :catch_all
             ])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -49,7 +50,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.Default)},
         server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)},
         server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitr, Noizu.SimplePool.MonitoringFramework.MonitorBehaviour.Default)},
-        log_timeouts: %OptionValue{option: :log_timeouts, default: Application.get_env(:noizu_simple_pool, :default_log_timeouts, true)}
+        log_timeouts: %OptionValue{option: :log_timeouts, default: Application.get_env(:noizu_simple_pool, :default_log_timeouts, true)},
+        max_supervisors: %OptionValue{option: :max_supervisors, default: Application.get_env(:noizu_simple_pool, :default_max_supervisors, 100)},
       }
     }
 
@@ -71,6 +73,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     verbose = options.verbose
     worker_lookup_handler = options.worker_lookup_handler
     default_timeout = options.default_timeout
+    max_supervisors = options.max_supervisors
     shutdown_timeout = options.shutdown_timeout
     server_monitor = options.server_monitor
     log_timeouts = options.log_timeouts
@@ -95,51 +98,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @worker (Module.concat([@base, "Worker"]))
       @worker_supervisor (Module.concat([@base, "WorkerSupervisor_S1"]))
 
-      @worker_supervisors %{
-        1 => Module.concat([@base, "WorkerSupervisor_S1"]),
-        2 => Module.concat([@base, "WorkerSupervisor_S2"]),
-        3 => Module.concat([@base, "WorkerSupervisor_S3"]),
-        4 => Module.concat([@base, "WorkerSupervisor_S4"]),
-        5 => Module.concat([@base, "WorkerSupervisor_S5"]),
-        6 => Module.concat([@base, "WorkerSupervisor_S6"]),
-        7 => Module.concat([@base, "WorkerSupervisor_S7"]),
-        8 => Module.concat([@base, "WorkerSupervisor_S8"]),
-        9 => Module.concat([@base, "WorkerSupervisor_S9"]),
-        10 => Module.concat([@base, "WorkerSupervisor_S10"]),
-
-        11 => Module.concat([@base, "WorkerSupervisor_S11"]),
-        12 => Module.concat([@base, "WorkerSupervisor_S12"]),
-        13 => Module.concat([@base, "WorkerSupervisor_S13"]),
-        14 => Module.concat([@base, "WorkerSupervisor_S14"]),
-        15 => Module.concat([@base, "WorkerSupervisor_S15"]),
-        16 => Module.concat([@base, "WorkerSupervisor_S16"]),
-        17 => Module.concat([@base, "WorkerSupervisor_S17"]),
-        18 => Module.concat([@base, "WorkerSupervisor_S18"]),
-        19 => Module.concat([@base, "WorkerSupervisor_S19"]),
-        20 => Module.concat([@base, "WorkerSupervisor_S20"]),
-
-        21 => Module.concat([@base, "WorkerSupervisor_S21"]),
-        22 => Module.concat([@base, "WorkerSupervisor_S22"]),
-        23 => Module.concat([@base, "WorkerSupervisor_S23"]),
-        24 => Module.concat([@base, "WorkerSupervisor_S24"]),
-        25 => Module.concat([@base, "WorkerSupervisor_S25"]),
-        26 => Module.concat([@base, "WorkerSupervisor_S26"]),
-        27 => Module.concat([@base, "WorkerSupervisor_S27"]),
-        28 => Module.concat([@base, "WorkerSupervisor_S28"]),
-        29 => Module.concat([@base, "WorkerSupervisor_S29"]),
-        30 => Module.concat([@base, "WorkerSupervisor_S30"]),
-
-        31 => Module.concat([@base, "WorkerSupervisor_S31"]),
-        32 => Module.concat([@base, "WorkerSupervisor_S32"]),
-        33 => Module.concat([@base, "WorkerSupervisor_S33"]),
-        34 => Module.concat([@base, "WorkerSupervisor_S34"]),
-        35 => Module.concat([@base, "WorkerSupervisor_S35"]),
-        36 => Module.concat([@base, "WorkerSupervisor_S36"]),
-        37 => Module.concat([@base, "WorkerSupervisor_S37"]),
-        38 => Module.concat([@base, "WorkerSupervisor_S38"]),
-        39 => Module.concat([@base, "WorkerSupervisor_S39"]),
-        40 => Module.concat([@base, "WorkerSupervisor_S40"]),
-      }
+      @max_supervisors (unquote(max_supervisors))
+      @worker_supervisors Enum.map(1..@max_supervisors, fn(x) -> {x, Module.concat([@base, "WorkerSupervisor_S#{x}"])} end) |> Map.new()
 
       @server (__MODULE__)
       @pool_supervisor (Module.concat([@base, "PoolSupervisor"]))
@@ -150,6 +110,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @server_provider (unquote(options.server_provider))
       @worker_lookup_handler (unquote(worker_lookup_handler))
       @module_and_lookup_handler ({__MODULE__, @worker_lookup_handler})
+
 
       @timeout (unquote(default_timeout))
       @shutdown_timeout (unquote(shutdown_timeout))
@@ -166,10 +127,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
       @graceful_stop unquote(MapSet.member?(features, :graceful_stop))
 
+      @catch_all unquote(required.catch_all)
 
       @dynamic_supervisors unquote(MapSet.member?(features, :dynamic_supervisor))
       @simple_supervisors unquote(MapSet.member?(features, :simple_supervisor)) || !@dynamic_supervisors
-
 
       if (unquote(required.verbose)) do
         def verbose(), do: Noizu.SimplePool.ServerBehaviourDefault.verbose(@base_verbose, @base)
@@ -234,7 +195,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.active_supervisors) do
         def active_supervisors() do
           e =  Application.get_env(:noizu_simple_pool, :num_supervisors, %{})
-          num_supervisors = e[@base] || e[:default] || 40
+          num_supervisors = e[@base] || e[:default] || @max_supervisors
         end
       end
 
@@ -600,6 +561,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             :exit, e ->
               case e do
                 {:timeout, c} -> {:timeout, c}
+                _ -> {:error, {:exit, e}}
               end
           end # end try
         end
@@ -719,11 +681,10 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       # s_redirect
       #-------------------------------------------------------------------------
       if unquote(MapSet.member?(features, :s_redirect)) || unquote(MapSet.member?(features, :s_redirect_handle)) do
-        def handle_cast({_type, {__MODULE__, _ref}, call}, state), do: handle_cast(call, state)
-        def handle_call({_type, {__MODULE__, _ref}, call}, from, state), do: handle_call(call, from, state)
 
         def handle_cast({:redirect, {_type, {__MODULE__, _ref}, call}}, state), do: handle_cast(call, state)
-        def handle_call({:redirect, {_type, {__MODULE__, _ref}, call}}, from, state), do: handle_call(call, from, state)
+        def handle_cast({_type, {__MODULE__, _ref}, call}, state), do: handle_cast(call, state)
+
 
         def handle_cast({:s_cast, {call_server, ref}, {:s, _inner, context} = call}, state) do
           Logger.warn fn -> {"Redirecting Cast #{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)}  end
@@ -737,17 +698,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           {:noreply, state}
         end # end handle_cast/:s_cast!
 
-        def handle_call({:s_call, {call_server, ref, timeout}, {:s, _inner, context} = call}, from, state) do
-          Logger.warn fn -> {"Redirecting Call #{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
-          call_server.worker_lookup_handler().unregister!(ref, context, %{})
-          {:reply, :s_retry, state}
-        end # end handle_call/:s_call
 
-        def handle_call({:s_call!, {call_server, ref, timeout}, {:s, _inner, context}} = call, from, state) do
-          Logger.warn fn -> {"Redirecting Call #{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
-          call_server.worker_lookup_handler().unregister!(ref, context, %{})
-          {:reply, :s_retry, state}
-        end # end handle_call/:s_call!
 
         def handle_cast({:redirect,  {:s_cast, {call_server, ref}, {:s, _inner, context} = call}} = fc, state) do
           Logger.error fn -> {"Redirecting Cast Failed! #{inspect fc, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -760,6 +711,21 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           call_server.worker_lookup_handler().unregister!(ref, context, %{})
           {:noreply, state}
         end # end handle_cast/:s_cast!
+
+
+        def handle_call({:redirect, {_type, {__MODULE__, _ref}, call}}, from, state), do: handle_call(call, from, state)
+        def handle_call({_type, {__MODULE__, _ref}, call}, from, state), do: handle_call(call, from, state)
+        def handle_call({:s_call, {call_server, ref, timeout}, {:s, _inner, context} = call}, from, state) do
+          Logger.warn fn -> {"Redirecting Call #{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
+          {:reply, :s_retry, state}
+        end # end handle_call/:s_call
+
+        def handle_call({:s_call!, {call_server, ref, timeout}, {:s, _inner, context}} = call, from, state) do
+          Logger.warn fn -> {"Redirecting Call #{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
+          call_server.worker_lookup_handler().unregister!(ref, context, %{})
+          {:reply, :s_retry, state}
+        end # end handle_call/:s_call!
 
         def handle_call({:redirect, {:s_call, {call_server, ref, timeout}, {:s, _inner, context} = call}} = fc, from, state) do
           Logger.error fn -> {"Redirecting Call Failed! #{inspect fc, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -917,9 +883,16 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end
         end
 
+        if (unquote(required.s_cast)) do
+          @doc """
+            Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
+          """
+          def s_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
+            Noizu.SimplePool.ServerBehaviourDefault.crash_protection_s_cast(__MODULE__, identifier, call, context, options)
+          end # end s_cast!
+        end
+
         if (unquote(required.workers!)) do
-
-
           def workers!(server, %Noizu.ElixirCore.CallingContext{} = context) do
             @worker_lookup_handler.workers!(server, @worker_state_entity, context, %{})
           end # end s_cast!
@@ -937,14 +910,6 @@ defmodule Noizu.SimplePool.ServerBehaviour do
           end # end s_cast!
         end
 
-        if (unquote(required.s_cast)) do
-          @doc """
-            Forward a cast to appopriate worker, along with delivery redirect details if s_redirect enabled. Do not spawn worker if not currently active.
-          """
-          def s_cast(identifier, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
-            Noizu.SimplePool.ServerBehaviourDefault.crash_protection_s_cast(__MODULE__, identifier, call, context, options)
-          end # end s_cast!
-        end
 
       else # no crash_protection
         if (unquote(required.s_call!)) do
@@ -1000,36 +965,38 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         end
       end
 
+      def handle_info({:compile_warning_supress, call, context}, state), do: @server_provider.internal_info_handler(call, context, state)
       @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__
 
   defmacro __before_compile__(_env) do
     quote do
+      if @catch_all do
+        #-------------------------------------------------------------------------------
+        # Internal Forwarding
+        #-------------------------------------------------------------------------------
+        def handle_info({:i, call, context}, state), do: @server_provider.internal_info_handler(call, context, state)
+        def handle_call({:i, call, context}, from, state), do: @server_provider.internal_call_handler(call, context, from, state)
+        def handle_cast({:i, call, context}, state), do: @server_provider.internal_cast_handler(call, context, state)
 
-      #-------------------------------------------------------------------------------
-      # Internal Forwarding
-      #-------------------------------------------------------------------------------
-      def handle_call({:i, call, context}, from, state), do: @server_provider.internal_call_handler(call, context, from, state)
-      def handle_cast({:i, call, context}, state), do: @server_provider.internal_cast_handler(call, context, state)
-      def handle_info({:i, call, context}, state), do: @server_provider.internal_info_handler(call, context, state)
+        #-------------------------------------------------------------------------------
+        # Catch All
+        #-------------------------------------------------------------------------------
+        def handle_call(uncaught, _from, state) do
+          Logger.warn("Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}")
+          {:noreply, state}
+        end
 
-      #-------------------------------------------------------------------------------
-      # Catch All
-      #-------------------------------------------------------------------------------
-      def handle_call(uncaught, _from, state) do
-        Logger.warn("Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}")
-        {:noreply, state}
-      end
+        def handle_cast(uncaught, state) do
+          Logger.warn("Uncaught handle_cast to #{__MODULE__} . . . #{inspect uncaught}")
+          {:noreply, state}
+        end
 
-      def handle_cast(uncaught, state) do
-        Logger.warn("Uncaught handle_cast to #{__MODULE__} . . . #{inspect uncaught}")
-        {:noreply, state}
-      end
-
-      def handle_info(uncaught, state) do
-        Logger.warn("Uncaught handle_info to #{__MODULE__} . . . #{inspect uncaught}")
-        {:noreply, state}
+        def handle_info(uncaught, state) do
+          Logger.warn("Uncaught handle_info to #{__MODULE__} . . . #{inspect uncaught}")
+          {:noreply, state}
+        end
       end
 
     end # end quote

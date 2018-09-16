@@ -62,9 +62,12 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
     max_seconds = options.max_seconds
     strategy = options.strategy
     verbose = options.verbose
+    features = MapSet.new(options.features)
+
     quote do
       use Supervisor
       require Logger
+      @auto_load unquote(MapSet.member?(features, :auto_load))
       @behaviour Noizu.SimplePool.PoolSupervisorBehaviour
       @base Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat
       @worker_supervisor Module.concat([@base, "WorkerSupervisor"])
@@ -93,7 +96,6 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
           if verbose() do
             Logger.info(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__}.start_link", "args: #{inspect %{context: context, definition: definition}} "), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
-
           case Supervisor.start_link(__MODULE__, [context], [{:name, __MODULE__}, {:restart, :permanent}]) do
             {:ok, sup} ->
               Logger.info(fn ->  {"#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}", Noizu.ElixirCore.CallingContext.metadata(context)} end)
@@ -125,9 +127,12 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
                               }
             end)
           end
-          o = start_worker_supervisors(sup, definition, context)
-          case Supervisor.start_child(sup, worker(@pool_server, [:deprecated, definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)])) do
-            {:ok, pid} -> {:ok, pid}
+
+          _o = start_worker_supervisors(sup, definition, context)
+
+          s = case Supervisor.start_child(sup, worker(@pool_server, [:deprecated, definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)])) do
+            {:ok, pid} ->
+              {:ok, pid}
             {:error, {:already_started, process2_id}} ->
               Supervisor.restart_child(__MODULE__, process2_id)
             error ->
@@ -139,10 +144,14 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
                   #{inspect error}
                   """, Noizu.ElixirCore.CallingContext.metadata(context)}
               end)
+              :error
           end
+          if s != :error && @auto_load do
+            spawn fn -> @pool_server.load(context, @options) end
+          end
+          s
         end # end start_children
       end # end if required
-
 
       if (unquote(required.start_worker_supervisors)) do
         def start_worker_supervisors(sup, definition, context) do
