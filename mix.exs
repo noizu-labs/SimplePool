@@ -8,7 +8,7 @@ defmodule Noizu.SimplePool.Mixfile do
 
   def project do
     [app: :noizu_simple_pool,
-     version: "1.3.31",
+     version: "1.3.32",
      elixir: "~> 1.4",
      package: package(),
      deps: deps(),

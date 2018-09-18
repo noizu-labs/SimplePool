@@ -129,6 +129,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         nil -> nil
         [] -> nil
         [%Noizu.SimplePool.Database.MonitoringFramework.SettingTable{value: v}] -> v
+        _ -> nil
       end
 
       master = if master == nil do
@@ -151,6 +152,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
               case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(node()) do
                 nil -> initial
                 v = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{} -> v.entity
+                _ -> initial
               end
           end
           effective = put_in(effective, [Access.key(:master_node)], master)
@@ -429,6 +431,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         case Task.await(task, await_timeout) do
           {server, {:ack, h}} -> put_in(acc, [server], h)
           {server, error} -> put_in(acc, [server], error)
+          _ -> acc
         end
       end)
 
@@ -438,6 +441,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
           {server, {service, {:ack, workers}}} ->
             update_in(acc, [server], &(  &1 && put_in(&1, [service], workers) || %{service => workers}))
           {server, {service, error}} -> update_in(acc, [server], &(  &1 && put_in(&1, [service], error) || %{service => error}))
+          _ -> acc
         end
       end)
 
@@ -972,8 +976,10 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end)
 
       servers = Enum.reduce(tasks, %{}, fn (task, acc) ->
-        {k, {:ack, v}} = Task.await(task, await_timeout)
-        Map.put(acc, k, v)
+        case Task.await(task, await_timeout) do
+          {k, {:ack, v}} -> Map.put(acc, k, v)
+          _ -> acc
+        end
       end)
 
       # 3. Calculate Hints
