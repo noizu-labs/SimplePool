@@ -149,6 +149,64 @@ defmodule Noizu.SimplePool.EnvironmentManagerTest do
   end
 
 
+  @tag :wip
+  @tag :rebalance
+  @tag capture_log: false
+  test "optomized rebalance server" do
+
+    for _i <- 0 .. 200 do
+      :s_call! = Noizu.SimplePool.TestHelpers.unique_ref(:one)
+                 |> TestPool.Server.test_s_call!(:bananda, @context)
+
+      :s_call! = Noizu.SimplePool.TestHelpers.unique_ref(:two)
+                 |> TestTwoPool.Server.test_s_call!(:fananda, @context)
+
+      :s_call! = Noizu.SimplePool.TestHelpers.unique_ref(:three)
+                 |> TestThreePool.Server.test_s_call!(:labanda, @context)
+    end
+
+    #@TODO wait for all to spawn with out spin lock
+    Process.sleep(2_000)
+
+    Noizu.MonitoringFramework.EnvironmentPool.Server.lock_server(:"second@127.0.0.1", :all, @context, %{})
+    :ok = Noizu.SimplePool.TestHelpers.wait_hint_lock(Noizu.SimplePool.TestHelpers.unique_ref(:two), TestTwoPool.Server, @context)
+
+    for _i <- 0 .. 100 do
+      :s_call! = Noizu.SimplePool.TestHelpers.unique_ref(:three)
+                 |> TestThreePool.Server.test_s_call!(:labanda, @context)
+    end
+
+    #@TODO wait for all to spawn with out spin lock
+    Process.sleep(2_000)
+
+    Noizu.MonitoringFramework.EnvironmentPool.Server.release_server(:"second@127.0.0.1", :all, @context, %{})
+    :ok = Noizu.SimplePool.TestHelpers.wait_hint_release(Noizu.SimplePool.TestHelpers.unique_ref(:two), TestTwoPool.Server, @context)
+
+    #@TODO wait for all to spawn with out spin lock
+    Process.sleep(2_000)
+
+    # @TODO wait for state of last started process to be online.
+
+
+    {:ack, chk1_1} = TestThreePool.Server.workers!(:"first@127.0.0.1", @context, %{})
+    {:ack, chk1_2} = TestThreePool.Server.workers!(:"second@127.0.0.1", @context, %{})
+
+    {:ack, _details} = Noizu.MonitoringFramework.EnvironmentPool.Server.optomized_rebalance([:"first@127.0.0.1"], [:"first@127.0.0.1", :"second@127.0.0.1"], MapSet.new([TestPool, TestTwoPool, TestThreePool]), @context, %{sync: true})
+
+    Process.sleep(2_000)
+    # @TODO wait for server of last scheduled to transfer to change
+    # context = Noizu.ElixirCore.CallingContext.system(%{})
+    {:ack, chk2_1} = TestThreePool.Server.workers!(:"first@127.0.0.1", @context, %{})
+    {:ack, chk2_2} = TestThreePool.Server.workers!(:"second@127.0.0.1", @context, %{})
+
+    delta1 = abs(length(chk1_1) - length(chk1_2))
+    delta2 = abs(length(chk2_1) - length(chk2_2))
+
+    assert delta1 > 50
+    assert delta2 < 10
+
+  end
+
 
   @tag :rebalance
   @tag capture_log: false

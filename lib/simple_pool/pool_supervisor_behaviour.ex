@@ -177,7 +177,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
                 Logger.info(fn -> {
                                     """
 
-                                    #{__MODULE__}.start_children(4) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
+                                    #{__MODULE__}.start_children(4) #{inspect s} Already Started. Handling unexepected state.
                                     #{inspect error}
                                     """, Noizu.ElixirCore.CallingContext.metadata(context)}
                 end)

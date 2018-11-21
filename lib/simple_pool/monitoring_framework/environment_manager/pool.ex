@@ -394,9 +394,12 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       # Dispatch
       #----------------
       pfs = profile_start(pfs, :dispatch)
+
       # @TODO third pass - group by origin server.service
       broadcast_grouping = Enum.reduce(final_allocation, %{}, fn({{server, service}, workers}, acc) ->
-        Enum.reduce(workers, acc, fn(worker) ->
+
+
+        Enum.reduce(workers, acc, fn(worker, acc) ->
           cond do
             acc[worker.server][service][server] -> update_in(acc, [worker.server, service, server], &(&1 ++ [worker.identifier]))
             acc[worker.server][service] -> put_in(acc, [worker.server, service, server], [worker.identifier])
@@ -404,9 +407,12 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
             true -> put_in(acc, [worker.server], %{service => %{server => [worker.identifier]}})
           end
         end)
+
       end)
+
       tasks = Task.async_stream(broadcast_grouping, fn({server, services}) -> {server, :rpc.call(server, __MODULE__, :server_bulk_migrate!, [services, context, options], bulk_await_timeout)} end, timeout: bulk_await_timeout)
       r = Enum.map(tasks, &(&1))
+      #r = []
       pfs = profile_end(pfs, :dispatch, %{info: 30_000, warn: 60_000, error: 90_000})
       pfs = profile_end(pfs, :optomized_rebalance, %{info: 30_000, warn: 60_000, error: 90_000})
       {:ack, {r, pfs}}
@@ -763,11 +769,11 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
 
     def profile_start(profiles \\ %{}, profile \\ :default) do
-      put_in(profiles, [profile], %{start: :os.system_time(:milliseconds)})
+      put_in(profiles, [profile], %{start: :os.system_time(:millisecond)})
     end
 
     def profile_end(profiles, profile \\ :default, options \\ %{info: 100, warn: 300, error: 700, log: true}) do
-      profiles = update_in(profiles, [profile], fn(p) -> put_in(p || %{}, [:end], :os.system_time(:milliseconds)) end)
+      profiles = update_in(profiles, [profile], fn(p) -> put_in(p || %{}, [:end], :os.system_time(:millisecond)) end)
       if options[:log] !== false do
         cond do
           profiles[profile][:start] == nil -> Logger.warn("#{__MODULE__} - profile_start not invoked for #{profile}")

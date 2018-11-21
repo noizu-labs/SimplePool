@@ -8,7 +8,7 @@ defmodule Noizu.SimplePool.Mixfile do
 
   def project do
     [app: :noizu_simple_pool,
-     version: "1.3.32",
+     version: "1.3.33",
      elixir: "~> 1.4",
      package: package(),
      deps: deps(),
@@ -34,8 +34,8 @@ defmodule Noizu.SimplePool.Mixfile do
     [
       {:ex_doc, "~> 0.16.2", only: [:dev, :test], optional: true}, # Documentation Provider
       {:markdown, github: "devinus/markdown", only: [:dev], optional: true}, # Markdown processor for ex_doc
-      {:amnesia, git: "https://github.com/meh/amnesia.git", ref: "87d8b4f", optional: true}, # Mnesia Wrapper
-      {:noizu_mnesia_versioning, github: "noizu/MnesiaVersioning", tag: "0.1.8"},
+      {:amnesia, git: "https://github.com/noizu/amnesia.git", ref: "9266002"}, # Mnesia Wrapper
+      {:noizu_mnesia_versioning, github: "noizu/MnesiaVersioning", tag: "0.1.9"},
       {:noizu_core, github: "noizu/ElixirCore", tag: "1.0.5"},
     ]
   end # end deps

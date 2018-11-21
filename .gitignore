@@ -6,3 +6,7 @@ noizu_simple_pool.iml
 /deps
 erl_crash.dump
 *.ez
+Mnesia.first@127.0.0.1/
+Mnesia.second@127.0.0.1/
+xref_graph.dot
+xref_graph.png
