@@ -198,6 +198,30 @@ defmodule Noizu.SimplePool.V2.Server.Supervisor.Behaviour do
         module.worker_lookup_handler().process!(ref, module, context, options_b)
       end
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      def run_on_host(module, ref, mfa, context, options, timeout), do: throw "PRI0"
+      def cast_to_host(module, ref, mfa, context, options, timeout), do: throw "PRI0"
+      def remove!(module, ref, context, options), do: throw "PRI0"
+      def terminate!(module, ref, context, options), do: throw "PRI0"
+      def bulk_migrate!(module, transfer_server, context, options), do: throw "PRI0"
+      def worker_migrate!(module, ref, rebase, context, options), do: throw "PRI0"
+      def worker_load!(module, ref, context, options), do: throw "PRI0"
+      def worker_ref!(module, identifier, context), do: throw "PRI0"
+      def worker_pid!(module, ref, context , options), do: throw "PRI0"
+
       defoverridable [
         count_supervisor_children: 1,
         group_supervisor_children: 2,

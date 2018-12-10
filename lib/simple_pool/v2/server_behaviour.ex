@@ -109,7 +109,10 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       #-------------------
       #
       #-------------------
-      def server_provider(), do: @server_provider
+      # deprecated
+      def server_provider(), do: @worker_management_implementation
+
+      def worker_management_implementation(), do: @worker_management_implementation
 
       #-------------------
       #
@@ -296,13 +299,13 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       # Startup: Lazy Loading/Async Load/Immediate Load strategies. Blocking/Lazy Initialization, Loading Strategy.
       #-------------------------------------------------------------------------------
       def status(context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: status(@module, context)
-      defdelegate status(module, context), to: @server_provider
+      defdelegate status(module, context), to: @worker_management_implementation
 
       def load(context \\ Noizu.ElixirCore.CallingContext.system(%{}), settings \\ %{}), do: load(@module, context, settings)
-      defdelegate load(module, context, settings), to: @server_provider
+      defdelegate load(module, context, settings), to: @worker_management_implementation
 
       def load_complete(this, process, context), do: load_complete(@module, this, process, context)
-      defdelegate load_complete(module, this, process, context), to: @server_provider
+      defdelegate load_complete(module, this, process, context), to: @worker_management_implementation
 
       defdelegate id(ref), to: @worker_state_entity
       defdelegate ref(ref), to: @worker_state_entity
@@ -344,56 +347,53 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_worker_pid!(@module, ref, context , options )
       defdelegate _imp_worker_pid!(module, ref, context , options ), to: @supervisor_implementation, as: :worker_pid!
 
-
-
-
       def accept_transfer!(ref, state, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_accept_transfer!(@module, ref, state, context , options )
       defdelegate _imp_accept_transfer!(module, ref, state, context , options ), to: @implementation, as: :accept_transfer!
 
-      def lock!(context, options \\ %{}), do: internal_system_call({:lock!, options}, context, options), do: _imp_lock!(@module, context, options ), do: internal_system_call({:lock!, options}, context, options)
-      defdelegate _imp_lock!(module, context, options ), do: internal_system_call({:lock!, options}, context, options), to: @implementation, as: :lock!
+      def lock!(context, options \\ %{}), do: _imp_lock!(@module, context, options)
+      defdelegate _imp_lock!(module, context, options), to: @implementation, as: :lock!
 
-      def release!(context, options \\ %{}), do: internal_system_call({:release!, options}, context, options), do: _imp_release!(@module, context, options ), do: internal_system_call({:release!, options}, context, options)
-      defdelegate _imp_release!(module, context, options ), do: internal_system_call({:release!, options}, context, options), to: @implementation, as: :release!
+      def release!(context, options \\ %{}), do: _imp_release!(@module, context, options )
+      defdelegate _imp_release!(module, context, options ), to: @implementation, as: :release!
 
-      def status_wait(target_state, context, timeout \\ :infinity), do: _imp_status_wait(@module, target_state, context, timeout \\ :infinity)
-      defdelegate _imp_status_wait(module, target_state, context, timeout \\ :infinity), to: @implementation, as: :status_wait
+      def status_wait(target_state, context, timeout \\ :infinity), do: _imp_status_wait(@module, target_state, context, timeout)
+      defdelegate _imp_status_wait(module, target_state, context, timeout), to: @implementation, as: :status_wait
 
       def entity_status(context, options \\ %{}), do: _imp_entity_status(@module, context, options )
       defdelegate _imp_entity_status(module, context, options ), to: @implementation, as: :entity_status
 
       def self_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_self_call(@module, call, context , options )
-      defdelegate _imp_self_call(module, call, context , options ), to: @implementation, as: :self_call
+      defdelegate _imp_self_call(module, call, context , options ), to: @route_implementation, as: :self_call
 
       def self_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_self_cast(@module, call, context , options )
-      defdelegate _imp_self_cast(module, call, context , options ), to: @implementation, as: :self_cast
+      defdelegate _imp_self_cast(module, call, context , options ), to: @route_implementation, as: :self_cast
 
       def internal_system_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_internal_system_call(@module, call, context , options )
-      defdelegate _imp_internal_system_call(module, call, context , options ), to: @implementation, as: :internal_system_call
+      defdelegate _imp_internal_system_call(module, call, context , options ), to: @route_implementation, as: :internal_system_call
 
       def internal_system_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_internal_system_cast(@module, call, context , options )
-      defdelegate _imp_internal_system_cast(module, call, context , options ), to: @implementation, as: :internal_system_cast
+      defdelegate _imp_internal_system_cast(module, call, context , options ), to: @route_implementation, as: :internal_system_cast
 
       def internal_call(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_internal_call(@module, call, context , options )
-      defdelegate _imp_internal_call(module, call, context , options ), to: @implementation, as: :internal_call
+      defdelegate _imp_internal_call(module, call, context , options ), to: @route_implementation, as: :internal_call
 
       def internal_cast(call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_internal_cast(@module, call, context , options )
-      defdelegate _imp_internal_cast(module, call, context , options ), to: @implementation, as: :internal_cast
+      defdelegate _imp_internal_cast(module, call, context , options ), to: @route_implementation, as: :internal_cast
 
       def remote_system_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_remote_system_call(@module, remote_node, call, context , options )
-      defdelegate _imp_remote_system_call(module, remote_node, call, context , options ), to: @implementation, as: :remote_system_call
+      defdelegate _imp_remote_system_call(module, remote_node, call, context , options ), to: @route_implementation, as: :remote_system_call
 
       def remote_system_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_remote_system_cast(@module, remote_node, call, context , options )
-      defdelegate _imp_remote_system_cast(module, remote_node, call, context , options ), to: @implementation, as: :remote_system_cast
+      defdelegate _imp_remote_system_cast(module, remote_node, call, context , options ), to: @route_implementation, as: :remote_system_cast
 
       def remote_call(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_remote_call(@module, remote_node, call, context , options )
-      defdelegate _imp_remote_call(module, remote_node, call, context , options ), to: @implementation, as: :remote_call
+      defdelegate _imp_remote_call(module, remote_node, call, context , options ), to: @route_implementation, as: :remote_call
 
       def remote_cast(remote_node, call, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_remote_cast(@module, remote_node, call, context , options )
-      defdelegate _imp_remote_cast(module, remote_node, call, context , options ), to: @implementation, as: :remote_cast
+      defdelegate _imp_remote_cast(module, remote_node, call, context , options ), to: @route_implementation, as: :remote_cast
 
-      def fetch(identifier, fetch_options \\ %{}, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_fetch(@module, identifier, fetch_options \\ %{}, context , options )
-      defdelegate _imp_fetch(module, identifier, fetch_options \\ %{}, context , options ), to: @implementation, as: :fetch
+      def fetch(identifier, fetch_options \\ %{}, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_fetch(@module, identifier, fetch_options, context , options )
+      defdelegate _imp_fetch(module, identifier, fetch_options, context , options ), to: @implementation, as: :fetch
 
       def save!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_save!(@module, identifier, context , options )
       defdelegate _imp_save!(module, identifier, context , options ), to: @implementation, as: :save!
@@ -419,32 +419,24 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def crash!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: _imp_crash!(@module, identifier, context , options )
       defdelegate _imp_crash!(module, identifier, context , options ), to: @implementation, as: :crash!
 
-      def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: _imp_service_health_check!(@module, %Noizu.ElixirCore.CallingContext{} = context)
-      defdelegate _imp_service_health_check!(module, %Noizu.ElixirCore.CallingContext{} = context), to: @implementation, as: :service_health_check!
+      def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: _imp_service_health_check!(@module, %{}, context, %{})
+      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: _imp_service_health_check!(@module, health_check_options, context, %{})
+      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: _imp_service_health_check!(@module, health_check_options, context, options)
+      defdelegate _imp_service_health_check!(module, health_check_options, context, options), to: @implementation, as: :service_health_check!
 
-      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: _imp_service_health_check!(@module, health_check_options, %Noizu.ElixirCore.CallingContext{} = context)
-      defdelegate _imp_service_health_check!(module, health_check_options, %Noizu.ElixirCore.CallingContext{} = context), to: @implementation, as: :service_health_check!
+      def health_check!(identifier, %Noizu.ElixirCore.CallingContext{} = context), do: _imp_health_check!(@module, identifier, %{}, context, %{})
+      def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: _imp_health_check!(@module, identifier, health_check_options, context, %{})
+      def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: _imp_health_check!(@module, identifier, health_check_options, context, options)
+      defdelegate _imp_health_check!(module, identifier, health_check_options, context, options), to: @implementation, as: :health_check!
 
-      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: _imp_service_health_check!(@module, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options)
-      defdelegate _imp_service_health_check!(module, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), to: @implementation, as: :service_health_check!
+      def get_direct_link!(ref, context, options \\ %{spawn: false}), do: _imp_get_direct_link!(@module, ref, context, options)
+      defdelegate _imp_get_direct_link!(module, ref, context, options), to: @route_implementation, as: :get_direct_link!
 
-      def health_check!(identifier, %Noizu.ElixirCore.CallingContext{} = context), do: _imp_health_check!(@module, identifier, %Noizu.ElixirCore.CallingContext{} = context)
-      defdelegate _imp_health_check!(module, identifier, %Noizu.ElixirCore.CallingContext{} = context), to: @implementation, as: :health_check!
-
-      def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: _imp_health_check!(@module, identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context)
-      defdelegate _imp_health_check!(module, identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context), to: @implementation, as: :health_check!
-
-      def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: _imp_health_check!(@module, identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options)
-      defdelegate _imp_health_check!(module, identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), to: @implementation, as: :health_check!
-
-      def get_direct_link!(ref, context, options \\ %{spawn: false}), do: _imp_get_direct_link!(@module, ref, context, options \\ %{spawn: false})
-      defdelegate _imp_get_direct_link!(module, ref, context, options \\ %{spawn: false}), to: @implementation, as: :get_direct_link!
-
-      def s_call_unsafe(ref, extended_call, context, options \\ %{}, timeout \\ @timeout), do: _imp_s_call_unsafe(@module, ref, extended_call, context, options , timeout \\ @timeout)
-      defdelegate _imp_s_call_unsafe(module, ref, extended_call, context, options , timeout \\ @timeout), to: @implementation, as: :s_call_unsafe
+      def s_call_unsafe(ref, extended_call, context, options \\ %{}, timeout \\ @timeout), do: _imp_s_call_unsafe(@module, ref, extended_call, context, options , timeout)
+      defdelegate _imp_s_call_unsafe(module, ref, extended_call, context, options , timeout), to: @route_implementation, as: :s_call_unsafe
 
       def s_cast_unsafe(ref, extended_call, context, options \\ %{}), do: _imp_s_cast_unsafe(@module, ref, extended_call, context, options )
-      defdelegate _imp_s_cast_unsafe(module, ref, extended_call, context, options ), to: @implementation, as: :s_cast_unsafe
+      defdelegate _imp_s_cast_unsafe(module, ref, extended_call, context, options ), to: @route_implementation, as: :s_cast_unsafe
 
       #===============================
       # call forwarding
@@ -483,22 +475,31 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       defdelegate _imp_link_forward!(module, link, call, context, options), to: @route_implementation, as: :link_forward!
 
       def record_service_event!(event, details, context, options), do: _imp_record_service_event!(@module, event, details, context, options)
-      defdelegate _imp_record_service_event!, to: @implementation, as: :record_service_event!
+      defdelegate _imp_record_service_event!(module, event, details, context, options), to: @implementation, as: :record_service_event!
 
       #
-      defdelegate m_call_handler(call, context, from, state), to: @worker_management_implementation
-      defdelegate m_cast_handler(call, context, state), to: @worker_management_implementation
-      defdelegate m_info_handler(call, context, state), to: @worker_management_implementation
+      def m_call_handler(call, context, from, state), do: m_call_handler(@module, call, context, from, state)
+      defdelegate m_call_handler(module, call, context, from, state), to: @worker_management_implementation
+      def m_cast_handler(call, context, state), do: m_cast_handler(@module, call, context, state)
+      defdelegate m_cast_handler(module, call, context, state), to: @worker_management_implementation
+      def m_info_handler(call, context, state), do: m_info_handler(@module, call, context, state)
+      defdelegate m_info_handler(module, call, context, state), to: @worker_management_implementation
 
       #
-      defdelegate s_call_handler(call, context, from, state), to: @worker_management_implementation
-      defdelegate s_cast_handler(call, context, state), to: @worker_management_implementation
-      defdelegate s_info_handler(call, context, state), to: @worker_management_implementation
+      def s_call_handler(call, context, from, state), do: m_call_handler(@module, call, context, from, state)
+      defdelegate s_call_handler(module, call, context, from, state), to: @worker_management_implementation
+      def s_cast_handler(call, context, state), do: m_cast_handler(@module, call, context, state)
+      defdelegate s_cast_handler(module, call, context, state), to: @worker_management_implementation
+      def s_info_handler(call, context, state), do: m_info_handler(@module, call, context, state)
+      defdelegate s_info_handler(module, call, context, state), to: @worker_management_implementation
 
       #
-      defdelegate i_call_handler(call, context, from, state), to: @worker_management_implementation
-      defdelegate i_cast_handler(call, context, state), to: @worker_management_implementation
-      defdelegate i_info_handler(call, context, state), to: @worker_management_implementation
+      def i_call_handler(call, context, from, state), do: m_call_handler(@module, call, context, from, state)
+      defdelegate i_call_handler(module, call, context, from, state), to: @worker_management_implementation
+      def i_cast_handler(call, context, state), do: m_cast_handler(@module, call, context, state)
+      defdelegate i_cast_handler(module, call, context, state), to: @worker_management_implementation
+      def i_info_handler(call, context, state), do: m_info_handler(@module, call, context, state)
+      defdelegate i_info_handler(module, call, context, state), to: @worker_management_implementation
     end # end quote
   end #end __using__
 end

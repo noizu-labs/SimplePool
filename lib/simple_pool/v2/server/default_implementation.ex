@@ -42,6 +42,7 @@ defmodule Noizu.SimplePool.V2.Server.DefaultImplementation do
         implementation: %OptionValue{option: :implementation, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.V2.Server.DefaultImplementation)},
         supervisor_implementation: %OptionValue{option: :supervisor_implementation, default: Application.get_env(:noizu_simple_pool, :default_supervisor_provider, Noizu.SimplePool.V2.Server.Supervisor.DefaultImplementation)},
         route_implementation: %OptionValue{option: :route_implementation, default: Application.get_env(:noizu_simple_pool, :default_route_provider, Noizu.SimplePool.V2.Server.Router.DefaultImplementation)},
+        server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.V2.Server.WorkerManagement.DefaultImplementation)},
 
         features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
         only: %OptionList{option: :only, default: @methods, valid_members: @methods, membership_set: true},
@@ -53,7 +54,7 @@ defmodule Noizu.SimplePool.V2.Server.DefaultImplementation do
         default_definition: %OptionValue{option: :default_definition, default: :auto},
         server_driver: %OptionValue{option: :server_driver, default: Application.get_env(:noizu_simple_pool, :default_server_driver, Noizu.SimplePool.ServerDriver.Default)},
         worker_lookup_handler: %OptionValue{option: :worker_lookup_handler, default: Application.get_env(:noizu_simple_pool, :worker_lookup_handler, Noizu.SimplePool.WorkerLookupBehaviour.Default)},
-        server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.Server.ProviderBehaviour.Default)},
+
         server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitr, Noizu.SimplePool.MonitoringFramework.MonitorBehaviour.Default)},
         log_timeouts: %OptionValue{option: :log_timeouts, default: Application.get_env(:noizu_simple_pool, :default_log_timeouts, true)},
         max_supervisors: %OptionValue{option: :max_supervisors, default: Application.get_env(:noizu_simple_pool, :default_max_supervisors, 100)},
@@ -191,6 +192,25 @@ defmodule Noizu.SimplePool.V2.Server.DefaultImplementation do
     #@server_monitor.disable_server!(module.pool, elixir_node)
     :pending
   end
+
+  def accept_transfer!(module, ref, state, context , options), do: throw "PRI0"
+  def lock!(module, context, options), do: throw "PRI0"
+  def release!(module, context, options), do: throw "PRI0"
+  def status_wait(module, target_state, context, timeout), do: throw "PRI0"
+  def entity_status(module, context, options), do: throw "PRI0"
+
+  def fetch(module, identifier, fetch_options, context , options), do: throw "PRI0"
+  def save!(module, identifier, context , options), do: throw "PRI0"
+  def save_async!(module, identifier, context), do: throw "PRI0"
+  def reload!(module, identifier, context , options), do: throw "PRI0"
+  def reload_async!(module, identifier, context , options), do: throw "PRI0"
+  def ping!(module, identifier, context , options), do: throw "PRI0"
+  def kill!(module, identifier, context , options), do: throw "PRI0"
+  def server_kill!(module, context , options), do: throw "PRI0"
+  def crash!(module, identifier, context , options), do: throw "PRI0"
+  def service_health_check!(module, health_check_options, context, options), do: throw "PRI0"
+  def health_check!(module, identifier, health_check_options, context, options), do: throw "PRI0"
+  def record_service_event!(module, event, details, context, options), do: throw "PRI0"
 
   #---------------
   # default_definition
