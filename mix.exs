@@ -37,6 +37,8 @@ defmodule Noizu.SimplePool.Mixfile do
       {:amnesia, git: "https://github.com/noizu/amnesia.git", ref: "9266002"}, # Mnesia Wrapper
       {:noizu_mnesia_versioning, github: "noizu/MnesiaVersioning", tag: "0.1.9"},
       {:noizu_core, github: "noizu/ElixirCore", tag: "1.0.5"},
+      {:fastglobal, "~> 1.0"}, # https://github.com/discordapp/fastglobal
+      {:semaphore, "~> 1.0"}, # https://github.com/discordapp/semaphore
     ]
   end # end deps
 

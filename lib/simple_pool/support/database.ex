@@ -6,6 +6,9 @@
 use Amnesia
 
 defdatabase Noizu.SimplePool.Database do
+  #--------------------------------------
+  # FastGlobal Cluster
+  #--------------------------------------
 
   #--------------------------------------
   # Dispatch
