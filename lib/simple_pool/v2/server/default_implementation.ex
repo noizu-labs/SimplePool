@@ -40,7 +40,7 @@ defmodule Noizu.SimplePool.V2.Server.DefaultImplementation do
       option_settings: %{
 
         implementation: %OptionValue{option: :implementation, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.V2.Server.DefaultImplementation)},
-        supervisor_implementation: %OptionValue{option: :supervisor_implementation, default: Application.get_env(:noizu_simple_pool, :default_supervisor_provider, Noizu.SimplePool.V2.Server.Supervisor.DefaultImplementation)},
+        supervisor_implementation: %OptionValue{option: :supervisor_implementation, default: Application.get_env(:noizu_simple_pool, :default_supervisor_provider, Noizu.SimplePool.V2.Server.Supervisor.DynamicImplementation)},
         route_implementation: %OptionValue{option: :route_implementation, default: Application.get_env(:noizu_simple_pool, :default_route_provider, Noizu.SimplePool.V2.Server.Router.DefaultImplementation)},
         server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.V2.Server.WorkerManagement.DefaultImplementation)},
 
@@ -65,6 +65,16 @@ defmodule Noizu.SimplePool.V2.Server.DefaultImplementation do
     modifications = Map.put(initial.effective_options, :required, List.foldl(@methods, %{}, fn(x, acc) -> Map.put(acc, x, initial.effective_options.only[x] && !initial.effective_options.override[x]) end))
     %OptionSettings{initial| effective_options: Map.merge(initial.effective_options, modifications)}
   end
+
+
+  defdelegate pool_worker_state_entity(module, options), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+
+  def pool(module), do: Module.split(module) |> Enum.slice(0..-2) |> Module.concat()
+  defdelegate pool_worker_supervisor(pool), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+  defdelegate pool_server(pool), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+  defdelegate pool_worker(pool), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+  defdelegate pool_supervisor(pool), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+
 
   #---------------
   # Meta
@@ -193,24 +203,24 @@ defmodule Noizu.SimplePool.V2.Server.DefaultImplementation do
     :pending
   end
 
-  def accept_transfer!(module, ref, state, context , options), do: throw "PRI0"
-  def lock!(module, context, options), do: throw "PRI0"
-  def release!(module, context, options), do: throw "PRI0"
-  def status_wait(module, target_state, context, timeout), do: throw "PRI0"
-  def entity_status(module, context, options), do: throw "PRI0"
+  def accept_transfer!( _module, _ref, _state, _context, _options), do: throw "PRI0"
+  def lock!( _module, _context, _options), do: throw "PRI0"
+  def release!( _module, _context, _options), do: throw "PRI0"
+  def status_wait( _module, _target_state, _context, _timeout), do: throw "PRI0"
+  def entity_status( _module, _context, _options), do: throw "PRI0"
 
-  def fetch(module, identifier, fetch_options, context , options), do: throw "PRI0"
-  def save!(module, identifier, context , options), do: throw "PRI0"
-  def save_async!(module, identifier, context), do: throw "PRI0"
-  def reload!(module, identifier, context , options), do: throw "PRI0"
-  def reload_async!(module, identifier, context , options), do: throw "PRI0"
-  def ping!(module, identifier, context , options), do: throw "PRI0"
-  def kill!(module, identifier, context , options), do: throw "PRI0"
-  def server_kill!(module, context , options), do: throw "PRI0"
-  def crash!(module, identifier, context , options), do: throw "PRI0"
-  def service_health_check!(module, health_check_options, context, options), do: throw "PRI0"
-  def health_check!(module, identifier, health_check_options, context, options), do: throw "PRI0"
-  def record_service_event!(module, event, details, context, options), do: throw "PRI0"
+  def fetch( _module, _identifier, _fetch_options, _context, _options), do: throw "PRI0"
+  def save!( _module, _identifier, _context, _options), do: throw "PRI0"
+  def save_async!( _module, _identifier, _context), do: throw "PRI0"
+  def reload!( _module, _identifier, _context, _options), do: throw "PRI0"
+  def reload_async!( _module, _identifier, _context, _options), do: throw "PRI0"
+  def ping!( _module, _identifier, _context, _options), do: throw "PRI0"
+  def kill!( _module, _identifier, _context, _options), do: throw "PRI0"
+  def server_kill!( _module, _context, _options), do: throw "PRI0"
+  def crash!( _module, _identifier, _context, _options), do: throw "PRI0"
+  def service_health_check!( _module, _health_check_options, _context, _options), do: throw "PRI0"
+  def health_check!( _module, _identifier, _health_check_options, _context, _options), do: throw "PRI0"
+  def record_service_event!( _module, _event, _details, _context, _options), do: throw "PRI0"
 
   #---------------
   # default_definition

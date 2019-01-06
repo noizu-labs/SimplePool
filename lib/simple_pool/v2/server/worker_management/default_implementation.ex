@@ -191,6 +191,63 @@ defmodule Noizu.SimplePool.V2.Server.WorkerManagement.DefaultImplementation do
   # Internal Implementations
   #---------------------------------------------------------------------------
 
+
+
+
+  #---------------------------------------------------------------------------
+  # Worker Routing - s_call_handler
+  #---------------------------------------------------------------------------
+  def s_call_handler(module, call, context, _from, %State{} = this) do
+    Logger.error(fn -> {"#{__MODULE__} #{inspect this.service} unsupported call(#{inspect call})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+    {:reply, {:error, {:unsupported, call}}, this}
+  end
+  #---------------------------------------------------------------------------
+  # Worker Routing - s_cast_handler
+  #---------------------------------------------------------------------------
+  def s_cast_handler(module, call, context, %State{} = this) do
+    Logger.error(fn -> {"#{__MODULE__} #{inspect this.service} unsupported cast(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+    {:noreply, this}
+  end
+
+  #---------------------------------------------------------------------------
+  # Worker Routing - s_info_handler
+  #---------------------------------------------------------------------------
+  def s_info_handler(module, call, context, %State{} = this) do
+    Logger.error(fn -> {"#{__MODULE__} #{inspect this.service} unsupported info(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+    {:noreply, this}
+  end
+
+
+
+
+  #---------------------------------------------------------------------------
+  # M Routing - m_call_handler
+  #---------------------------------------------------------------------------
+  def m_call_handler(module, call, context, _from, %State{} = this) do
+    Logger.error(fn -> {"#{__MODULE__} #{inspect this.service} unsupported call(#{inspect call})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+    {:reply, {:error, {:unsupported, call}}, this}
+  end
+  #---------------------------------------------------------------------------
+  # M Routing - m_cast_handler
+  #---------------------------------------------------------------------------
+  def m_cast_handler(module, call, context, %State{} = this) do
+    Logger.error(fn -> {"#{__MODULE__} #{inspect this.service} unsupported cast(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+    {:noreply, this}
+  end
+
+  #---------------------------------------------------------------------------
+  # M Routing - m_info_handler
+  #---------------------------------------------------------------------------
+  def m_info_handler(module, call, context, %State{} = this) do
+    Logger.error(fn -> {"#{__MODULE__} #{inspect this.service} unsupported info(#{inspect call, pretty: true})", Noizu.ElixirCore.CallingContext.metadata(context)} end)
+    {:noreply, this}
+  end
+
+
+
+
+
+
   #------------------------------------------------
   # worker_add!()
   #------------------------------------------------

@@ -5,6 +5,18 @@
 
 defmodule Noizu.SimplePool.V2.ServerBehaviour do
   require Logger
+  @callback pool() :: module
+  @callback pool_worker_supervisor() :: module
+  @callback pool_server() :: module
+  @callback pool_supervisor() :: module
+  @callback pool_worker() :: module
+  @callback banner(String.t) :: String.t
+  @callback banner(String.t, String.t) :: String.t
+  @callback meta() :: Map.t
+  @callback meta(Map.t) :: Map.t
+  @callback meta_init() :: Map.t
+  @callback options() :: Map.t
+  @callback option_settings() :: Map.t
 
   #=================================================================
   #=================================================================
@@ -16,14 +28,11 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
     option_settings = implementation.prepare_options(options)
     options = option_settings.effective_options
     implementation = options.implementation
-    #required = options.required
-    #verbose = options.verbose
     worker_lookup_handler = options.worker_lookup_handler
     default_timeout = options.default_timeout
     max_supervisors = options.max_supervisors
     shutdown_timeout = options.shutdown_timeout
     server_monitor = options.server_monitor
-    #log_timeouts = options.log_timeouts
     route_implementation = options.route_implementation
     server_provider = options.server_provider
     features = MapSet.new(options.features)
@@ -44,7 +53,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @behaviour Noizu.SimplePool.V2.ServerBehaviour
       alias Noizu.SimplePool.Worker.Link
       use GenServer
-
+      require Logger
 
       # Review for Deprecation
       @server_provider (unquote(server_provider))
@@ -67,7 +76,9 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
 
       # Related Modules.
       @pool @implementation.pool(@module)
-      @worker_state_entity @implementation.expand_worker_state_entity(@pool,unquote(options.worker_state_entity))
+
+      @pool_worker_state_entity @implementation.pool_worker_state_entity(@pool, unquote(options.worker_state_entity))
+      @worker_state_entity @pool_worker_state_entity
 
       @max_supervisors (unquote(max_supervisors))
       @worker_supervisor (Module.concat([@pool, "WorkerSupervisor_S1"]))
@@ -75,7 +86,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @available_supervisors Map.values(@worker_supervisors)
 
 
-      @meta_key :"meta_#{@module}"
+      @meta_key Module.concat(@module, "Meta")
 
       @options unquote(Macro.escape(options))
       @option_settings unquote(Macro.escape(option_settings))
@@ -173,10 +184,15 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       defdelegate pool_worker(), to: @pool
 
 
+      @doc """
+      Pool's worker state entity.
+      """
+      defdelegate pool_worker_state_entity(), to: @pool
+
       #-------------------
       #
       #-------------------
-      def worker_state_entity(), do: @worker_state_entity
+      defdelegate worker_state_entity(), to: @pool, as: :pool_worker_state_entity
 
       #=========================================================================
       # Supervisor Strategy
@@ -187,7 +203,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
           active_supervisors: @max_supervisors,
           available_supervisors: @available_supervisors,
           worker_supervisors: @worker_supervisors,
-          default_supervisor: @worker_supervisor,
+    #      default_supervisor: @worker_supervisor,
           graceful_stop: @graceful_stop,
           shutdown_timeout: @shutdown_timeout
         }
@@ -262,7 +278,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       # default_definition
       #-----------
       def default_definition(), do: _imp_default_definition(@module)
-      def _imp_default_definition(module), to: @implementation, as: :default_definition
+      defdelegate _imp_default_definition(module), to: @implementation, as: :default_definition
 
       #-----------
       # enable_server!
@@ -304,8 +320,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def load(context \\ Noizu.ElixirCore.CallingContext.system(%{}), settings \\ %{}), do: load(@module, context, settings)
       defdelegate load(module, context, settings), to: @worker_management_implementation
 
-      def load_complete(this, process, context), do: load_complete(@module, this, process, context)
-      defdelegate load_complete(module, this, process, context), to: @worker_management_implementation
+      defdelegate load_complete(this, process, context), to: @worker_management_implementation
 
       defdelegate id(ref), to: @worker_state_entity
       defdelegate ref(ref), to: @worker_state_entity
@@ -442,13 +457,13 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       # call forwarding
       #===============================
       def handle_call(envelope, from, state), do: _imp_route_call(@module, envelope, from, state)
-      defdelegate _imp_route_call(@module, envelope, from, state), to: @route_implementation, as: :route_call
+      defdelegate _imp_route_call(module, envelope, from, state), to: @route_implementation, as: :route_call
 
       def handle_cast(envelope, state), do: _imp_route_cast(@module, envelope, state)
-      defdelegate _imp_route_cast(@module, envelope, state), to: @route_implementation, as: :route_cast
+      defdelegate _imp_route_cast(module, envelope, state), to: @route_implementation, as: :route_cast
 
       def handle_info(envelope, state), do: _imp_route_info(@module, envelope, state)
-      defdelegate _imp_route_info(@module, envelope, state), to: @route_implementation, as: :route_info
+      defdelegate _imp_route_info(module, envelope, state), to: @route_implementation, as: :route_info
 
       def extended_call(ref, timeout, call, context), do: _imp_extended_call(@module, ref, timeout, call, context)
       defdelegate _imp_extended_call(module, ref, timeout, call, context), to: @route_implementation, as: :extended_call
@@ -477,7 +492,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def record_service_event!(event, details, context, options), do: _imp_record_service_event!(@module, event, details, context, options)
       defdelegate _imp_record_service_event!(module, event, details, context, options), to: @implementation, as: :record_service_event!
 
-      #
+      # m ?? - review use cases for this call type. may be redundant to i_* handlers.
       def m_call_handler(call, context, from, state), do: m_call_handler(@module, call, context, from, state)
       defdelegate m_call_handler(module, call, context, from, state), to: @worker_management_implementation
       def m_cast_handler(call, context, state), do: m_cast_handler(@module, call, context, state)
@@ -485,7 +500,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def m_info_handler(call, context, state), do: m_info_handler(@module, call, context, state)
       defdelegate m_info_handler(module, call, context, state), to: @worker_management_implementation
 
-      #
+      # Worker Call (to worker process)
       def s_call_handler(call, context, from, state), do: m_call_handler(@module, call, context, from, state)
       defdelegate s_call_handler(module, call, context, from, state), to: @worker_management_implementation
       def s_cast_handler(call, context, state), do: m_cast_handler(@module, call, context, state)
@@ -493,13 +508,14 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def s_info_handler(call, context, state), do: m_info_handler(@module, call, context, state)
       defdelegate s_info_handler(module, call, context, state), to: @worker_management_implementation
 
-      #
+      # Internal Call (to server)
       def i_call_handler(call, context, from, state), do: m_call_handler(@module, call, context, from, state)
       defdelegate i_call_handler(module, call, context, from, state), to: @worker_management_implementation
       def i_cast_handler(call, context, state), do: m_cast_handler(@module, call, context, state)
       defdelegate i_cast_handler(module, call, context, state), to: @worker_management_implementation
       def i_info_handler(call, context, state), do: m_info_handler(@module, call, context, state)
       defdelegate i_info_handler(module, call, context, state), to: @worker_management_implementation
+
     end # end quote
   end #end __using__
 end

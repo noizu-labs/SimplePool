@@ -62,9 +62,13 @@ defmodule Noizu.SimplePool.V2.Pool.DefaultImplementation do
     %OptionSettings{initial| effective_options: Map.merge(initial.effective_options, modifications)}
   end
 
-  #---------
-  #
-  #---------
+  @doc """
+  Return a banner string.
+  ------------- Example -----------
+  Multi-Line
+  Banner
+  ---------------------------------
+  """
   def banner(header, msg) do
     header_len = String.length(header)
     len = 120
@@ -88,14 +92,14 @@ defmodule Noizu.SimplePool.V2.Pool.DefaultImplementation do
   end
 
   #---------
-  #
+  # Is this needed?
   #---------
-  def worker_state_entity(pool, :auto), do: Module.concat(pool, "WorkerStateEntity")
-  def worker_state_entity(_pool, worker_state_entity), do: worker_state_entity
+  def pool_worker_state_entity(pool, :auto), do: Module.concat(pool, "WorkerStateEntity")
+  def pool_worker_state_entity(_pool, worker_state_entity), do: worker_state_entity
 
-  #---------
-  #
-  #---------
+  @doc """
+  Return Meta Information for specified module.
+  """
   def meta(module) do
     case FastGlobal.get(module.meta_key(), :no_entry) do
       :no_entry ->
@@ -106,9 +110,9 @@ defmodule Noizu.SimplePool.V2.Pool.DefaultImplementation do
     end
   end
 
-  #---------
-  #
-  #---------
+  @doc """
+  Update Meta Information for module.
+  """
   def meta(module, update) do
     if Semaphore.acquire({{:meta, :write}, module}, 1) do
       existing = case FastGlobal.get(module.meta_key(), :no_entry) do
@@ -123,9 +127,9 @@ defmodule Noizu.SimplePool.V2.Pool.DefaultImplementation do
     end
   end
 
-  #---------
-  #
-  #---------
+  @doc """
+  Initial Meta Information for Module.
+  """
   def meta_init(module) do
     verbose = case module.options().verbose do
       :auto -> Application.get_env(:noizu_simple_pool, :verbose, false)
@@ -136,50 +140,55 @@ defmodule Noizu.SimplePool.V2.Pool.DefaultImplementation do
     }
   end
 
-  #---------
-  #
-  #---------
+  @doc """
+  Get pool for module.
+  """
   def pool(module), do: module
 
-  #---------
-  #
-  #---------
+
+  @doc """
+  Get Worker Supervisor for module.
+  """
   def pool_worker_supervisor(pool), do: Module.concat([pool, "WorkerSupervisor"])
 
-  #---------
-  #
-  #---------
+
+  @doc """
+  Get Server for module.
+  """
   def pool_server(pool), do: Module.concat([pool, "Server"])
 
-  #---------
-  #
-  #---------
+  @doc """
+  Get Worker for module.
+  """
   def pool_worker(pool), do: Module.concat([pool, "Worker"])
 
-  #---------
-  #
-  #---------
+  @doc """
+  Get Pool Supervisor for module.
+  """
   def pool_supervisor(pool), do: Module.concat([pool, "PoolSupervisor"])
 
-  #---------
-  #
-  #---------
+
+  # The below should be in a helper method module.
+
+  @doc """
+  handle_call catchall
+  """
   def handle_call_catchall(module, uncaught, _from, state) do
     Logger.warn(fn -> "Uncaught handle_call to #{module} . . . #{inspect uncaught}" end)
     {:noreply, state}
   end
 
-  #---------
-  #
-  #---------
+  @doc """
+  handle_cast catchall
+  """
   def handle_cast_catchall(module, uncaught, state) do
     Logger.warn(fn -> "Uncaught handle_cast to #{module} . . . #{inspect uncaught}" end)
     {:noreply, state}
   end
 
-  #---------
-  #
-  #---------
+  @doc """
+  handle_info catchall
+  """
   def handle_info_catchall(module, uncaught, state) do
     Logger.warn(fn -> "Uncaught handle_info to #{module} . . . #{inspect uncaught}" end)
     {:noreply, state}

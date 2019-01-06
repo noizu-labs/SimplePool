@@ -3,6 +3,13 @@
 # Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
+require Logger
+Logger.info """
+
+  ----------------------------------
+  Test Start
+  ----------------------------------
+"""
 ExUnit.start()
 
 alias Noizu.SimplePool.Support.TestPool

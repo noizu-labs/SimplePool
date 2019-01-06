@@ -177,7 +177,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
 
 
 
-  def imp_init(module, [context] = arg) do
+  def init(module, [context] = arg) do
     if module.verbose() || true do
       Logger.warn(fn -> {module.banner("#{module} INIT", "args: #{inspect arg}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
     end

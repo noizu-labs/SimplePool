@@ -18,12 +18,15 @@ defmodule Noizu.SimplePool.Support.TestV2Pool do
     require Logger
   end # end worker
 
+
+
   #=============================================================================
   # @Server
   #=============================================================================
   defmodule Server do
     @vsn 1.0
-    use Noizu.SimplePool.ServerBehaviour,
+
+    use Noizu.SimplePool.V2.ServerBehaviour,
         worker_state_entity: Noizu.SimplePool.Support.TestV2WorkerEntity,
         server_monitor: Noizu.MonitoringFramework.EnvironmentPool.Server,
         worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
@@ -53,5 +56,5 @@ defmodule Noizu.SimplePool.Support.TestV2Pool do
 
   end # end defmodule GoldenRatio.Components.Gateway.Server
 
-
 end # end defmodule GoldenRatio.Components.Gateway
+
