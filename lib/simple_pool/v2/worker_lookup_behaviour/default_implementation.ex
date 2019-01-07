@@ -80,8 +80,8 @@ defmodule Noizu.SimplePool.V2.WorkerLookupBehaviour.DefaultImplementation do
       defdelegate _workers!(pass_through, host, service_entity, context), to: @implementation, as: :workers!
       defdelegate _workers!(pass_through, host, service_entity, context, options), to: @implementation, as: :workers!
       
-      defdelegate _host!(pass_through, ref, server, context), to: @implementation, as: :host!
-      defdelegate _host!(pass_through, ref, server, context, options), to: @implementation, as: :host!
+      defdelegate _host!(pass_through, ref, base, server, context), to: @implementation, as: :host!
+      defdelegate _host!(pass_through, ref, base, server, context, options), to: @implementation, as: :host!
 
       defdelegate _record_event!(pass_through, ref, event, details, context), to: @implementation, as: :record_event!
       defdelegate _record_event!(pass_through,ref, event, details, context, options), to: @implementation, as: :record_event!
