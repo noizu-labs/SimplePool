@@ -37,6 +37,7 @@ defmodule Noizu.SimplePool.V2.WorkerLookupBehaviour.DefaultImplementation do
     required = options.required
     
     quote do
+      IO.puts "GENERATE #{__MODULE__}"
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.WorkerLookupBehaviour
       @dispatch unquote(dispatch)
@@ -46,7 +47,7 @@ defmodule Noizu.SimplePool.V2.WorkerLookupBehaviour.DefaultImplementation do
       @implementation unquote(implementation)
       @pass_thru {__MODULE__, @dispatch, @dispatch_monitor, @server_monitor, @registry}
       
-      def workers!(host, service_entity, context), do: _workers(host, service_entity, context)
+      def workers!(host, service_entity, context), do: _workers!(@pass_thru, host, service_entity, context)
       def workers!(host, service_entity, context, options), do: _workers!(@pass_thru, host, service_entity, context, options)
       
       def host!(ref, server, context), do: _host!(@pass_thru, ref, server.base(), server, context)
@@ -75,40 +76,40 @@ defmodule Noizu.SimplePool.V2.WorkerLookupBehaviour.DefaultImplementation do
       
       def process!(ref, base, server, context), do: _process!(@pass_thru, ref, base, server, context)
       def process!(ref, base, server, context, options), do: _process!(@pass_thru, ref, base, server, context, options)
-
-
+      
+      
       defdelegate _workers!(pass_through, host, service_entity, context), to: @implementation, as: :workers!
       defdelegate _workers!(pass_through, host, service_entity, context, options), to: @implementation, as: :workers!
       
       defdelegate _host!(pass_through, ref, base, server, context), to: @implementation, as: :host!
       defdelegate _host!(pass_through, ref, base, server, context, options), to: @implementation, as: :host!
-
+      
       defdelegate _record_event!(pass_through, ref, event, details, context), to: @implementation, as: :record_event!
       defdelegate _record_event!(pass_through,ref, event, details, context, options), to: @implementation, as: :record_event!
-
+      
       defdelegate _events!(pass_through,ref, context), to: @implementation, as: :events!
       defdelegate _events!(pass_through,ref, context, options), to: @implementation, as: :events!
-
+      
       defdelegate _set_node!(pass_through,ref, context), to: @implementation, as: :set_node!
       defdelegate _set_node!(pass_through,ref, context, options), to: @implementation, as: :set_node!
-
+      
       defdelegate _register!(pass_through,ref, context), to: @implementation, as: :register!
       defdelegate _register!(pass_through,ref, context, options), to: @implementation, as: :register!
-
+      
       defdelegate _unregister!(pass_through,ref, context), to: @implementation, as: :unregister!
       defdelegate _unregister!(pass_through,ref, context, options), to: @implementation, as: :unregister!
-
+      
       defdelegate _obtain_lock!(pass_through,ref, context), to: @implementation, as: :obtain_lock!
       defdelegate _obtain_lock!(pass_through,ref, context, options), to: @implementation, as: :obtain_lock!
-
+      
       defdelegate _release_lock!(pass_through,ref, context), to: @implementation, as: :release_lock!
       defdelegate _release_lock!(pass_through,ref, context, options), to: @implementation, as: :release_lock!
-
+      
       defdelegate _process!(pass_through,ref, base, server, context), to: @implementation, as: :process!
       defdelegate _process!(pass_through,ref, base, server, context, options), to: @implementation, as: :process!
-
-
-
+      
+      
+      
       defoverridable [
         workers!: 3,
         workers!: 4,
