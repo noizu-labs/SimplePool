@@ -37,7 +37,6 @@ defmodule Noizu.SimplePool.V2.WorkerLookupBehaviour.DefaultImplementation do
     required = options.required
     
     quote do
-      IO.puts "GENERATE #{__MODULE__}"
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.WorkerLookupBehaviour
       @dispatch unquote(dispatch)
