@@ -39,7 +39,7 @@ defmodule Noizu.SimplePool.V2.Server.DefaultImplementation do
     settings = %OptionSettings{
       option_settings: %{
 
-        implementation: %OptionValue{option: :implementation, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.V2.Server.DefaultImplementation)},
+        implementation: %OptionValue{option: :implementation, default: Application.get_env(:noizu_simple_pool, :default_server_implementation, Noizu.SimplePool.V2.Server.DefaultImplementation)}, # todo clean up naming.
         supervisor_implementation: %OptionValue{option: :supervisor_implementation, default: Application.get_env(:noizu_simple_pool, :default_supervisor_provider, Noizu.SimplePool.V2.Server.Supervisor.DynamicImplementation)},
         route_implementation: %OptionValue{option: :route_implementation, default: Application.get_env(:noizu_simple_pool, :default_route_provider, Noizu.SimplePool.V2.Server.Router.DefaultImplementation)},
         server_provider: %OptionValue{option: :server_provider, default: Application.get_env(:noizu_simple_pool, :default_server_provider, Noizu.SimplePool.V2.Server.WorkerManagement.DefaultImplementation)},
