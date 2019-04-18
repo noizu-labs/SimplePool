@@ -74,16 +74,16 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.DefaultImplementation do
   #
   #-----------
   def child(module, ref, context) do
-    module.worker(module.pool_worker(), [ref, context], [id: ref, restart: module._restart_type()])
+    module.pass_through_worker(module.pool_worker(), [ref, context], [id: ref, restart: module._restart_type()])
   end
 
   def child(module, ref, params, context) do
-    module.worker(module.pool_worker(), [ref, params, context], [id: ref, restart: module._restart_type()])
+    module.pass_through_worker(module.pool_worker(), [ref, params, context], [id: ref, restart: module._restart_type()])
   end
 
   def child(module, ref, params, context, options) do
     restart = options[:restart] || module._restart_type()
-    module.worker(module.pool_worker(), [ref, params, context], [id: ref, restart: restart])
+    module.pass_through_worker(module.pool_worker(), [ref, params, context], [id: ref, restart: restart])
   end
 
   #-----------
@@ -93,7 +93,7 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.DefaultImplementation do
     if module.verbose() do
       Logger.info(fn -> {module.banner("#{module} INIT", "args: #{inspect context}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
     end
-    module.supervise([], [{:strategy,  module._strategy()}, {:max_restarts, module._max_restarts()}, {:max_seconds, module._max_seconds()}])
+    module.pass_through_supervise([], [{:strategy,  module._strategy()}, {:max_restarts, module._max_restarts()}, {:max_seconds, module._max_seconds()}])
   end
 
 

@@ -9,6 +9,8 @@ defmodule Noizu.SimplePool.TestHelpers do
   def unique_ref(:two), do: {:ref, Noizu.SimplePool.Support.TestTwoWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
   def unique_ref(:three), do: {:ref, Noizu.SimplePool.Support.TestThreeWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
 
+  @pool_options %{hard_limit: 250, soft_limit: 150, target: 100}
+
   def wait_hint_release(ref, service, context, timeout \\ 60_000) do
     t = :os.system_time(:millisecond)
     Process.sleep(100)
@@ -43,6 +45,7 @@ defmodule Noizu.SimplePool.TestHelpers do
   end
 
   def setup_first() do
+    Semaphore.start(nil, nil)
     context = Noizu.ElixirCore.CallingContext.system(%{})
     Registry.start_link(keys: :unique, name: Noizu.SimplePool.DispatchRegister,  partitions: System.schedulers_online())
     initial = %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{
@@ -51,41 +54,18 @@ defmodule Noizu.SimplePool.TestHelpers do
       time_stamp: DateTime.utc_now(),
       status: :offline,
       directive: :init,
-      services: %{Noizu.SimplePool.Support.TestPool => %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
-        identifier: {node(), Noizu.SimplePool.Support.TestPool},
-        time_stamp: DateTime.utc_now(),
-        status: :offline,
-        directive: :init,
-        definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
-          identifier: {node(), Noizu.SimplePool.Support.TestPool},
-          server: node(),
-          time_stamp: DateTime.utc_now(),
-          pool: Noizu.SimplePool.Support.TestPool,
-          service: Noizu.SimplePool.Support.TestPool.Server,
-          supervisor: Noizu.SimplePool.Support.TestPool.PoolSupervisor,
-          hard_limit: 200,
-          soft_limit: 150,
-          target: 100,
-        },
-      },
+      services: %{
+        Noizu.SimplePool.Support.TestPool =>
+          Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestPool, @pool_options),
 
-        Noizu.SimplePool.Support.TestThreePool => %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
-          identifier: {node(), Noizu.SimplePool.Support.TestThreePool},
-          time_stamp: DateTime.utc_now(),
-          status: :offline,
-          directive: :init,
-          definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
-            identifier: {node(), Noizu.SimplePool.Support.TestThreePool},
-            server: node(),
-            pool: Noizu.SimplePool.Support.TestThreePool,
-            service: Noizu.SimplePool.Support.TestThreePool.Server,
-            supervisor: Noizu.SimplePool.Support.TestThreePool.PoolSupervisor,
-            time_stamp: DateTime.utc_now(),
-            hard_limit: 200,
-            soft_limit: 150,
-            target: 100,
-          },
-        }
+        Noizu.SimplePool.Support.TestThreePool =>
+          Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestThreePool, @pool_options),
+
+        Noizu.SimplePool.Support.TestV2Pool =>
+          Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2Pool, @pool_options),
+
+        Noizu.SimplePool.Support.TestV2ThreePool =>
+          Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2ThreePool, @pool_options),
 
       },
       entry_point: :pending
@@ -98,6 +78,7 @@ defmodule Noizu.SimplePool.TestHelpers do
   end
 
   def setup_second() do
+    Semaphore.start(nil, nil)
     p = spawn fn ->
 
 
@@ -120,42 +101,15 @@ defmodule Noizu.SimplePool.TestHelpers do
         status: :offline,
         directive: :init,
         services: %{
-          Noizu.SimplePool.Support.TestTwoPool => %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
-            identifier: {node(), Noizu.SimplePool.Support.TestTwoPool},
-            time_stamp: DateTime.utc_now(),
-            status: :offline,
-            directive: :init,
-            definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
-              identifier: {node(), Noizu.SimplePool.Support.TestTwoPool},
-              server: node(),
-              pool: Noizu.SimplePool.Support.TestTwoPool,
-              service: Noizu.SimplePool.Support.TestTwoPool.Server,
-              supervisor: Noizu.SimplePool.Support.TestTwoPool.PoolSupervisor,
-              time_stamp: DateTime.utc_now(),
-              hard_limit: 200,
-              soft_limit: 150,
-              target: 100,
-            },
-          },
+          Noizu.SimplePool.Support.TestTwoPool =>
+            Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestTwoPool, @pool_options),
+          Noizu.SimplePool.Support.TestThreePool =>
+            Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestThreePool, @pool_options),
 
-          Noizu.SimplePool.Support.TestThreePool => %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
-            identifier: {node(), Noizu.SimplePool.Support.TestThreePool},
-            time_stamp: DateTime.utc_now(),
-            status: :offline,
-            directive: :init,
-            definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
-              identifier: {node(), Noizu.SimplePool.Support.TestThreePool},
-              server: node(),
-              pool: Noizu.SimplePool.Support.TestThreePool,
-              service: Noizu.SimplePool.Support.TestThreePool.Server,
-              supervisor: Noizu.SimplePool.Support.TestThreePool.PoolSupervisor,
-              time_stamp: DateTime.utc_now(),
-              hard_limit: 200,
-              soft_limit: 150,
-              target: 100,
-            },
-          }
-
+          Noizu.SimplePool.Support.TestV2TwoPool =>
+            Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2TwoPool, @pool_options),
+          Noizu.SimplePool.Support.TestV2ThreePool =>
+            Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2ThreePool, @pool_options),
         },
         entry_point: :pending
       }
@@ -171,5 +125,4 @@ defmodule Noizu.SimplePool.TestHelpers do
     end
     {:pid, p}
   end
-
 end

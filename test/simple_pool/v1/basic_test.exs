@@ -3,7 +3,7 @@
 # Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.BasicTest do
+defmodule Noizu.SimplePool.V1.BasicTest do
   use ExUnit.Case
 
   import ExUnit.CaptureLog
@@ -11,6 +11,7 @@ defmodule Noizu.SimplePool.BasicTest do
 
   @context Noizu.ElixirCore.CallingContext.system(%{})
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality - s_call!" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -19,6 +20,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert sut.data[:s_call!] == :bannana
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality - s_cast!" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -27,6 +29,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert sut.data[:s_cast!] == :apple
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality - s_call" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -39,6 +42,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert sut.data[:s_call] == :bannana
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality - s_cast" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -51,6 +55,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert sut.data[:s_cast] == :bannana
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality fetch process" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -59,6 +64,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert server == node()
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality fetch state" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -70,6 +76,7 @@ defmodule Noizu.SimplePool.BasicTest do
     end
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality fetch default" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -81,6 +88,7 @@ defmodule Noizu.SimplePool.BasicTest do
     end
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality kill process" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -94,7 +102,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert process != process2
   end
 
-
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality crash process" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -108,6 +116,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert process != process2
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality health check - healthy" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -120,7 +129,7 @@ defmodule Noizu.SimplePool.BasicTest do
 
   end
 
-
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality ping worker" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -142,6 +151,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert link.state == :valid
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality - link_forward!" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
@@ -155,6 +165,7 @@ defmodule Noizu.SimplePool.BasicTest do
     assert updated_link.state == :valid
   end
 
+  @tag :v1
   @tag capture_log: true
   test "basic_functionality - link_forward! - does not auto start" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()

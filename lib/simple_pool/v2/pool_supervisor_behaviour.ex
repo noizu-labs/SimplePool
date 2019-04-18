@@ -173,6 +173,10 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       defdelegate _imp_handle_info_catchall(module, msg, s), to: @implementation, as: :handle_info_catchall
 
 
+      def pass_through_supervise(a,b), do: supervise(a,b)
+      def pass_through_supervisor(a,b,c), do: supervisor(a,b,c)
+      def pass_through_worker(a,b,c), do: worker(a,b,c)
+
       defoverridable [
         banner: 1,
         banner: 2,
@@ -201,7 +205,11 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
         handle_info: 2,
         handle_call_catchall: 3,
         handle_cast_catchall: 2,
-        handle_info_catchall: 2
+        handle_info_catchall: 2,
+
+        pass_through_supervise: 2,
+        pass_through_supervisor: 3,
+        pass_through_worker: 3,
       ]
     end # end quote
   end #end __using__

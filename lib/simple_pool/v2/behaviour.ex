@@ -137,7 +137,7 @@ defmodule Noizu.SimplePool.V2.Behaviour do
 
       if (unquote(default_modules.worker)) do
         defmodule Worker do
-          use Noizu.SimplePool.WorkerBehaviour, unquote(options.worker_options)
+          use Noizu.SimplePool.V2.WorkerBehaviour, unquote(options.worker_options)
         end
       end
 

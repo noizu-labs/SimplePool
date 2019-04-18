@@ -34,6 +34,28 @@ defmodule  Noizu.SimplePool.MonitoringFramework.Service.HealthCheck do
   ]
 
 
+  def template(pool, options \\ %{}) do
+    server = options[:server] || node()
+    %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
+      identifier: {server, pool},
+      time_stamp: DateTime.utc_now(),
+      status: :offline,
+      directive: :init,
+      definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
+        identifier: {server, pool},
+        server: server,
+        time_stamp: DateTime.utc_now(),
+        pool: pool,
+        service: Module.concat(pool, Server),
+        supervisor: Module.concat(pool, PoolSupervisor),
+        hard_limit: options[:hard_limit] || 250,
+        soft_limit:  options[:soft_limit] || 150,
+        target:  options[:target] || 100,
+      },
+    }
+  end
+
+
   defimpl Inspect, for: Noizu.SimplePool.MonitoringFramework.Service.HealthCheck do
     import Inspect.Algebra
     def inspect(entity, opts) do

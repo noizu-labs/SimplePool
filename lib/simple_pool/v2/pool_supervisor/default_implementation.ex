@@ -117,7 +117,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
     max_seconds = module._max_seconds()
     max_restarts = module._max_restarts()
 
-    s = case Supervisor.start_child(sup, module.worker(module.pool_server(), [:deprecated, definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+    s = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_server(), [:deprecated, definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
       {:ok, pid} ->
         {:ok, pid}
       {:error, {:already_started, process2_id}} ->
@@ -141,13 +141,13 @@ defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
 
 
 
-  def start_worker_supervisors(module, sup, definition, context) do
+  def start_worker_supervisors(module, sup, context, definition) do
     supervisors = module.pool_server().available_supervisors()
     max_seconds = module._max_seconds()
     max_restarts = module._max_restarts()
 
     for s <- supervisors do
-      case Supervisor.start_child(sup, module.supervisor(s, [definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds] )) do
+      case Supervisor.start_child(sup, module.pass_through_supervisor(s, [definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds] )) do
         {:ok, _pool_supervisor} ->  :ok
         {:error, {:already_started, process_id}} ->
           case Supervisor.restart_child(sup, process_id) do
@@ -184,7 +184,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
     strategy = module._strategy()
     max_seconds = module._max_seconds()
     max_restarts = module._max_restarts()
-    module.supervise([], [{:strategy, strategy}, {:max_restarts, max_restarts}, {:max_seconds, max_seconds}, {:restart, :permanent}])
+    module.pass_through_supervise([], [{:strategy, strategy}, {:max_restarts, max_restarts}, {:max_seconds, max_seconds}, {:restart, :permanent}])
   end
 
 

@@ -26,7 +26,7 @@ defmodule Noizu.SimplePool.Support.TestV2WorkerEntity do
     vsn: @vsn
   ]
 
-  use Noizu.SimplePool.InnerStateBehaviour,
+  use Noizu.SimplePool.V2.InnerStateBehaviour,
       pool: Noizu.SimplePool.Support.TestV2Pool,
       override: [:load, :supervisor_hint]
 

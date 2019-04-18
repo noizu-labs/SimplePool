@@ -3,7 +3,7 @@
 # Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.EnvironmentManagerTest do
+defmodule Noizu.SimplePool.V1.EnvironmentManagerTest do
   use ExUnit.Case, async: false
 
   #import ExUnit.CaptureLog

@@ -3,17 +3,17 @@
 # Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.Support.TestV2TwoPool do
+defmodule Noizu.SimplePool.Support.TestV2Pool do
   #alias Noizu.Scaffolding.CallingContext
   use Noizu.SimplePool.V2.Behaviour,
       default_modules: [:pool_supervisor, :worker_supervisor],
-      worker_state_entity: Noizu.SimplePool.Support.TestV2TwoWorkerEntity,
+      worker_state_entity: Noizu.SimplePool.Support.TestV2WorkerEntity,
       verbose: false
 
   defmodule Worker do
     @vsn 1.0
-    use Noizu.SimplePool.WorkerBehaviour,
-        worker_state_entity: Noizu.SimplePool.Support.TestV2TwoWorkerEntity,
+    use Noizu.SimplePool.V2.WorkerBehaviour,
+        worker_state_entity: Noizu.SimplePool.Support.TestV2WorkerEntity,
         verbose: false
     require Logger
   end # end worker
@@ -23,11 +23,10 @@ defmodule Noizu.SimplePool.Support.TestV2TwoPool do
   #=============================================================================
   defmodule Server do
     @vsn 1.0
-    use Noizu.SimplePool.ServerBehaviour,
-        worker_state_entity: Noizu.SimplePool.Support.TestV2TwoWorkerEntity,
+    use Noizu.SimplePool.V2.ServerBehaviour,
+        worker_state_entity: Noizu.SimplePool.Support.TestV2WorkerEntity,
         server_monitor: Noizu.MonitoringFramework.EnvironmentPool.Server,
         worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
-    #alias Noizu.SimplePool.Support.TestTwoWorkerEntity
 
     #---------------------------------------------------------------------------
     # Convenience Methods
@@ -48,10 +47,6 @@ defmodule Noizu.SimplePool.Support.TestV2TwoPool do
       s_cast(identifier, {:test_s_cast, value}, context)
     end
 
-
-
-
   end # end defmodule GoldenRatio.Components.Gateway.Server
-
-
 end # end defmodule GoldenRatio.Components.Gateway
+

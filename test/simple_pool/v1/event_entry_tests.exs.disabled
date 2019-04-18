@@ -3,7 +3,7 @@
 # Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.EventEntryTests do
+defmodule Noizu.SimplePool.V1.EventEntryTests do
 
   @tag capture_log: true
   test "service events" do
