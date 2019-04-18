@@ -4,6 +4,15 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.WorkerBehaviour do
+  @moduledoc """
+  Provides worker core functionality
+
+  @note this module is still under heavy development, and is currently merely a copy of the V1 implementation with few structural changes.
+
+  @todo combine InnerStateBehaviour and WorkerBehaviour, expose protocol or behavior method for accessing the Worker.State structure as needed.
+  @todo rewrite call handler logic (simplify/cleanup) with a more straight forward path for extending handlers and consistent naming convention.
+  """
+
   alias Noizu.ElixirCore.OptionSettings
   alias Noizu.ElixirCore.OptionValue
   alias Noizu.ElixirCore.OptionList

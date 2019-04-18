@@ -4,6 +4,13 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
+  @moduledoc """
+    WorkerSupervisorBehaviour provides the logic for managing a pool of workers. The top level Pool Supervisors will generally
+    contain a number of WorkerSupervisors that in turn are referenced by Pool.Server to access, kill and spawn worker processes.
+
+    @todo increase level of OTP nesting and hide some of the communication complexity from Pool.Server
+  """
+
   require Logger
   @callback start_link(any, any) :: any
 

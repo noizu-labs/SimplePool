@@ -4,6 +4,14 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.Server.WorkerManagement.Behaviour do
+  @moduledoc """
+    Provides interface for working with distributed workers. (Similar to the WorkerLookupBehaviour but accessing different processes)
+
+    @todo combine with WorkerLookupBehaviour
+    @todo add layer of logical nesting (Pool.Server.WorkerManagement)
+    @todo overhaul message passing.
+  """
+
   #-------------------------------------------------------------------------------
   # GenServer Lifecycle
   #-------------------------------------------------------------------------------

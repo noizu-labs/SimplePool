@@ -4,6 +4,14 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
+
+  @moduledoc """
+  PoolSupervisorBehaviour provides the implementation for the top level node in a Pools OTP tree.
+  The Pool Supervisor is responsible to monitoring the ServerPool and WorkerSupervisors (which in turn monitor workers)
+
+  @todo Implement a top level WorkerSupervisor that in turn supervises children supervisors.
+  """
+
   @callback option_settings() :: Map.t
   @callback start_link(any, any) :: any
   @callback start_children(any, any, any) :: any
@@ -52,7 +60,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       defdelegate banner(header, msg), to: @pool
 
       #-------------------
-      # @TODO move these into a single runtime_options/otp_options or similiar method.
+      # @TODO move these into a single runtime_options/otp_options or similar method.
       #-------------------
       def _strategy(), do: @strategy
       def _max_seconds(), do: @max_seconds

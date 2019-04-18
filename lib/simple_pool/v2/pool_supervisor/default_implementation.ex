@@ -2,8 +2,10 @@
 # Author: Keith Brings
 # Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
-
 defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
+  @moduledoc """
+    Default Implementation for Pool.PoolSupervisor.
+  """
   alias Noizu.ElixirCore.OptionSettings
   alias Noizu.ElixirCore.OptionValue
   alias Noizu.ElixirCore.OptionList

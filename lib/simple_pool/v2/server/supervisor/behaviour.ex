@@ -4,6 +4,11 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.Server.Supervisor.Behaviour do
+  @moduledoc """
+    The Server.Supervisor.Behaviour provides scaffolding for tracking worker supervisors, spawning workers, etc.
+
+    @todo combine with WorkerManagement and WorkerLookup behaviours.
+  """
 
   @callback count_supervisor_children(any) :: any
   @callback group_supervisor_children(any, any) :: any

@@ -4,6 +4,11 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.Server.Router.DefaultImplementation do
+  @moduledoc """
+    Process routing implementation.
+    @todo combine with WorkerManagement module (retain strategy pattern).
+  """
+
   def extended_call(module, ref, timeout, call, context) do
     # @TODO @PRI-0
     # if redirect router then: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}

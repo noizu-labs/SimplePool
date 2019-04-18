@@ -4,6 +4,12 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.WorkerSupervisor.DefaultImplementation do
+  @moduledoc """
+    Provides the default implementation for WorkerSupervisor modules.
+    Using the strategy pattern here allows us to move logic out of the WorkerSupervisorBehaviour implementation
+    which reduces the amount of generated code, and improve compile times. It additionally allows for developers to provide
+    their own alternative implementations.
+  """
   alias Noizu.ElixirCore.OptionSettings
   alias Noizu.ElixirCore.OptionValue
   alias Noizu.ElixirCore.OptionList
@@ -38,8 +44,19 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.DefaultImplementation do
   #------------
   #
   #------------
+  @doc """
+
+  """
   defdelegate meta(module), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+
+  @doc """
+
+  """
   defdelegate meta(module, update), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+
+  @doc """
+
+  """
   def meta_init(module) do
     verbose = case module.options().verbose do
       :auto -> module.pool().verbose()
@@ -53,15 +70,37 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.DefaultImplementation do
   #------------
   #
   #------------
+  @doc """
+
+  """
   def pool(module), do: Module.split(module) |> Enum.slice(0..-2) |> Module.concat()
+
+  @doc """
+
+  """
   defdelegate pool_worker_supervisor(pool), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+
+  @doc """
+
+  """
   defdelegate pool_server(pool), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+
+  @doc """
+
+  """
   defdelegate pool_worker(pool), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
+
+  @doc """
+
+  """
   defdelegate pool_supervisor(pool), to: Noizu.SimplePool.V2.Pool.DefaultImplementation
 
   #-----------
   #
   #-----------
+  @doc """
+
+  """
   def start_link(module, definition, context) do
     if module.verbose() do
       Logger.info(fn -> {module.banner("#{module}.start_link"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
@@ -73,14 +112,23 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.DefaultImplementation do
   #-----------
   #
   #-----------
+  @doc """
+
+  """
   def child(module, ref, context) do
     module.pass_through_worker(module.pool_worker(), [ref, context], [id: ref, restart: module._restart_type()])
   end
 
+  @doc """
+
+  """
   def child(module, ref, params, context) do
     module.pass_through_worker(module.pool_worker(), [ref, params, context], [id: ref, restart: module._restart_type()])
   end
 
+  @doc """
+
+  """
   def child(module, ref, params, context, options) do
     restart = options[:restart] || module._restart_type()
     module.pass_through_worker(module.pool_worker(), [ref, params, context], [id: ref, restart: restart])
@@ -89,6 +137,9 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.DefaultImplementation do
   #-----------
   #
   #-----------
+  @doc """
+
+  """
   def init(module, [_definition, context]) do
     if module.verbose() do
       Logger.info(fn -> {module.banner("#{module} INIT", "args: #{inspect context}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)

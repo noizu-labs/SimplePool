@@ -4,6 +4,12 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
+  @moduledoc """
+    The method provides scaffolding for Pool Worker Entities.  Such as support for calls such as shutdown, different init strategies, etc.
+
+    @note this module is currently a duplicate of the V1 implementation
+    @todo InnerStateBehaviour and WorkerBehaviour should be combined while moving the split between the Pool.Worker and the actual entity.
+  """
   require Logger
   @callback call_forwarding(call :: any, context :: any, state :: any, outer_state :: any) :: {:noreply, state :: any}
   #@callback call_forwarding(call :: any, context :: any, from :: any,  state :: any, outer_state :: any) :: {atom, reply :: any, state :: any}

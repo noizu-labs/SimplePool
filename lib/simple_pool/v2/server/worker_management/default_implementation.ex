@@ -4,6 +4,10 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.Server.WorkerManagement.DefaultImplementation do
+  @moduledoc """
+    Default Implementation for the WorkerManagement behaviour user by Pool.Server modules to interact with workers.
+  """
+
   alias Noizu.SimplePool.Server.State
   alias Noizu.SimplePool.Server.EnvironmentDetails
   require Logger

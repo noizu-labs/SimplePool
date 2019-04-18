@@ -4,6 +4,9 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.Pool.DefaultImplementation do
+  @moduledoc """
+    Default Implementation for the top level Pool module.
+  """
   alias Noizu.ElixirCore.OptionSettings
   alias Noizu.ElixirCore.OptionValue
   alias Noizu.ElixirCore.OptionList

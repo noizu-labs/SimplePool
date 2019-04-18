@@ -3,6 +3,14 @@
 # Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 defmodule Noizu.SimplePool.V2.WorkerLookupBehaviour.DefaultImplementation do
+  @moduledoc """
+    The WorkerLookupBehaviour provides an interface for managing workers distributed across nodes.
+    Determining on which server the owner for a ref process currently resides,
+    locking down a ref's tenancy to perform migrations and other tasks, etc.
+
+    @todo define a new Noizu.SimplePool.V2.WorkerLookupBehaviour and tweak calls here.
+    @todo restore events, monitoring extensions with a compile time of FastGlobal flag for enabling/disabling the monitoring system.
+  """
   require Logger
   alias Noizu.ElixirCore.OptionSettings
   alias Noizu.ElixirCore.OptionValue

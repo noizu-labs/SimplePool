@@ -4,6 +4,15 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.Behaviour do
+  @moduledoc """
+    The Noizu.SimplePool.V2.Behaviour provides the entry point for Worker Pools.
+    The developer will define a pool such as ChatRoomPool that uses the Noizu.SimplePool.V2.Behaviour Implementation
+    before going on to define worker and server implementations.
+
+    The module is relatively straight forward, it provides methods to get pool information (pool worker, pool supervisor)
+    compile options, runtime settings (via the FastGlobal library and our meta function).
+  """
+
   @callback pool() :: module
   @callback pool_worker_supervisor() :: module
   @callback pool_server() :: module
@@ -31,7 +40,6 @@ defmodule Noizu.SimplePool.V2.Behaviour do
       @parent unquote(__MODULE__)
       @module __MODULE__
 
-
       @module_str "#{@module}"
 
       @pool_worker_state_entity @implementation.pool_worker_state_entity(@module, unquote(options.worker_state_entity))
@@ -47,8 +55,7 @@ defmodule Noizu.SimplePool.V2.Behaviour do
       @pool_worker @implementation.pool_worker(@module)
       @pool_supervisor @implementation.pool_supervisor(@module) # @module
 
-      @meta_key Module.concat(@module, "Meta")
-
+      @meta_key Module.concat(@module, Meta)
 
       @doc """
       Current Pool
@@ -81,13 +88,13 @@ defmodule Noizu.SimplePool.V2.Behaviour do
       def pool_worker_state_entity(), do: @pool_worker_state_entity
 
       @doc """
-      Banner Text Output Helper.
+      Banner Text Output Convenience Method.
       """
       def banner(msg), do: banner(@module_str, msg)
       defdelegate banner(header, msg), to: @implementation
 
       @doc """
-        key used for persisting meta information.
+        key used for persisting meta information. Detaults to __MODULE__.Meta
       """
       def meta_key(), do: @meta_key
 
