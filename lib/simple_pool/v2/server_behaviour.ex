@@ -47,8 +47,14 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
     #{inspect option_settings, pretty: true, limit: :infinity}
     ----------------------------------------------------------------------------
         "
+
+
+
     end
 
+    # Temporary Hardcoding
+    router_behaviour = Noizu.SimplePool.V2.RouterBehaviour
+    worker_management_behaviour = Noizu.SimplePool.V2.WorkerManagementBehaviour
     #features = MapSet.new(options.features)
     quote do
       @behaviour Noizu.SimplePool.V2.ServerBehaviour
@@ -65,7 +71,18 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @option_settings :override
       @pool_worker_state_entity :override
       use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote(option_settings)
+      #----------------------------------------------------------
 
+      #----------------------------------------------------------
+      defmodule Router do
+        use unquote(router_behaviour)
+      end
+      #----------------------------------------------------------
+
+      #----------------------------------------------------------
+      defmodule WorkerManagement do
+        use unquote(worker_management_behaviour)
+      end
       #----------------------------------------------------------
 
 

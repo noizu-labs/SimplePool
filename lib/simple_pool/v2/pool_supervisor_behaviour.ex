@@ -117,9 +117,11 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
         start_children: 3,
         start_worker_supervisors: 3,
         init: 1,
+
         handle_call: 3,
         handle_cast: 2,
         handle_info: 2,
+
         handle_call_catchall: 3,
         handle_cast_catchall: 2,
         handle_info_catchall: 2,
