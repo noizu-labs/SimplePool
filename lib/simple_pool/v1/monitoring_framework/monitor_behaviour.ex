@@ -24,6 +24,4 @@ defmodule Noizu.SimplePool.MonitoringFramework.MonitorBehaviour do
 
   @callback record_server_event!(server :: atom, event :: atom, details :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: :ack | :nack | {:error, details :: any}
   @callback record_service_event!(server :: atom, service :: module, event :: atom, details :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: :ack | :nack | {:error, details :: any}
-
-
 end

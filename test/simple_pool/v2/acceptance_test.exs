@@ -13,6 +13,13 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
 
   @tag :v2
   @tag capture_log: true
+  test "Basic - Behaviour Overrides" do
+    # Confirm we are able to override nested behaviour method declarations.
+    assert Noizu.SimplePool.Support.TestV2TwoPool.banner("hello world") == :succesful_override
+  end
+
+  @tag :v2
+  @tag capture_log: true
   test "basic_functionality - s_call!" do
     :wip
   end

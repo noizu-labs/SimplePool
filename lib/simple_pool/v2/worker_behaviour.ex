@@ -56,6 +56,7 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       require Logger
       @behaviour Noizu.SimplePool.WorkerBehaviour
       use GenServer
+
       @base (Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat)
       @server (Module.concat([@base, "Server"]))
       @worker_state_entity (Noizu.SimplePool.Behaviour.expand_worker_state_entity(@base, unquote(options.worker_state_entity)))
@@ -66,22 +67,10 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       @inactivity_check unquote(MapSet.member?(features, :inactivity_check))
       @lazy_load unquote(MapSet.member?(features, :lazy_load))
       @base_verbose (unquote(verbose))
+      @option_settings :override
+      @options :override
 
-
-      @option_settings unquote(Macro.escape(option_settings))
-      @options unquote(Macro.escape(options))
-
-      if (unquote(required.verbose)) do
-        def verbose(), do: Noizu.SimplePool.WorkerBehaviourDefault.verbose(@base_verbose, @base)
-      end
-
-      if (unquote(required.option_settings)) do
-        def option_settings(), do: @option_settings
-      end
-
-      if (unquote(required.options)) do
-        def options(), do: @options
-      end
+      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote(option_settings)
 
       # @start_link
       if (unquote(required.start_link)) do

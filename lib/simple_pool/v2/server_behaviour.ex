@@ -16,18 +16,8 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
   """
 
   require Logger
-  @callback pool() :: module
-  @callback pool_worker_supervisor() :: module
-  @callback pool_server() :: module
-  @callback pool_supervisor() :: module
-  @callback pool_worker() :: module
-  @callback banner(String.t) :: String.t
-  @callback banner(String.t, String.t) :: String.t
-  @callback meta() :: Map.t
-  @callback meta(Map.t) :: Map.t
-  @callback meta_init() :: Map.t
-  @callback options() :: Map.t
-  @callback option_settings() :: Map.t
+  @callback fetch(any, any, any, any) :: any
+
 
   #=================================================================
   #=================================================================
@@ -66,6 +56,19 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       use GenServer
       require Logger
 
+
+      #----------------------------------------------------------
+      @module __MODULE__
+      @pool :override
+      @parent :override
+      @options :override
+      @option_settings :override
+      @pool_worker_state_entity :override
+      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote(option_settings)
+
+      #----------------------------------------------------------
+
+
       # Review for Deprecation
       @server_provider (unquote(server_provider))
       @worker_management_implementation @server_provider
@@ -81,29 +84,15 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @implementation unquote(implementation)
       @supervisor_implementation unquote(supervisor_implementation)
 
-      @parent unquote(__MODULE__)
-      @module __MODULE__
-      @module_name "#{@module}"
 
       # Related Modules.
-      @pool @implementation.pool(@module)
-
-      @pool_worker_state_entity @implementation.pool_worker_state_entity(@pool, unquote(options.worker_state_entity))
-      @worker_state_entity @pool_worker_state_entity
-
       @max_supervisors (unquote(max_supervisors))
-      @worker_supervisor (Module.concat([@pool, "WorkerSupervisor_S1"]))
       @worker_supervisors Enum.map(1..@max_supervisors, fn(x) -> {x, Module.concat([@pool, "WorkerSupervisor_S#{x}"])} end) |> Map.new()
       @available_supervisors Map.values(@worker_supervisors)
-
-
-      @meta_key Module.concat(@module, "Meta")
-
-      @options unquote(Macro.escape(options))
-      @option_settings unquote(Macro.escape(option_settings))
-
       @shutdown_timeout (unquote(shutdown_timeout))
       @graceful_stop unquote(MapSet.member?(features, :graceful_stop))
+
+
 
       #@strategy unquote(strategy)
       #@restart_type unquote(restart_type)
@@ -114,29 +103,10 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @route_implementation unquote(route_implementation)
       @link_implementation Noizu.SimplePool.V2.Server.Router.RedirectProvider
 
+
+
       # @TODO required?
       @default_definition @options.default_definition
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Return Banner String With Default Heading
-      """
-      def banner(msg), do: banner(@module_name, msg)
-
-      @doc """
-      Return Banner String With Custom Heading
-      """
-      defdelegate banner(header, msg), to: @pool
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Get verbosity level.
-      """
-      def verbose(), do: meta()[:verbose]
 
       #-------------------
       #
@@ -153,99 +123,9 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       #
       #-------------------
       @doc """
-      Obtain unique key used by FastGlobal for storing meta information.
-      """
-      def meta_key(), do: @meta_key
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Obtain meta runtime information about Server process.
-      """
-      def meta(), do: _imp_meta(@module)
-      defdelegate _imp_meta(module), to: @implementation, as: :meta
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Update meta runtime information.
-      """
-      def meta(update), do: _imp_meta(@module, update)
-      defdelegate _imp_meta(module, update), to: @implementation, as: :meta
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
       Initialize meta information for Server process.
       """
-      def meta_init(), do: _imp_meta_init(@module)
-      defdelegate _imp_meta_init(module), to: @implementation, as: :meta_init
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Obtain option_settings for server module in the form of a Noizu.ElixirCore.OptionSettings structure.
-      """
-      def option_settings(), do: @option_settings
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Get effective compile time options.
-      """
-      def options(), do: @options
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Get the name of Pool this Server is a member of.
-      """
-      defdelegate pool(), to: @pool
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Get the (base) WorkerSupervisor for this Pool.
-      @todo add an additional layer(s) of nesting for WorkerSupervisors.
-      """
-      defdelegate pool_worker_supervisor(), to: @pool
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Get the name of the Pool Server (this module) for this Server's Pool.
-      """
-      defdelegate pool_server(), to: @pool
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Get the name of the Pool Supervisor for this Server's Pool.
-      """
-      defdelegate pool_supervisor(), to: @pool
-
-      #-------------------
-      #
-      #-------------------
-      @doc """
-      Get the name of the PoolWorker module used for this Server's Pool.
-      """
-      defdelegate pool_worker(), to: @pool
-
-
-      @doc """
-      Get the Worker State Module used by this Pool.
-      """
-      defdelegate pool_worker_state_entity(), to: @pool
+      def meta_init(), do: @implementation.meta_init(@module)
 
       #-------------------
       #
@@ -254,7 +134,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       Get the Worker State Module used by this Pool. (alias)
       @deprecated
       """
-      defdelegate worker_state_entity(), to: @pool, as: :pool_worker_state_entity
+      def worker_state_entity(), do: pool_worker_state_entity()
 
       #=========================================================================
       # Supervisor Strategy
@@ -462,32 +342,32 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @doc """
        Convenience Method, passes call through to worker_state_entity's method.
       """
-      defdelegate id(ref), to: @worker_state_entity
+      defdelegate id(ref), to: @pool_worker_state_entity
 
       @doc """
        Convenience Method, passes call through to worker_state_entity's method.
       """
-      defdelegate ref(ref), to: @worker_state_entity
+      defdelegate ref(ref), to: @pool_worker_state_entity
 
       @doc """
        Convenience Method, passes call through to worker_state_entity's method.
       """
-      defdelegate entity(ref, options \\ %{}), to: @worker_state_entity
+      defdelegate entity(ref, options \\ %{}), to: @pool_worker_state_entity
 
       @doc """
        Convenience Method, passes call through to worker_state_entity's method.
       """
-      defdelegate entity!(ref, options \\ %{}), to: @worker_state_entity
+      defdelegate entity!(ref, options \\ %{}), to: @pool_worker_state_entity
 
       @doc """
        Convenience Method, passes call through to worker_state_entity's method.
       """
-      defdelegate record(ref, options \\ %{}), to: @worker_state_entity
+      defdelegate record(ref, options \\ %{}), to: @pool_worker_state_entity
 
       @doc """
        Convenience Method, passes call through to worker_state_entity's method.
       """
-      defdelegate record!(ref, options \\ %{}), to: @worker_state_entity
+      defdelegate record!(ref, options \\ %{}), to: @pool_worker_state_entity
 
       #-------------------------------------------------------------------------------
       # Worker Process Management
@@ -858,6 +738,8 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       """
       def i_info_handler(call, context, state), do: m_info_handler(@module, call, context, state)
       defdelegate i_info_handler(module, call, context, state), to: @worker_management_implementation
+
+
 
     end # end quote
   end #end __using__

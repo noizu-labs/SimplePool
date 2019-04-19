@@ -61,11 +61,11 @@ defmodule Noizu.SimplePool.TestHelpers do
         Noizu.SimplePool.Support.TestThreePool =>
           Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestThreePool, @pool_options),
 
-        Noizu.SimplePool.Support.TestV2Pool =>
-          Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2Pool, @pool_options),
+        #Noizu.SimplePool.Support.TestV2Pool =>
+        #  Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2Pool, @pool_options),
 
-        Noizu.SimplePool.Support.TestV2ThreePool =>
-          Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2ThreePool, @pool_options),
+        #Noizu.SimplePool.Support.TestV2ThreePool =>
+        #  Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2ThreePool, @pool_options),
 
       },
       entry_point: :pending
@@ -106,10 +106,10 @@ defmodule Noizu.SimplePool.TestHelpers do
           Noizu.SimplePool.Support.TestThreePool =>
             Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestThreePool, @pool_options),
 
-          Noizu.SimplePool.Support.TestV2TwoPool =>
-            Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2TwoPool, @pool_options),
-          Noizu.SimplePool.Support.TestV2ThreePool =>
-            Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2ThreePool, @pool_options),
+          #Noizu.SimplePool.Support.TestV2TwoPool =>
+          #  Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2TwoPool, @pool_options),
+          #Noizu.SimplePool.Support.TestV2ThreePool =>
+          #  Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2ThreePool, @pool_options),
         },
         entry_point: :pending
       }

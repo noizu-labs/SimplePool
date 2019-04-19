@@ -5,10 +5,14 @@
 
 defmodule Noizu.SimplePool.Support.TestV2TwoPool do
   #alias Noizu.Scaffolding.CallingContext
-  use Noizu.SimplePool.V2.Behaviour,
+  use Noizu.SimplePool.V2.PoolBehaviour,
       default_modules: [:pool_supervisor, :worker_supervisor],
       worker_state_entity: Noizu.SimplePool.Support.TestV2TwoWorkerEntity,
       verbose: false
+
+  def banner(_header, _msg) do
+    :succesful_override
+  end
 
   defmodule Worker do
     @vsn 1.0
