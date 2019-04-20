@@ -41,18 +41,21 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
     # Temporary Hardcoding
     router_provider = Noizu.SimplePool.V2.RouterBehaviour
     worker_management_provider = Noizu.SimplePool.V2.WorkerManagementBehaviour
-    server_management_provider = Noizu.SimplePool.V2.ServerManagementBehaviour
+    service_management_provider = Noizu.SimplePool.V2.ServiceManagementBehaviour
     message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour
     quote do
       # todo option value
       @timeout 30_000
-
+      @implementation unquote(implementation)
       @behaviour Noizu.SimplePool.V2.ServerBehaviour
       alias Noizu.SimplePool.Worker.Link
+      alias Noizu.SimplePool.Server.EnvironmentDetails
+      alias Noizu.SimplePool.Server.State
       use GenServer
       require Logger
 
       #----------------------------------------------------------
+      @option_settings :overide
       use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
       #----------------------------------------------------------
 
@@ -74,11 +77,71 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       #----------------------------------------------------------
 
       #----------------------------------------------------------
-      defmodule ServerManagement do
-        use unquote(server_management_provider), unquote(option_settings)
+      defmodule ServiceManagement do
+        use unquote(service_management_provider), unquote(option_settings)
       end
       #----------------------------------------------------------
 
+
+      @doc """
+      Initialize meta data for this pool. (override default provided by PoolSettingsBehaviour)
+      """
+      def meta_init(), do: @implementation.meta_init(__MODULE__)
+
+      #---------------
+      # start_link
+      #---------------
+      def start_link(definition \\ :default, context \\ nil) do
+        final_definition = definition == :default && __MODULE__.ServiceManagement.default_definition() || definition
+        if verbose() do
+          Logger.info(fn ->
+            default_snippet = (definition == :default) && " (:default)" || ""
+            {banner("START_LINK #{__MODULE__} (#{inspect pool_server()}@#{inspect self()})\ndefinition#{default_snippet}: #{inspect final_definition}"), Noizu.ElixirCore.CallingContext.metadata(context)}
+          end)
+        end
+        GenServer.start_link(__MODULE__, [final_definition, context], name: __MODULE__, restart: :permanent)
+      end
+
+      #---------------
+      # init
+      #---------------
+      def init([definition, context] = args) do
+        verbose() && Logger.info(fn -> {banner("INIT #{__MODULE__} (#{inspect pool_server()}@#{inspect self()})\n args: #{inspect args, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+
+        # @TODO we can avoid this jump by directly delegating to server_provider() and updating server_prover to fetch option_settings on its own.
+        #module.server_provider().init(module, :deprecated, definition, context, module.option_settings())
+
+        #server.enable_server!(node())
+        #options = module.option_settings()
+        # TODO load real effective
+        effective = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
+          identifier: {node(), pool()},
+          time_stamp: DateTime.utc_now(),
+          status: :online,
+          directive: :init,
+          definition: definition,
+        }
+
+        state = %State{
+          worker_supervisor: :deprecated,
+          service: pool_server(),
+          status_details: :pending,
+          extended: %{},
+          environment_details: %EnvironmentDetails{definition: definition, effective: effective, status: :init},
+          options: @option_settings
+        }
+
+        __MODULE__.ServiceManagement.record_service_event!(:start, %{definition: definition, options: @option_settings}, context, %{})
+        {:ok, state}
+      end
+
+      def terminate(reason, state) do
+        context = nil
+        __MODULE__.ServiceManagement.record_service_event!(:terminate, %{reason: reason}, context, @option_settings)
+        Logger.warn( fn -> banner("Terminate #{inspect state, pretty: true}\nReason: #{inspect reason}") end)
+        #this.server.disable_server!(node())
+        :ok
+      end
 
       #---------------------------------------------------------
       # Built in Worker Convenience Methods.
@@ -162,6 +225,10 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       end
 
       defoverridable [
+        start_link: 2,
+        init: 1,
+        terminate: 2,
+
         fetch: 4,
         save!: 3,
         save_async!: 3,

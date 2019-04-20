@@ -3,12 +3,9 @@
 # Copyright (C) 2019 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.V2.ServerManagementBehaviour do
+defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
   require Logger
 
-  @callback start_link(any, any, any) :: any
-  @callback init(any) :: any
-  @callback terminate(any, any) :: any
   @callback default_definition() :: any
   @callback enable_server!(any) :: any
   @callback disable_server!(any) :: any
@@ -25,87 +22,74 @@ defmodule Noizu.SimplePool.V2.ServerManagementBehaviour do
 
   defmacro __using__(_options) do
     quote do
+      require Logger
+
       @server Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat()
+
+
       @router Module.concat(@server, Router)
+
       @wm Module.concat(@server, WorkerManagement)
 
       @doc """
 
       """
-      def start_link(sup, definition, context), do: throw :pri0
+      def default_definition(), do: @server.meta()[:default_definition]
 
       @doc """
 
       """
-      def init(args), do: throw :pri0
+      def enable_server!(elixir_node), do: throw :pri0_enable_server!
 
       @doc """
 
       """
-      def terminate(reason, state), do: throw :pri0
+      def disable_server!(elixir_node), do: throw :pri0_disable_server!
 
       @doc """
 
       """
-      def default_definition(), do: throw :pri0
+      def status(context \\ nil), do: throw :pri0_status
 
       @doc """
 
       """
-      def enable_server!(elixir_node), do: throw :pri0
+      def load(context \\ nil, settings \\ %{}), do: throw :pri0_load
 
       @doc """
 
       """
-      def disable_server!(elixir_node), do: throw :pri0
+      def load_complete(this, process, context), do: throw :pri0_load_complete
 
       @doc """
 
       """
-      def status(context \\ nil), do: throw :pri0
+      def status_wait(target_state, context, timeout \\ :infinity), do: throw :pri0_status_wait
 
       @doc """
 
       """
-      def load(context \\ nil, settings \\ %{}), do: throw :pri0
+      def entity_status(context, options \\ %{}), do: throw :pri0_entity_status
 
       @doc """
 
       """
-      def load_complete(this, process, context), do: throw :pri0
+      def server_kill!(context \\ nil, options \\ %{}), do: throw :pri0_server_kill!
 
       @doc """
 
       """
-      def status_wait(target_state, context, timeout \\ :infinity), do: throw :pri0
-
-      @doc """
-
-      """
-      def entity_status(context, options \\ %{}), do: throw :pri0
-
-      @doc """
-
-      """
-      def server_kill!(context \\ nil, options \\ %{}), do: throw :pri0
-
-      @doc """
-
-      """
-      def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0
-      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0
-      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0
+      def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_service_health_check!
+      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_service_health_check!
+      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_service_health_check!
 
 
       @doc """
 
       """
-      def record_service_event!(event, details, context, options), do: throw :pri0
+      def record_service_event!(event, details, context, options), do: Logger.error("Record Service Event V2 NYI")
 
       defoverridable [
-        start_link: 3,
-        init: 1,
-        terminate: 2,
 
         default_definition: 0,
 

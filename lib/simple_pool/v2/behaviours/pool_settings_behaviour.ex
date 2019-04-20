@@ -44,6 +44,18 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
     ---------------------------------
     """
     def banner(header, msg) do
+      header = cond do
+        is_bitstring(header) -> header
+        is_atom(header) -> "#{header}"
+        true -> "#{inspect header}"
+      end
+
+      msg = cond do
+        is_bitstring(msg) -> msg
+        is_atom(msg) -> "#{msg}"
+        true -> "#{inspect msg}"
+      end
+
       header_len = String.length(header)
       len = 120
 

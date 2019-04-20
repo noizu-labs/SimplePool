@@ -136,7 +136,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
     end
 
     # Start Server Supervisor
-    s = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_server(), [:deprecated, definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+    s = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_server(), [definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
       {:ok, pid} ->
         {:ok, pid}
       {:error, {:already_started, process2_id}} ->

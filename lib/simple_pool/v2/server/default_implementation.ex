@@ -162,65 +162,6 @@ defmodule Noizu.SimplePool.V2.Server.DefaultImplementation do
   # Genserver Lifecycle & Releated
   #=========================================================================
 
-  #---------------
-  # start_link
-  #---------------
-  def start_link(module, sup, definition, context) do
-    final_definition = definition == :default && module.default_definition() || definition
-    if module.verbose() do
-      Logger.info(fn ->
-        default_snippet = (definition == :default) && " (:default)" || ""
-        {module.banner("START_LINK #{module} (#{inspect module.worker_supervisor()}@#{inspect self()})\ndefinition#{default_snippet}: #{inspect final_definition}"), Noizu.ElixirCore.CallingContext.metadata(context)}
-      end)
-    end
-    GenServer.start_link(module, [:deprecated, final_definition, context], name: module, restart: :permanent)
-  end
-
-  #---------------
-  # init
-  #---------------
-  def init(module, [_sup, definition, context] = args) do
-    if module.verbose() do
-      Logger.info(fn -> {module.banner("INIT #{module} (#{inspect module.worker_supervisor()}@#{inspect self()})\n args: #{inspect args, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-    end
-    # @TODO we can avoid this jump by directly delegating to server_provider() and updating server_prover to fetch option_settings on its own.
-    module.server_provider().init(module, :deprecated, definition, context, module.option_settings())
-  end
-
-  def terminate(module, reason, state) do
-    module.server_provider().terminate(module, reason, state, nil, %{})
-  end
-
-  def enable_server!(module, elixir_node) do
-    #@TODO reimplement pri1
-    #@server_monitor.enable_server!(module.pool, elixir_node)
-    :pending
-  end
-
-  def disable_server!(module, elixir_node) do
-    #@TODO reimplement pri1
-    #@server_monitor.disable_server!(module.pool, elixir_node)
-    :pending
-  end
-
-  def accept_transfer!( _module, _ref, _state, _context, _options), do: throw "PRI0"
-  def lock!( _module, _context, _options), do: throw "PRI0"
-  def release!( _module, _context, _options), do: throw "PRI0"
-  def status_wait( _module, _target_state, _context, _timeout), do: throw "PRI0"
-  def entity_status( _module, _context, _options), do: throw "PRI0"
-
-  def fetch( _module, _identifier, _fetch_options, _context, _options), do: throw "PRI0"
-  def save!( _module, _identifier, _context, _options), do: throw "PRI0"
-  def save_async!( _module, _identifier, _context), do: throw "PRI0"
-  def reload!( _module, _identifier, _context, _options), do: throw "PRI0"
-  def reload_async!( _module, _identifier, _context, _options), do: throw "PRI0"
-  def ping!( _module, _identifier, _context, _options), do: throw "PRI0"
-  def kill!( _module, _identifier, _context, _options), do: throw "PRI0"
-  def server_kill!( _module, _context, _options), do: throw "PRI0"
-  def crash!( _module, _identifier, _context, _options), do: throw "PRI0"
-  def service_health_check!( _module, _health_check_options, _context, _options), do: throw "PRI0"
-  def health_check!( _module, _identifier, _health_check_options, _context, _options), do: throw "PRI0"
-  def record_service_event!( _module, _event, _details, _context, _options), do: throw "PRI0"
 
   #---------------
   # default_definition

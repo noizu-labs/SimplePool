@@ -26,62 +26,62 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       @doc """
 
       """
-      def handle_call(envelope, from, state), do: throw :pri0
+      def handle_call(envelope, from, state), do: throw :pri0_handle_call
 
       @doc """
 
       """
-      def handle_cast(envelope, state), do: throw :pri0
+      def handle_cast(envelope, state), do: throw :pri0_handle_cast
 
       @doc """
 
       """
-      def handle_info(envelope, state), do: throw :pri0
+      def handle_info(envelope, state), do: throw :pri0_handle_info
 
       @doc """
 
       """
-      def m_call_handler(call, context, from, state), do: throw :pri0
+      def m_call_handler(call, context, from, state), do: throw :pri0_m_call_handler
 
       @doc """
 
       """
-      def m_cast_handler(call, context, state), do: throw :pri0
+      def m_cast_handler(call, context, state), do: throw :pri0_m_cast_handler
 
       @doc """
 
       """
-      def m_info_handler(call, context, state), do: throw :pri0
+      def m_info_handler(call, context, state), do: throw :pri0_m_info_handler
 
       @doc """
 
       """
-      def s_call_handler(call, context, from, state), do: throw :pri0
+      def s_call_handler(call, context, from, state), do: throw :pri0_s_call_handler
 
       @doc """
 
       """
-      def s_cast_handler(call, context, state), do: throw :pri0
+      def s_cast_handler(call, context, state), do: throw :pri0_s_cast_handler
 
       @doc """
 
       """
-      def s_info_handler(call, context, state), do: throw :pri0
+      def s_info_handler(call, context, state), do: throw :pri0_s_info_handler
 
       @doc """
 
       """
-      def i_call_handler(call, context, from, state), do: throw :pri0
+      def i_call_handler(call, context, from, state), do: throw :pri0_i_call_handler
 
       @doc """
 
       """
-      def i_cast_handler(call, context, state), do: throw :pri0
+      def i_cast_handler(call, context, state), do: throw :pri0_i_cast_handler
 
       @doc """
 
       """
-      def i_info_handler(call, context, state), do: throw :pri0
+      def i_info_handler(call, context, state), do: throw :pri0_i_info_handler
 
       defoverridable [
         handle_call: 3,

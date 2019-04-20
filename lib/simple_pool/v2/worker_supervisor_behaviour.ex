@@ -82,11 +82,11 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       end
 
       def count_children() do
-        throw :pri0
+        throw :pri0_count_children
       end
 
       def group_children(lambda) do
-        throw :pri0
+        throw :pri0_group_children
       end
 
 

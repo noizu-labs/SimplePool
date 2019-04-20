@@ -34,6 +34,10 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
       """
       def meta_init(), do: @implementation.meta_init(@module)
 
+
+      def start(context \\ nil, definition \\ :auto), do: __MODULE__.PoolSupervisor.start_link(context, definition)
+      
+
       defoverridable []
 
       if (unquote(default_modules.worker)) do

@@ -45,118 +45,118 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
       @doc """
       Count children of all worker supervisors.
       """
-      def count_supervisor_children(), do: throw :pri0
+      def count_supervisor_children(), do: throw :pri0_count_supervisor_children
 
       @doc """
       Group supervisor children by user provided method.
       """
-      def group_supervisor_children(group_fun), do: throw :pri0
+      def group_supervisor_children(group_fun), do: throw :pri0_group_supervisor_children
 
       @doc """
        Get list of active worker supervisors.
       """
-      def active_supervisors(), do: throw :pri0
+      def active_supervisors(), do: throw :pri0_active_supervisors
 
       @doc """
        Get list of all worker supervisors.
       """
-      def worker_supervisors(), do: throw :pri0
+      def worker_supervisors(), do: throw :pri0_worker_supervisors
 
       @doc """
        Get a supervisor module by index position.
       """
-      def supervisor_by_index(index), do: throw :pri0
+      def supervisor_by_index(index), do: throw :pri0_supervisor_by_index
 
       @doc """
         Return list of available worker supervisors.
       """
-      def available_supervisors(), do: throw :pri0
+      def available_supervisors(), do: throw :pri0_available_supervisors
 
       @doc """
        Return supervisor responsible for a specific worker.
       """
-      def current_supervisor(ref), do: throw :pri0
+      def current_supervisor(ref), do: throw :pri0_current_supervisor
 
       @doc """
 
       """
-      def worker_start(ref, transfer_state, context), do: throw :pri0
+      def worker_start(ref, transfer_state, context), do: throw :pri0_worker_start
 
       @doc """
 
       """
-      def worker_start(ref, context), do: throw :pri0
+      def worker_start(ref, context), do: throw :pri0_worker_start
 
       @doc """
 
       """
-      def worker_terminate(ref, sup, context, options \\ %{}), do: throw :pri0
+      def worker_terminate(ref, sup, context, options \\ %{}), do: throw :pri0_worker_terminate
 
       @doc """
 
       """
-      def worker_remove(ref, sup, context, options \\ %{}), do: throw :pri0
+      def worker_remove(ref, sup, context, options \\ %{}), do: throw :pri0_worker_remove
 
-      def worker_add!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0
-
-      @doc """
-
-      """
-      def bulk_migrate!(transfer_server, context, options), do: throw :pri0
+      def worker_add!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0_worker_add!
 
       @doc """
 
       """
-      def migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0
+      def bulk_migrate!(transfer_server, context, options), do: throw :pri0_bulk_migrate!
 
       @doc """
 
       """
-      def worker_load!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0
+      def migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0_migrate!
 
       @doc """
 
       """
-      def worker_ref!(identifier, _context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: throw :pri0
+      def worker_load!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0_worker_load!
 
       @doc """
 
       """
-      def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0
+      def worker_ref!(identifier, _context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: throw :pri0_worker_ref!
 
       @doc """
 
       """
-      def workers!(server, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0
-      def workers!(server, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0
-      def workers!(%Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0
-      def workers!(%Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0
+      def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0_worker_pid!
 
       @doc """
 
       """
-      def terminate!(ref, context, options), do: throw :pri0
+      def workers!(server, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
+      def workers!(server, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
+      def workers!(%Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
+      def workers!(%Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
 
       @doc """
 
       """
-      def remove!(ref, context, options), do: throw :pri0
+      def terminate!(ref, context, options), do: throw :pri0_terminate!
+
+      @doc """
+
+      """
+      def remove!(ref, context, options), do: throw :pri0_remove!
 
 
       @doc """
 
       """
-      def accept_transfer!(ref, state, context \\ nil, options \\ %{}), do: throw :pri0
+      def accept_transfer!(ref, state, context \\ nil, options \\ %{}), do: throw :pri0_accept_transfer!
 
       @doc """
 
       """
-      def lock!(context, options \\ %{}), do: throw :pri0
+      def lock!(context, options \\ %{}), do: throw :pri0_lock!
 
       @doc """
 
       """
-      def release!(context, options \\ %{}), do: throw :pri0
+      def release!(context, options \\ %{}), do: throw :pri0_release!
 
 
       defoverridable [

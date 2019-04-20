@@ -27,10 +27,10 @@ alias Noizu.SimplePool.Worker.State
     import Inspect.Algebra
     def inspect(entity, opts) do
       heading = "#Worker.State(#{inspect entity.worker_ref})"
-      {seperator, end_seperator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
+      {separator, end_separator} = if opts.pretty, do: {"\n   ", "\n"}, else: {" ", " "}
       inner = cond do
         opts.limit == :infinity ->
-          concat(["<#{seperator}", to_doc(Map.from_struct(entity), opts), "#{end_seperator}>"])
+          concat(["<#{separator}", to_doc(Map.from_struct(entity), opts), "#{end_separator}>"])
         true -> "<>"
       end
       concat [heading, inner]
