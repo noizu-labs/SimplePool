@@ -109,6 +109,20 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
       end
     end
 
+
+    @doc """
+    Initial Meta Information for Module.
+    """
+    def meta_init(module) do
+      verbose = case module.options().verbose do
+        :auto ->
+          if (module.pool() == module), do: Application.get_env(:noizu_simple_pool, :verbose, false), else: module.pool().verbose()
+        v -> v
+      end
+
+      %{verbose: verbose}
+    end
+
     def pool_worker_state_entity(pool, :auto), do: Module.concat(pool, "WorkerStateEntity")
     def pool_worker_state_entity(_pool, worker_state_entity), do: worker_state_entity
   end
@@ -173,8 +187,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         @doc """
         Initial Meta Information for Module.
         """
-        def meta_init(), do: %{}
-
+        def meta_init(), do: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.meta_init(@module)
 
         @doc """
         retrieve effective compile time options/settings for pool.
@@ -266,7 +279,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         @doc """
         Initial Meta Information for Module.
         """
-        def meta_init(), do: %{}
+        def meta_init(), do: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.meta_init(@module)
 
         @doc """
         retrieve effective compile time options/settings for pool.

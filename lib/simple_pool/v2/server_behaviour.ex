@@ -29,6 +29,114 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
   @callback health_check!(any, any, any) :: any
   @callback health_check!(any, any, any, any) :: any
 
+
+  defmodule Default do
+    alias Noizu.ElixirCore.OptionSettings
+    alias Noizu.ElixirCore.OptionValue
+    alias Noizu.ElixirCore.OptionList
+    require Logger
+
+    # @todo alternative solution for specifying features.
+    @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
+    @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
+
+    @default_timeout 15_000
+    @default_shutdown_timeout 30_000
+
+    def prepare_options(options) do
+      settings = %OptionSettings{
+        option_settings: %{
+          features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
+          verbose: %OptionValue{option: :verbose, default: :auto},
+          worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
+          default_timeout: %OptionValue{option: :default_timeout, default:  Application.get_env(:noizu_simple_pool, :default_timeout, @default_timeout)},
+          shutdown_timeout: %OptionValue{option: :shutdown_timeout, default: Application.get_env(:noizu_simple_pool, :default_shutdown_timeout, @default_shutdown_timeout)},
+          default_definition: %OptionValue{option: :default_definition, default: :auto},
+          log_timeouts: %OptionValue{option: :log_timeouts, default: Application.get_env(:noizu_simple_pool, :default_log_timeouts, true)},
+          max_supervisors: %OptionValue{option: :max_supervisors, default: Application.get_env(:noizu_simple_pool, :default_max_supervisors, 100)},
+        }
+      }
+
+      OptionSettings.expand(settings, options)
+    end
+
+    def meta_init(module) do
+      options = module.options()
+      %{
+        verbose: meta_init_verbose(module, options),
+        default_definition: meta_init_default_definition(module, options),
+      }
+    end
+
+    defp meta_init_verbose(module, options) do
+      options.verbose == :auto && module.pool().verbose() || options.verbose
+    end
+
+    defp meta_init_default_definition(module, options) do
+      a_s = Application.get_env(:noizu_simple_pool, :definitions, %{})
+      template = %Noizu.SimplePool.MonitoringFramework.Service.Definition{
+        identifier: {node(), module.pool()},
+        server: node(),
+        pool: module.pool_server(),
+        supervisor: module.pool(),
+        time_stamp: DateTime.utc_now(),
+        hard_limit: 0, # TODO need defaults logic here.
+        soft_limit: 0,
+        target: 0,
+      }
+
+      default_definition = case options.default_definition do
+        :auto ->
+          case a_s[module.pool()] || a_s[:default] do
+            d = %Noizu.SimplePool.MonitoringFramework.Service.Definition{} ->
+              %{d|
+                identifier: d.identifier || template.identifier,
+                server: d.server || template.server,
+                pool: d.pool || template.pool,
+                supervisor: d.supervisor || template.supervisor
+              }
+
+            d = %{} ->
+              %{template|
+                identifier: Map.get(d, :identifier) || template.identifier,
+                server: Map.get(d, :server) || template.server,
+                pool: Map.get(d, :pool) || template.pool,
+                supervisor: Map.get(d, :supervisor) || template.supervisor,
+                hard_limit: Map.get(d, :hard_limit) || template.hard_limit,
+                soft_limit: Map.get(d, :soft_limit) || template.soft_limit,
+                target: Map.get(d, :target) || template.target,
+              }
+
+            _ ->
+              # @TODO raise, log, etc.
+              template
+          end
+        d = %Noizu.SimplePool.MonitoringFramework.Service.Definition{} ->
+          %{d|
+            identifier: d.identifier || template.identifier,
+            server: d.server || template.server,
+            pool: d.pool || template.pool,
+            supervisor: d.supervisor || template.supervisor
+          }
+
+        d = %{} ->
+          %{template|
+            identifier: Map.get(d, :identifier) || template.identifier,
+            server: Map.get(d, :server) || template.server,
+            pool: Map.get(d, :pool) || template.pool,
+            supervisor: Map.get(d, :supervisor) || template.supervisor,
+            hard_limit: Map.get(d, :hard_limit) || template.hard_limit,
+            soft_limit: Map.get(d, :soft_limit) || template.soft_limit,
+            target: Map.get(d, :target) || template.target,
+          }
+
+        _ ->
+          # @TODO raise, log, etc.
+          template
+      end
+    end
+  end
+
   #=================================================================
   #=================================================================
   # @__using__
@@ -36,6 +144,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
   #=================================================================
   defmacro __using__(options) do
     implementation = Keyword.get(options || [], :implementation, Noizu.SimplePool.V2.Server.DefaultImplementation)
+    implementation = Keyword.get(options || [], :implementation, Noizu.SimplePool.V2.ServerBehaviour.Default)
     option_settings = implementation.prepare_options(options)
 
     # Temporary Hardcoding

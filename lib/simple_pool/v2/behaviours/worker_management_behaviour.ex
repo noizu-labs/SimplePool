@@ -37,6 +37,21 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
   @callback lock!(any, any) :: any
   @callback release!(any, any) :: any
 
+
+  @type lock_response :: {:ack, record :: any} | {:nack, {details :: any, record :: any}} | {:nack, details :: any} | {:error, details :: any}
+
+  @callback host!(ref :: tuple, server :: module, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ok, atom} | {:spawn, atom} | {:error, details :: any} | {:restricted, atom}
+  @callback record_event!(ref :: tuple, event :: atom, details :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: any
+  @callback events!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: list
+
+  @callback register!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: any
+  @callback unregister!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: any
+
+  @callback process!(ref :: tuple, server :: module, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: lock_response
+  @callback obtain_lock!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: lock_response
+  @callback release_lock!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: lock_response
+
+
   defmacro __using__(_options) do
     quote do
       @server Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat()
@@ -124,6 +139,8 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
       """
       def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0_worker_pid!
 
+
+      # @todo we should tweak function signatures for workers! method.
       @doc """
 
       """
@@ -131,6 +148,8 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
       def workers!(server, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
       def workers!(%Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
       def workers!(%Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
+      def workers!(host, service_entity, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
+      def workers!(host, service_entity, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
 
       @doc """
 
@@ -159,6 +178,21 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
       def release!(context, options \\ %{}), do: throw :pri0_release!
 
 
+
+
+
+
+      def host!(_ref, _server, _context, _options \\ %{}), do: throw :pri_host!
+      def record_event!(_ref, _event, _details, _context, _options \\ %{}), do: throw :pri_record_event!
+      def events!(_ref, _context, _options \\ %{}), do: throw :pri_events!
+      def set_node!(_ref, _context, _options \\ %{}), do: throw :pri_set_node!
+      def register!(_ref, _context, _options \\ %{}), do: throw :pri_register!
+      def unregister!(_ref, _context, _options \\ %{}), do: throw :pri_unregister!
+      def obtain_lock!(_ref, _context, _options \\ %{}), do: throw :pri_obtain_lock!
+      def release_lock!(_ref, _context, _options \\ %{}), do: throw :pri_release_lock!
+      def process!(_ref, _base, _server, _context, _options \\ %{}), do: throw :pri_process!
+
+
       defoverridable [
         count_supervisor_children: 0,
         group_supervisor_children: 1,
@@ -185,13 +219,25 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
         workers!: 1,
         workers!: 2,
         workers!: 3,
-
+        workers!: 4,
 
         terminate!: 3,
         remove!: 3,
         accept_transfer!: 4,
         lock!: 2,
         release!: 2,
+
+
+
+        host!: 4,
+        record_event!: 5,
+        events!: 3,
+        set_node!: 3,
+        register!: 3,
+        unregister!: 3,
+        obtain_lock!: 3,
+        release_lock!: 3,
+        process!: 5
 
       ]
     end

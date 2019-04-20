@@ -23,18 +23,17 @@ defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
   defmacro __using__(_options) do
     quote do
       require Logger
-
       @server Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat()
-
-
       @router Module.concat(@server, Router)
-
       @wm Module.concat(@server, WorkerManagement)
 
       @doc """
 
       """
-      def default_definition(), do: @server.meta()[:default_definition]
+      def default_definition() do
+          @server.meta()[:default_definition]
+          |> put_in([Access.key(:time_stamp)], DateTime.utc_now())
+      end
 
       @doc """
 
