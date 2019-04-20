@@ -36,7 +36,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
 
 
       def start(context \\ nil, definition \\ :auto), do: __MODULE__.PoolSupervisor.start_link(context, definition)
-      
+
 
       defoverridable []
 
