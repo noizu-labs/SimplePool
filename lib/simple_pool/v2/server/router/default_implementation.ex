@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.Server.Router.DefaultImplementation do
-  @moduledoc """
+   @moduledoc """
     Process routing implementation.
     @todo combine with WorkerManagement module (retain strategy pattern).
   """
@@ -37,7 +37,7 @@ defmodule Noizu.SimplePool.V2.Server.Router.DefaultImplementation do
   def route_call(_module, _envelope, _from, _state), do: throw "PRI0"
   def route_cast(_module, _envelope, _state), do: throw "PRI0"
   def route_info(_module, _envelope, _state), do: throw "PRI0"
-  def extended_call(_module, _ref, _timeout, _call, _context), do: throw "PRI0"
+
   def s_call!(_module, _identifier, _call, _context, _options), do: throw "PRI0"
   def s_call(_module, _identifier, _call, _context, _options), do: throw "PRI0"
   def s_cast!(_module, _identifier, _call, _context, _options), do: throw "PRI0"
