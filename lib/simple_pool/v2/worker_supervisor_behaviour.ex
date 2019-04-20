@@ -28,6 +28,10 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
     strategy = options.strategy
     restart_type = options.restart_type
 
+    # Temporary Hard Code
+    max_supervisors = 100
+    worker_supervisor_provider = Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour
+
     quote do
       @behaviour Noizu.SimplePool.V2.WorkerSupervisorBehaviour
       use Supervisor
@@ -50,89 +54,65 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       @max_seconds unquote(max_seconds)
       @max_restarts unquote(max_restarts)
 
-      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote(option_settings)
+      @max_supervisors unquote(max_supervisors)
 
-
-      #-------------------
-      #
-      #-------------------
-      def _strategy(), do: @strategy
-      def _max_seconds(), do: @max_seconds
-      def _max_restarts(), do: @max_restarts
-      def _restart_type(), do: @restart_type
-
-      @doc """
-      Initialize meta data for this pool.
-      """
-      def meta_init(), do: @implementation.meta_init(@module)
+      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
 
       @doc """
       OTP start_link entry point.
       """
-      def start_link(definition, context), do: _imp_start_link(@module, context, definition) # TODO switch incoming order.
-      defdelegate _imp_start_link(module, context, definition), to: @implementation, as: :start_link
-
-      @doc """
-      Helper to prepare child OTP definition.
-      """
-      def child(ref, context), do: _imp_child(@module, ref, context)
-      defdelegate _imp_child(module, ref, context), to: @implementation, as: :child
-
-      def child(ref, params, context), do: _imp_child(@module, ref, params, context)
-      defdelegate _imp_child(module, ref, params, context), to: @implementation, as: :child
-
-      def child(ref, params, context, options), do: _imp_child(@module, ref, params, context, options)
-      defdelegate _imp_child(module, ref, params, context, options), to: @implementation, as: :child
+      def start_link(definition, context) do
+        if verbose() do
+          Logger.info(fn -> {banner("#{__MODULE__}.start_link"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
+          :skip
+        end
+        Supervisor.start_link(__MODULE__, [definition, context], [{:name, __MODULE__}])
+      end
 
       @doc """
       OTP init entry point.
       """
-      def init(args), do: _imp_init(@module, args)
-      defdelegate _imp_init(module, args), to: @implementation, as: :init
+      def init([definition, context] =args) do
+        verbose() && Logger.info(fn -> {banner("#{__MODULE__} INIT", "args: #{inspect context}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
 
-      #-------------------
-      #
-      #-------------------
-      def handle_call(msg, from, s), do: handle_call_catchall(msg, from, s)
-      def handle_cast(msg, s), do: handle_cast_catchall(msg, s)
-      def handle_info(msg, s), do: handle_info_catchall(msg, s)
+        # @todo provide different max_restarts, max_seconds for children
+        available_supervisors()
+        |> Enum.map(&(supervisor(&1, [definition, context], [restart: :permanent, max_restarts: @max_restarts, max_seconds: @max_seconds] )))
+        |> supervise([{:strategy,  @strategy}, {:max_restarts, @max_restarts}, {:max_seconds, @max_seconds}])
+      end
 
-      def handle_call_catchall(msg, from, s), do: _imp_handle_call_catchall(@module, msg, from, s)
-      defdelegate _imp_handle_call_catchall(module, msg, from, s), to: @implementation, as: :handle_call_catchall
+      def count_children() do
+        throw :pri0
+      end
 
-      def handle_cast_catchall(msg, s), do: _imp_handle_cast_catchall(@module, msg, s)
-      defdelegate _imp_handle_cast_catchall(module, msg, s), to: @implementation, as: :handle_cast_catchall
-
-      def handle_info_catchall(msg, s), do: _imp_handle_info_catchall(@module, msg, s)
-      defdelegate _imp_handle_info_catchall(module, msg, s), to: @implementation, as: :handle_info_catchall
+      def group_children(lambda) do
+        throw :pri0
+      end
 
 
-      def pass_through_supervise(a,b), do: supervise(a,b)
-      def pass_through_supervisor(a,b,c), do: supervisor(a,b,c)
-      def pass_through_worker(a,b,c), do: worker(a,b,c)
+      def available_supervisors() do
+        # Temporary Hard Code - should come from meta()[:active_supervisors] or similar.
+        leading = round(:math.floor(:math.log10(@max_supervisors))) + 1
+        Enum.map(0 .. @max_supervisors, fn(i) ->
+          Module.concat(__MODULE__, "Seg_#{String.pad_leading("#{i}", leading, "0")}")
+        end)
+      end
+
+      module = __MODULE__
+      leading = round(:math.floor(:math.log10(@max_supervisors))) + 1
+      for i <- 0 .. @max_supervisors do
+        defmodule :"#{module}.Seg_#{String.pad_leading("#{i}", leading, "0")}" do
+          use unquote(worker_supervisor_provider), unquote(options[:layer2_options] || [])
+        end
+      end
 
       defoverridable [
-        _strategy: 0,
-        _max_seconds: 0,
-        _max_restarts: 0,
-        _restart_type: 0,
         start_link: 2,
-        child: 2,
-        child: 3,
-        child: 4,
         init: 1,
-        handle_call: 3,
-        handle_cast: 2,
-        handle_info: 2,
-        handle_call_catchall: 3,
-        handle_cast_catchall: 2,
-        handle_info_catchall: 2,
-
-        pass_through_supervise: 2,
-        pass_through_supervisor: 3,
-        pass_through_worker: 3,
+        available_supervisors: 0,
+        group_children: 1,
+        count_children: 0,
       ]
-
     end # end quote
   end #end __using__
 end

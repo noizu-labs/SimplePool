@@ -113,12 +113,29 @@ defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
       end)
     end
 
-    _o = module.start_worker_supervisors(sup, context, definition)
-
     # @TODO - move into runtime meta.
     max_seconds = module._max_seconds()
     max_restarts = module._max_restarts()
 
+    # Start Worker Supervisor
+    s = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_worker_supervisor(), [definition, context],  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+      {:ok, pid} ->
+        {:ok, pid}
+      {:error, {:already_started, process2_id}} ->
+        Supervisor.restart_child(module, process2_id)
+      error ->
+        Logger.error(fn ->
+          {
+            """
+
+            #{module}.start_children(1) #{inspect module.pool_worker_supervisor()} Already Started. Handling unexpected state.
+            #{inspect error}
+            """, Noizu.ElixirCore.CallingContext.metadata(context)}
+        end)
+        :error
+    end
+
+    # Start Server Supervisor
     s = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_server(), [:deprecated, definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
       {:ok, pid} ->
         {:ok, pid}
@@ -129,7 +146,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
           {
             """
 
-            #{module}.start_children(1) #{inspect module.pool_worker_supervisor()} Already Started. Handling unexepected state.
+            #{module}.start_children(1) #{inspect module.pool_server()} Already Started. Handling unexpected state.
             #{inspect error}
             """, Noizu.ElixirCore.CallingContext.metadata(context)}
         end)
@@ -141,44 +158,6 @@ defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
     s
   end # end start_children
 
-
-
-  def start_worker_supervisors(module, sup, context, definition) do
-    supervisors = module.pool_server().available_supervisors()
-    max_seconds = module._max_seconds()
-    max_restarts = module._max_restarts()
-
-    for s <- supervisors do
-      case Supervisor.start_child(sup, module.pass_through_supervisor(s, [definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds] )) do
-        {:ok, _pool_supervisor} ->  :ok
-        {:error, {:already_started, process_id}} ->
-          case Supervisor.restart_child(sup, process_id) do
-            {:ok, _pid} -> :ok
-            error ->
-              Logger.info(fn ->{
-                                 """
-
-                                 #{module}.start_children(3) #{inspect s} Already Started. Handling unexepected state.
-                                 #{inspect error}
-                                 """, Noizu.ElixirCore.CallingContext.metadata(context)}
-              end)
-              :error
-          end
-        error ->
-          Logger.info(fn -> {
-                              """
-
-                              #{module}.start_children(4) #{inspect s} Already Started. Handling unexepected state.
-                              #{inspect error}
-                              """, Noizu.ElixirCore.CallingContext.metadata(context)}
-          end)
-          :error
-      end # end case
-    end # end for
-  end # end start_worker_supervisors
-
-
-
   def init(module, [context] = arg) do
     if module.verbose() || true do
       Logger.warn(fn -> {module.banner("#{module} INIT", "args: #{inspect arg}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
@@ -188,8 +167,6 @@ defmodule Noizu.SimplePool.V2.PoolSupervisor.DefaultImplementation do
     max_restarts = module._max_restarts()
     module.pass_through_supervise([], [{:strategy, strategy}, {:max_restarts, max_restarts}, {:max_seconds, max_seconds}, {:restart, :permanent}])
   end
-
-
 
   #---------
   #

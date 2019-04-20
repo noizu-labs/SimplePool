@@ -102,8 +102,8 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
   end
 
   defmodule Base do
-    defmacro __using__(option_settings) do
-      option_settings = Macro.expand(option_settings, __CALLER__)
+    defmacro __using__(opts) do
+      option_settings = Macro.expand(opts[:option_settings], __CALLER__)
       options = option_settings.effective_options
 
       pool_worker_state_entity = Map.get(options, :worker_state_entity, :auto)
@@ -197,15 +197,19 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
   end
 
   defmodule Inherited do
-    defmacro __using__(option_settings) do
-      option_settings = Macro.expand(option_settings, __CALLER__)
+    defmacro __using__(opts) do
+      depth = opts[:depth] || 1
+      option_settings = Macro.expand(opts[:option_settings], __CALLER__)
       options = option_settings.effective_options
+
       pool_worker_state_entity = Map.get(options, :worker_state_entity, :auto)
 
+
       quote do
+        @depth unquote(depth)
         @behaviour Noizu.SimplePool.V2.PoolSettingsBehaviour
-        @parent Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat()
-        @pool @parent
+        @parent Module.split(__MODULE__) |> Enum.slice(0.. -2) |> Module.concat()
+        @pool Module.split(__MODULE__) |> Enum.slice(0.. -(@depth + 1)) |> Module.concat()
         @module __MODULE__
         @module_str "#{@module}"
         @meta_key Module.concat(@module, Meta)
@@ -213,7 +217,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         @options unquote(Macro.escape(options))
         @option_settings unquote(Macro.escape(option_settings))
 
-
+        # may not match pool_worker_state_entity
         @pool_worker_state_entity Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
 
         defdelegate pool(), to: @parent
@@ -221,7 +225,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         defdelegate pool_server(), to: @parent
         defdelegate pool_supervisor(), to: @parent
         defdelegate pool_worker(), to: @parent
-        defdelegate pool_worker_state_entity(), to: @pool_worker_state_entity
+        defdelegate pool_worker_state_entity(), to: @parent
 
         def banner(msg), do: banner(@module, msg)
         defdelegate banner(header, msg), to: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default
@@ -282,4 +286,5 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
       end
     end
   end
+
 end

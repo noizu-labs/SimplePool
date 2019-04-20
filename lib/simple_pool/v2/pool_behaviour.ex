@@ -27,7 +27,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
       @module __MODULE__
       @max_supervisors unquote(max_supervisors)
 
-      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Base, unquote(option_settings)
+      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Base, unquote([option_settings: option_settings])
 
       @doc """
       Initialize meta data for this pool. (override default provided by PoolSettingsBehaviour)
@@ -50,11 +50,14 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
       end
 
       if (unquote(default_modules.worker_supervisor)) do
-        module = __MODULE__
-        for i <- 1 .. @max_supervisors do
-          defmodule :"#{module}.WorkerSupervisor_S#{i}" do
-            use Noizu.SimplePool.V2.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
-          end
+        #module = __MODULE__
+        #for i <- 1 .. @max_supervisors do
+         # defmodule :"#{module}.WorkerSupervisor_S#{i}" do
+            #use Noizu.SimplePool.V2.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
+         #end
+        #end
+        defmodule WorkerSupervisor do
+          use Noizu.SimplePool.V2.WorkerSupervisorBehaviour, unquote(options.worker_supervisor_options)
         end
       end
 

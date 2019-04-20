@@ -70,7 +70,7 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       @option_settings :override
       @options :override
 
-      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote(option_settings)
+      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
 
       # @start_link
       if (unquote(required.start_link)) do

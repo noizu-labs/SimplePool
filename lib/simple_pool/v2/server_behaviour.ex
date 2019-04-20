@@ -53,7 +53,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       require Logger
 
       #----------------------------------------------------------
-      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote(option_settings)
+      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
       #----------------------------------------------------------
 
       #----------------------------------------------------------
