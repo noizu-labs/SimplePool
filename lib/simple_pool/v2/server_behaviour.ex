@@ -148,7 +148,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
     option_settings = implementation.prepare_options(options)
 
     # Temporary Hardcoding
-    router_provider = Noizu.SimplePool.V2.RouterBehaviour
+    router_provider = Noizu.SimplePool.V2.RouterBehaviour.DefaultProvider
     worker_management_provider = Noizu.SimplePool.V2.WorkerManagementBehaviour
     service_management_provider = Noizu.SimplePool.V2.ServiceManagementBehaviour
     message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour
@@ -174,6 +174,9 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
 
 
       #----------------------------------------------------------
+      # @todo We should be passing in information (pool module, instead of making this a sub module.)
+      # @We may than provide some helper methods that append the extra data.
+
       defmodule Router do
         use unquote(router_provider), unquote(option_settings)
       end
@@ -191,6 +194,10 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       end
       #----------------------------------------------------------
 
+
+      def router(), do: __MODULE__.Router
+      def worker_management(), do: __MODULE__.WorkerManagement
+      def service_management(), do: __MODULE__.ServiceManagement
 
       @doc """
       Initialize meta data for this pool. (override default provided by PoolSettingsBehaviour)
