@@ -68,10 +68,10 @@ defmodule Noizu.SimplePool.V2.RouterBehaviour do
 
     defmacro __using__(options) do
       options = options || %{}
-
+      options = %{}
       quote do
         alias Noizu.SimplePool.V2.Router.RouterProvider
-        @options unquote(options)
+        @options unquote(Macro.escape(options))
         @pool_server Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat()
         @default_timeout 30_000
         @behaviour Noizu.SimplePool.V2.RouterBehaviour
@@ -205,7 +205,7 @@ defmodule Noizu.SimplePool.V2.RouterBehaviour do
 
         defoverridable [
           options: 0,
-          options: 2,
+          option: 2,
 
           extended_call: 6,
 
@@ -247,7 +247,7 @@ defmodule Noizu.SimplePool.V2.RouterBehaviour do
           link_forward!: 4,
 
           run_on_host: 5,
-          cast_to_host: 5,
+          cast_to_host: 4,
         ]
       end
     end

@@ -20,99 +20,100 @@ defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
   @callback service_health_check!(any, any, any) :: any
   @callback record_service_event!(any, any, any, any) :: any
 
-  defmacro __using__(_options) do
-    quote do
-      require Logger
-      @server Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat()
-      @router Module.concat(@server, Router)
-      @wm Module.concat(@server, WorkerManagement)
+  defmodule DefaultProvider do
+    defmacro __using__(_options) do
+      quote do
+        require Logger
+        @behaviour Noizu.SimplePool.V2.ServiceManagementBehaviour
+        @pool_server Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat()
+        alias Noizu.SimplePool.Server.State, as: ServerState
+        alias Noizu.SimplePool.Server.EnvironmentDetails
+        alias Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider, as: Provider
 
-      @doc """
+        @doc """
 
-      """
-      def default_definition() do
-          @server.meta()[:default_definition]
-          |> put_in([Access.key(:time_stamp)], DateTime.utc_now())
+        """
+        def default_definition(), do: Provider.default_definition(@pool_server)
+
+        @doc """
+
+        """
+        def enable_server!(node), do: Provider.enable_server!(@pool_server, node)
+
+        @doc """
+
+        """
+        def disable_server!(node), do: Provider.disable_server!(@pool_server, node)
+
+        @doc """
+
+        """
+        def status(context \\ nil), do: Provider.status(@pool_server, context)
+
+        @doc """
+
+        """
+        def load(context \\ nil, options \\ nil), do: Provider.load(@pool_server, context, options)
+
+        @doc """
+
+        """
+        def load_complete(this, process, context), do: Provider.load_complete(@pool_server, process, context)
+
+        @doc """
+
+        """
+        def status_wait(target_state, context, timeout \\ :infinity), do: Provider.status_wait(@pool_server, target_state, context, timeout)
+
+        @doc """
+
+        """
+        def entity_status(context, options \\ %{}), do: Provider.entity_status(@pool_server, context, options)
+
+        @doc """
+
+        """
+        def server_kill!(context \\ nil, options \\ %{}), do: Provider.server_kill!(@pool_server, context, options)
+
+        @doc """
+
+        """
+        def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: Provider.service_health_check!(@pool_server, context)
+        def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: Provider.service_health_check!(@pool_server, health_check_options, context)
+        def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: Provider.service_health_check!(@pool_server, health_check_options, context, options)
+
+        @doc """
+
+        """
+        def record_service_event!(event, details, context, options), do: Provider.record_service_event!(@pool_server, event, details, context, options)
+
+        defoverridable [
+          default_definition: 0,
+
+          enable_server!: 1,
+          disable_server!: 1,
+
+          status: 1,
+
+          load: 2,
+          load_complete: 3,
+
+          status_wait: 3,
+
+          entity_status: 2,
+
+          server_kill!: 2,
+
+          service_health_check!: 1,
+          service_health_check!: 2,
+          service_health_check!: 3,
+
+          record_service_event!: 4,
+
+        ]
       end
-
-      @doc """
-
-      """
-      def enable_server!(elixir_node), do: throw :pri0_enable_server!
-
-      @doc """
-
-      """
-      def disable_server!(elixir_node), do: throw :pri0_disable_server!
-
-      @doc """
-
-      """
-      def status(context \\ nil), do: throw :pri0_status
-
-      @doc """
-
-      """
-      def load(context \\ nil, settings \\ %{}), do: throw :pri0_load
-
-      @doc """
-
-      """
-      def load_complete(this, process, context), do: throw :pri0_load_complete
-
-      @doc """
-
-      """
-      def status_wait(target_state, context, timeout \\ :infinity), do: throw :pri0_status_wait
-
-      @doc """
-
-      """
-      def entity_status(context, options \\ %{}), do: throw :pri0_entity_status
-
-      @doc """
-
-      """
-      def server_kill!(context \\ nil, options \\ %{}), do: throw :pri0_server_kill!
-
-      @doc """
-
-      """
-      def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_service_health_check!
-      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_service_health_check!
-      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_service_health_check!
-
-
-      @doc """
-
-      """
-      def record_service_event!(event, details, context, options), do: Logger.error("Record Service Event V2 NYI")
-
-      defoverridable [
-
-        default_definition: 0,
-
-        enable_server!: 1,
-        disable_server!: 1,
-
-        status: 1,
-
-        load: 2,
-        load_complete: 3,
-
-        status_wait: 3,
-
-        entity_status: 2,
-
-        server_kill!: 2,
-
-        service_health_check!: 1,
-        service_health_check!: 2,
-        service_health_check!: 3,
-
-        record_service_event!: 4,
-
-      ]
     end
   end
+
+
 end

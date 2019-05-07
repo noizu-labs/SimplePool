@@ -40,23 +40,23 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
                               || Application.get_env(:noizu_simple_pool, :max_restarts, @default_max_restarts))
 
       default_max_seconds = (Application.get_env(:noizu_simple_pool, :worker_pool_max_seconds, nil)
-                              || Application.get_env(:noizu_simple_pool, :max_seconds, @default_max_seconds))
+                             || Application.get_env(:noizu_simple_pool, :max_seconds, @default_max_seconds))
 
       default_strategy = (Application.get_env(:noizu_simple_pool, :worker_pool_strategy, nil)
-                             || Application.get_env(:noizu_simple_pool, :pool_strategy, @default_strategy))
+                          || Application.get_env(:noizu_simple_pool, :pool_strategy, @default_strategy))
 
 
       default_layer2_restart_type = (Application.get_env(:noizu_simple_pool, :worker_pool_layer2_restart_type, nil)
-                              || Application.get_env(:noizu_simple_pool, :worker_pool_restart_type, nil)
-                              || Application.get_env(:noizu_simple_pool, :restart_type, :permanent))
+                                     || Application.get_env(:noizu_simple_pool, :worker_pool_restart_type, nil)
+                                     || Application.get_env(:noizu_simple_pool, :restart_type, :permanent))
 
       default_layer2_max_restarts = (Application.get_env(:noizu_simple_pool, :worker_pool_layer2_max_restarts, nil)
-                              || Application.get_env(:noizu_simple_pool, :worker_pool_max_restarts, nil)
-                              || Application.get_env(:noizu_simple_pool, :max_restarts, @default_max_restarts))
+                                     || Application.get_env(:noizu_simple_pool, :worker_pool_max_restarts, nil)
+                                     || Application.get_env(:noizu_simple_pool, :max_restarts, @default_max_restarts))
 
       default_layer2_max_seconds = (Application.get_env(:noizu_simple_pool, :worker_pool_layer2_max_seconds, nil)
-                             || Application.get_env(:noizu_simple_pool, :worker_pool_max_seconds, nil)
-                             || Application.get_env(:noizu_simple_pool, :max_seconds, @default_max_seconds))
+                                    || Application.get_env(:noizu_simple_pool, :worker_pool_max_seconds, nil)
+                                    || Application.get_env(:noizu_simple_pool, :max_seconds, @default_max_seconds))
 
       default_layer2_provider = Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour
 
@@ -69,6 +69,8 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
           max_restarts: %OptionValue{option: :max_restarts, default: default_max_restarts},
           max_seconds: %OptionValue{option: :max_seconds, default: default_max_seconds},
           strategy: %OptionValue{option: :strategy, default: default_strategy},
+
+          dynamic_supervisor: %OptionValue{option: :dynamic_supervisor, default: false, required: false},
 
           max_supervisors: %OptionValue{option: :max_supervisors, default: default_max_supervisors},
 
@@ -116,29 +118,141 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       """
       def init([definition, context] = args) do
         verbose() && Logger.info(fn -> {banner("#{__MODULE__} INIT", "args: #{inspect args}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-
         available_supervisors()
         |> Enum.map(&(supervisor(&1, [definition, context], [restart: @options.layer2_restart_type, max_restarts: @options.layer2_max_restarts, max_seconds: @options.layer2_max_seconds] )))
         |> supervise([{:strategy,  @options.strategy}, {:max_restarts, @options.max_restarts}, {:max_seconds, @options.max_seconds}])
       end
 
 
+      @doc """
+      Initial Meta Information for Module.
+      """
+      def meta_init() do
+        verbose_setting = case options().verbose do
+          :auto -> pool().verbose()
+          v -> v
+        end
 
-
-      def available_supervisors() do
-        # Temporary Hard Code - should come from meta()[:active_supervisors] or similar.
         leading = round(:math.floor(:math.log10(@max_supervisors))) + 1
-        Enum.map(0 .. @max_supervisors, fn(i) ->
-          Module.concat(__MODULE__, "Seg#{String.pad_leading("#{i}", leading, "0")}")
+        supervisor_by_index = Enum.map(1 .. @max_supervisors, fn(i) ->
+          {i, Module.concat(__MODULE__, "Seg#{String.pad_leading("#{i}", leading, "0")}")}
+        end) |> Map.new()
+        available_supervisors = Map.values(supervisor_by_index)
+        active_supervisors = length(available_supervisors)
+
+        dynamic_supervisor = options().dynamic_supervisor
+        %{
+          active_supervisors: active_supervisors,
+          available_supervisors: available_supervisors,
+          supervisor_by_index: supervisor_by_index,
+          dynamic_supervisor: dynamic_supervisor,
+          verbose: verbose_setting,
+        }
+      end
+
+      def supervisor_by_index(index), do: meta()[:supervisor_by_index][index]
+      def available_supervisors(), do: meta()[:available_supervisors]
+      def active_supervisors(), do: meta()[:active_supervisors]
+
+      def group_children(group_fn) do
+        Task.async_stream(available_supervisors(), fn(s) ->
+                                                     children = Supervisor.which_children(s)
+                                                     sg = Enum.reduce(children, %{}, fn(worker, acc) ->
+                                                                                       g = group_fn.(worker)
+                                                                                       if g do
+                                                                                         update_in(acc, [g], &((&1 || 0) + 1))
+                                                                                       else
+                                                                                         acc
+                                                                                       end
+                                                     end)
+                                                     {s, sg}
+        end, timeout: 60_000, ordered: false)
+        |> Enum.reduce(%{total: %{}}, fn(outcome, acc) ->
+          case outcome do
+            {:ok, {s, sg}} ->
+              total = Enum.reduce(sg, acc.total, fn({g, c}, a) ->  update_in(a, [g], &((&1 || 0) ++ c)) end)
+              acc = acc
+                    |> put_in([s], sg)
+                    |> put_in([:total], total)
+            _ -> acc
+          end
         end)
       end
-      def group_children(lambda), do: throw :pri0_group_children
-      def count_children(), do: throw :pri0_count_children
+
+
+      def count_children() do
+        {a,s, u, w} = Task.async_stream(
+                        available_supervisors(),
+                        fn(s) ->
+                          u = Supervisor.count_children(s)
+                          {u.active, u.specs, u.supervisors, u.workers}
+                        end,
+                        [ordered: false, timeout: 60_000, on_timeout: :kill_task]
+                      ) |> Enum.reduce({0,0,0,0}, fn(x, {acc_a, acc_s, acc_u, acc_w}) ->
+          case x do
+            {:ok, {a,s, u, w}} -> {acc_a + a, acc_s + s, acc_u + u, acc_w + w}
+            {:exit, :timeout} -> {acc_a, acc_s, acc_u, acc_w}
+            _ -> {acc_a, acc_s, acc_u, acc_w}
+          end
+        end)
+        %{active: a, specs: s, supervisors: u, workers: w}
+      end
+
+      def current_supervisor(ref) do
+        cond do
+          meta()[:dynamic_supervisor] -> current_supervisor_dynamic(ref)
+          true -> current_supervisor_default(ref)
+        end
+      end
+
+      def current_supervisor_default(ref) do
+        num_supervisors = active_supervisors()
+        if num_supervisors == 1 do
+          supervisor_by_index(1)
+        else
+          hint = pool_worker_state_entity().supervisor_hint(ref)
+          pick = rem(hint, num_supervisors) + 1
+          supervisor_by_index(pick)
+        end
+      end
+
+      def current_supervisor_dynamic(ref) do
+        num_supervisors = active_supervisors()
+        if num_supervisors == 1 do
+          supervisor_by_index(1)
+        else
+          hint = pool_worker_state_entity().supervisor_hint(ref)
+          # The logic is designed so that the selected supervisor only changes for a subset of items when adding new supervisors
+          # So that, for example, when going from 5 to 6 supervisors only a 6th of entries will be re-assigned to the new bucket.
+          pick = Enum.reduce_while(num_supervisors .. 1, 1, fn(x, acc) ->
+            n = rem(hint, x) + 1
+            cond do
+              n == x -> {:halt, n}
+              true -> {:cont, acc}
+            end
+          end)
+
+          pick = fn(hint, num_supervisors) ->
+            Enum.reduce_while(num_supervisors .. 1, 1, fn(x, acc) ->
+              n = rem(hint, x) + 1
+              cond do
+                n == x -> {:halt, n}
+                true -> {:cont, acc}
+              end
+            end)
+          end
+          supervisor_by_index(pick)
+        end
+      end
+
 
       defoverridable [
         start_link: 2,
         init: 1,
+        current_supervisor: 1,
+        supervisor_by_index: 1,
         available_supervisors: 0,
+        active_supervisors: 0,
         group_children: 1,
         count_children: 0,
       ]
@@ -148,7 +262,7 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       #==================================================
       module = __MODULE__
       leading = round(:math.floor(:math.log10(@max_supervisors))) + 1
-      for i <- 0 .. @max_supervisors do
+      for i <- 1 .. @max_supervisors do
         defmodule :"#{module}.Seg#{String.pad_leading("#{i}", leading, "0")}" do
           use unquote(layer2_provider), unquote(options[:layer2_options] || [])
         end

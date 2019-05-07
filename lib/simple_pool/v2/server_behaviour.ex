@@ -149,9 +149,9 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
 
     # Temporary Hardcoding
     router_provider = Noizu.SimplePool.V2.RouterBehaviour.DefaultProvider
-    worker_management_provider = Noizu.SimplePool.V2.WorkerManagementBehaviour
-    service_management_provider = Noizu.SimplePool.V2.ServiceManagementBehaviour
-    message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour
+    worker_management_provider = Noizu.SimplePool.V2.WorkerManagementBehaviour.DefaultProvider
+    service_management_provider = Noizu.SimplePool.V2.ServiceManagementBehaviour.DefaultProvider
+    message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
     quote do
       # todo option value
       @timeout 30_000

@@ -52,194 +52,197 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
   @callback release_lock!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: lock_response
 
 
-  defmacro __using__(_options) do
-    quote do
-      @server Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat()
-      @router Module.concat(@server, Router)
 
-      @doc """
-      Count children of all worker supervisors.
-      """
-      def count_supervisor_children(), do: throw :pri0_count_supervisor_children
+  defmodule DefaultProvider do
+    defmacro __using__(_options) do
+      quote do
+        @pool_server Module.split(__MODULE__) |> Enum.slice(0 .. -2) |> Module.concat()
+        alias Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider, as: Provider
 
-      @doc """
-      Group supervisor children by user provided method.
-      """
-      def group_supervisor_children(group_fun), do: throw :pri0_group_supervisor_children
+        @doc """
+        Count children of all worker supervisors.
+        """
+        def count_supervisor_children(), do: Provider.count_supervisor_children(@pool_server)
 
-      @doc """
-       Get list of active worker supervisors.
-      """
-      def active_supervisors(), do: throw :pri0_active_supervisors
+        @doc """
+        Group supervisor children by user provided method.
+        """
+        def group_supervisor_children(group_fun), do: Provider.group_supervisor_children(@pool_server, group_fun)
 
-      @doc """
-       Get list of all worker supervisors.
-      """
-      def worker_supervisors(), do: throw :pri0_worker_supervisors
+        @doc """
+         Get list of active worker supervisors.
+        """
+        def active_supervisors(), do: Provider.active_supervisors(@pool_server)
 
-      @doc """
-       Get a supervisor module by index position.
-      """
-      def supervisor_by_index(index), do: throw :pri0_supervisor_by_index
+        @doc """
+         Get list of all worker supervisors.
+        """
+        def worker_supervisors(), do: Provider.worker_supervisors(@pool_server)
 
-      @doc """
-        Return list of available worker supervisors.
-      """
-      def available_supervisors(), do: throw :pri0_available_supervisors
+        @doc """
+         Get a supervisor module by index position.
+        """
+        def supervisor_by_index(index), do: Provider.supervisor_by_index(@pool_server, index)
 
-      @doc """
-       Return supervisor responsible for a specific worker.
-      """
-      def current_supervisor(ref), do: throw :pri0_current_supervisor
+        @doc """
+          Return list of available worker supervisors.
+        """
+        def available_supervisors(), do: Provider.available_supervisors(@pool_server)
 
-      @doc """
+        @doc """
+         Return supervisor responsible for a specific worker.
+        """
+        def current_supervisor(ref), do: Provider.current_supervisor(@pool_server, ref)
 
-      """
-      def worker_start(ref, transfer_state, context), do: throw :pri0_worker_start
+        @doc """
 
-      @doc """
+        """
+        def worker_start(ref, transfer_state, context), do: Provider.worker_start(@pool_server, ref, transfer_state, context)
 
-      """
-      def worker_start(ref, context), do: throw :pri0_worker_start
+        @doc """
 
-      @doc """
+        """
+        def worker_start(ref, context), do: Provider.worker_start(@pool_server, ref, context)
 
-      """
-      def worker_terminate(ref, sup, context, options \\ %{}), do: throw :pri0_worker_terminate
+        @doc """
 
-      @doc """
+        """
+        def worker_terminate(ref, sup, context, options \\ %{}), do: Provider.worker_terminate(@pool_server, ref, sup, context, options)
 
-      """
-      def worker_remove(ref, sup, context, options \\ %{}), do: throw :pri0_worker_remove
+        @doc """
 
-      def worker_add!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0_worker_add!
+        """
+        def worker_remove(ref, sup, context, options \\ %{}), do: Provider.worker_remove(@pool_server, ref, sup, context, options)
 
-      @doc """
+        def worker_add!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: Provider.worker_add!(@pool_server, ref, context, options)
 
-      """
-      def bulk_migrate!(transfer_server, context, options), do: throw :pri0_bulk_migrate!
+        @doc """
 
-      @doc """
+        """
+        def bulk_migrate!(transfer_server, context, options), do: Provider.bulk_migrate!(@pool_server, transfer_server, context, options)
 
-      """
-      def migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0_migrate!
+        @doc """
 
-      @doc """
+        """
+        def migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: Provider.migrate!(@pool_server, ref, rebase, context, options)
 
-      """
-      def worker_load!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0_worker_load!
+        @doc """
 
-      @doc """
+        """
+        def worker_load!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: Provider.worker_load!(@pool_server, ref, context, options)
 
-      """
-      def worker_ref!(identifier, _context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: throw :pri0_worker_ref!
+        @doc """
 
-      @doc """
+        """
+        def worker_ref!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: Provider.worker_ref!(@pool_server, identifier, context)
 
-      """
-      def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: throw :pri0_worker_pid!
+        @doc """
 
-
-      # @todo we should tweak function signatures for workers! method.
-      @doc """
-
-      """
-      def workers!(server, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
-      def workers!(server, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
-      def workers!(%Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
-      def workers!(%Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
-      def workers!(host, service_entity, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
-      def workers!(host, service_entity, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
-
-      @doc """
-
-      """
-      def terminate!(ref, context, options), do: throw :pri0_terminate!
-
-      @doc """
-
-      """
-      def remove!(ref, context, options), do: throw :pri0_remove!
+        """
+        def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: Provider.worker_pid!(@pool_server, ref, context, options)
 
 
-      @doc """
+        # @todo we should tweak function signatures for workers! method.
+        @doc """
 
-      """
-      def accept_transfer!(ref, state, context \\ nil, options \\ %{}), do: throw :pri0_accept_transfer!
+        """
+        def workers!(server, %Noizu.ElixirCore.CallingContext{} = context), do: Provider.workers!(@pool_server, server, context)
+        def workers!(server, %Noizu.ElixirCore.CallingContext{} = context, options), do: Provider.workers!(@pool_server, server, context, options)
+        def workers!(%Noizu.ElixirCore.CallingContext{} = context), do: Provider.workers!(@pool_server, context)
+        def workers!(%Noizu.ElixirCore.CallingContext{} = context, options), do: Provider.workers!(@pool_server, context, options)
+        def workers!(host, service_entity, %Noizu.ElixirCore.CallingContext{} = context), do: Provider.workers!(@pool_server, host, service_entity, context)
+        def workers!(host, service_entity, %Noizu.ElixirCore.CallingContext{} = context, options), do: Provider.workers!(@pool_server, host, service_entity, context, options)
 
-      @doc """
+        @doc """
 
-      """
-      def lock!(context, options \\ %{}), do: throw :pri0_lock!
+        """
+        def terminate!(ref, context, options), do: Provider.terminate!(@pool_server, ref, context, options)
 
-      @doc """
+        @doc """
 
-      """
-      def release!(context, options \\ %{}), do: throw :pri0_release!
-
-
-
-
-
-
-      def host!(_ref, _server, _context, _options \\ %{}), do: throw :pri_host!
-      def record_event!(_ref, _event, _details, _context, _options \\ %{}), do: throw :pri_record_event!
-      def events!(_ref, _context, _options \\ %{}), do: throw :pri_events!
-      def set_node!(_ref, _context, _options \\ %{}), do: throw :pri_set_node!
-      def register!(_ref, _context, _options \\ %{}), do: throw :pri_register!
-      def unregister!(_ref, _context, _options \\ %{}), do: throw :pri_unregister!
-      def obtain_lock!(_ref, _context, _options \\ %{}), do: throw :pri_obtain_lock!
-      def release_lock!(_ref, _context, _options \\ %{}), do: throw :pri_release_lock!
-      def process!(_ref, _base, _server, _context, _options \\ %{}), do: throw :pri_process!
+        """
+        def remove!(ref, context, options), do: Provider.remove!(@pool_server, ref, context, options)
 
 
-      defoverridable [
-        count_supervisor_children: 0,
-        group_supervisor_children: 1,
+        @doc """
 
-        active_supervisors: 0,
-        supervisor_by_index: 1,
-        available_supervisors: 0,
-        current_supervisor: 1,
+        """
+        def accept_transfer!(ref, state, context \\ nil, options \\ %{}), do: Provider.accept_transfer!(@pool_server, ref, state, context, options)
 
-        worker_supervisors: 0,
-        worker_start: 2,
-        worker_start: 3,
-        worker_terminate: 4,
-        worker_remove: 4,
-        worker_add!: 3,
+        @doc """
 
-        worker_load!: 3,
-        worker_ref!: 2,
-        worker_pid!: 3,
+        """
+        def lock!(context, options \\ %{}), do: Provider.lock!(@pool_server, context, options)
 
-        migrate!: 4,
-        bulk_migrate!: 3,
+        @doc """
 
-        workers!: 1,
-        workers!: 2,
-        workers!: 3,
-        workers!: 4,
-
-        terminate!: 3,
-        remove!: 3,
-        accept_transfer!: 4,
-        lock!: 2,
-        release!: 2,
+        """
+        def release!(context, options \\ %{}), do: Provider.release!(@pool_server, context, options)
 
 
 
-        host!: 4,
-        record_event!: 5,
-        events!: 3,
-        set_node!: 3,
-        register!: 3,
-        unregister!: 3,
-        obtain_lock!: 3,
-        release_lock!: 3,
-        process!: 5
 
-      ]
+
+
+        def host!(ref, server, context, options \\ %{}), do: Provider.host!(@pool_server, ref, server, context, options)
+        def record_event!(ref, event, details, context, options \\ %{}), do: Provider.record_event!(@pool_server, ref, event, details, context, options)
+        def events!(ref, context, options \\ %{}), do: Provider.events!(@pool_server, ref, context, options)
+        def set_node!(ref, context, options \\ %{}), do: Provider.set_node!(@pool_server, ref, context, options)
+        def register!(ref, context, options \\ %{}), do: Provider.register!(@pool_server, ref, context, options)
+        def unregister!(ref, context, options \\ %{}), do: Provider.unregister!(@pool_server, ref, context, options)
+        def obtain_lock!(ref, context, options \\ %{}), do: Provider.obtain_lock!(@pool_server, ref, context, options)
+        def release_lock!(ref, context, options \\ %{}), do: Provider.release_lock!(@pool_server, ref, context, options)
+        def process!(ref, base, server, context, options \\ %{}), do: Provider.process!(@pool_server, ref, base, server, context, options)
+
+
+        defoverridable [
+          count_supervisor_children: 0,
+          group_supervisor_children: 1,
+
+          active_supervisors: 0,
+          supervisor_by_index: 1,
+          available_supervisors: 0,
+          current_supervisor: 1,
+
+          worker_supervisors: 0,
+          worker_start: 2,
+          worker_start: 3,
+          worker_terminate: 4,
+          worker_remove: 4,
+          worker_add!: 3,
+
+          worker_load!: 3,
+          worker_ref!: 2,
+          worker_pid!: 3,
+
+          migrate!: 4,
+          bulk_migrate!: 3,
+
+          workers!: 1,
+          workers!: 2,
+          workers!: 3,
+          workers!: 4,
+
+          terminate!: 3,
+          remove!: 3,
+          accept_transfer!: 4,
+          lock!: 2,
+          release!: 2,
+
+
+
+          host!: 4,
+          record_event!: 5,
+          events!: 3,
+          set_node!: 3,
+          register!: 3,
+          unregister!: 3,
+          obtain_lock!: 3,
+          release_lock!: 3,
+          process!: 5
+
+        ]
+      end
     end
   end
 end
