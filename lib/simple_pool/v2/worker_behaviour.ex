@@ -55,7 +55,7 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
     quote do
       import unquote(__MODULE__)
       require Logger
-      @behaviour Noizu.SimplePool.WorkerBehaviour
+      #@behaviour Noizu.SimplePool.WorkerBehaviour
       use GenServer
 
       @check_interval_ms (unquote(options.check_interval_ms))

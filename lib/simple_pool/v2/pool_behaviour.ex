@@ -76,7 +76,9 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
 
     quote do
       require Logger
-      @behaviour Noizu.SimplePool.V2.PoolBehaviour
+      #@todo define some methods to make behaviour.
+      #@behaviour Noizu.SimplePool.V2.PoolBehaviour
+
       @implementation unquote(implementation)
       @module __MODULE__
       @max_supervisors unquote(max_supervisors)

@@ -93,7 +93,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       max_restarts = module._max_restarts()
 
       # Start Worker Supervisor
-      s = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_worker_supervisor(), [definition, context],  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+      _s = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_worker_supervisor(), [definition, context],  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
         {:ok, pid} ->
           {:ok, pid}
         {:error, {:already_started, process2_id}} ->
@@ -111,7 +111,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       end
 
       # Start Server Supervisor
-      s = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_server(), [definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+      s2 = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_server(), [definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
         {:ok, pid} ->
           {:ok, pid}
         {:error, {:already_started, process2_id}} ->
@@ -127,10 +127,10 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
           end)
           :error
       end
-      if s != :error && module.auto_load() do
+      if s2 != :error && module.auto_load() do
         spawn fn -> module.pool_sever().load(context, module.options()) end
       end
-      s
+      s2
     end # end start_children
 
     def init(module, [context] = arg) do

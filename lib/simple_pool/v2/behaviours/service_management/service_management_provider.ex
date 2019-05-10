@@ -18,12 +18,12 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   @doc """
 
   """
-  def enable_server!(_pool_server, _node), do: :pending
+  def enable_server!(_pool_server, _node), do: :pending # Not implemented for V1 either
 
   @doc """
 
   """
-  def disable_server!(_pool_server, _node), do: :pending
+  def disable_server!(_pool_server, _node), do: :pending # Not implemented for V1 either
 
   @doc """
 
@@ -38,7 +38,7 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   @doc """
 
   """
-  def load_complete(%ServerState{} = this, process, context) do
+  def load_complete(%ServerState{} = this, _process, _context) do
     this
     |> put_in([Access.key(:status), Access.key(:loading)], :complete)
     |> put_in([Access.key(:status), Access.key(:state)], :ready)
@@ -143,7 +143,7 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   @doc """
 
   """
-  def record_service_event!(event, details, context, options) do
+  def record_service_event!(_pool_server, _event, _details, _context, _options) do
     Logger.error("Service Manager V2 record_service_event NYI")
     :ok
   end

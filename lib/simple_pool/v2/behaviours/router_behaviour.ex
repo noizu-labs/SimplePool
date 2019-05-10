@@ -30,10 +30,6 @@ defmodule Noizu.SimplePool.V2.RouterBehaviour do
   @callback s_call_unsafe(any, any, any, any, any) :: any
   @callback s_cast_unsafe(any, any, any, any) :: any
 
-  #@callback route_call(any, any, any) :: any
-  #@callback route_cast(any, any) :: any
-  #@callback route_info(any, any) :: any
-
   @callback s_call!(any, any, any, any) :: any
   @callback rs_call!(any, any, any, any) :: any
 
@@ -50,13 +46,7 @@ defmodule Noizu.SimplePool.V2.RouterBehaviour do
   @callback link_forward!(any, any, any, any) :: any
 
   @callback run_on_host(any, any, any, any, any) :: any
-  @callback cast_to_host(any, any, any, any, any) :: any
-
-  @callback route_call(any, any, any) :: any
-  @callback route_cast(any, any) :: any
-  @callback route_info(any, any) :: any
-
-
+  @callback cast_to_host(any, any, any, any) :: any
 
   defmodule DefaultProvider do
     @moduledoc """
@@ -66,8 +56,9 @@ defmodule Noizu.SimplePool.V2.RouterBehaviour do
     """
 
 
-    defmacro __using__(options) do
-      options = options || %{}
+    defmacro __using__(_options) do
+      #options = options || %{}
+      # @TODO use provided options
       options = %{}
       quote do
         alias Noizu.SimplePool.V2.Router.RouterProvider
@@ -416,10 +407,6 @@ defmodule Noizu.SimplePool.V2.RouterBehaviour do
           s_call_unsafe: 5,
           s_cast_unsafe: 4,
 
-          #route_call: 3,
-          #route_cast: 2,
-          #route_info: 2,
-
           s_call!: 5,
           rs_call!: 5,
 
@@ -435,7 +422,7 @@ defmodule Noizu.SimplePool.V2.RouterBehaviour do
           link_forward!: 4,
 
           run_on_host: 5,
-          cast_to_host: 5,
+          cast_to_host: 4,
         ]
       end
     end

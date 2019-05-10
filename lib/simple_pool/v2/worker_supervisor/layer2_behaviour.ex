@@ -27,7 +27,7 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour do
     """
     alias Noizu.ElixirCore.OptionSettings
     alias Noizu.ElixirCore.OptionValue
-    alias Noizu.ElixirCore.OptionList
+    #alias Noizu.ElixirCore.OptionList
 
     require Logger
 
@@ -53,7 +53,8 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour do
   defmacro __using__(options) do
     implementation = Keyword.get(options || [], :implementation, Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour.Default)
     option_settings = implementation.prepare_options(options)
-    options = option_settings.effective_options
+    _options = option_settings.effective_options
+    #@TODO - use real options.
 
     quote do
       @behaviour Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour

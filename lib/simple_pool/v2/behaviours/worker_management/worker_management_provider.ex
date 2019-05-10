@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
-
+  require Logger
 
   @doc """
   Count children of all worker supervisors.
@@ -65,12 +65,13 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   @doc """
 
   """
-  def bulk_migrate!(pool_server, transfer_server, context, options), do: throw :pri0_bulk_migrate!
+  def bulk_migrate!(_pool_server, _transfer_server, _context, _options), do: throw :pri0_bulk_migrate!
 
   @doc """
 
   """
-  def migrate!(pool_server, ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(), options \\ %{}) do
+  def migrate!(pool_server, ref, rebase, context \\ nil, options \\ %{}) do
+    context = context || Noizu.ElixirCore.CallingContext.system()
     if options[:sync] do
       pool_server.router().s_call!(ref, {:migrate!, ref, rebase, options}, context, options, options[:timeout] || 60_000)
     else
@@ -81,12 +82,12 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   @doc """
 
   """
-  def worker_load!(pool_server, ref, context \\ Noizu.ElixirCore.CallingContext.system(), options \\ %{}), do: pool_server.router().s_cast!(ref, {:load, options}, context)
+  def worker_load!(pool_server, ref, context \\ nil, options \\ %{}), do: pool_server.router().s_cast!(ref, {:load, options}, context ||  Noizu.ElixirCore.CallingContext.system())
 
   @doc """
 
   """
-  def worker_ref!(pool_server, identifier, context \\ Noizu.ElixirCore.CallingContext.system()), do: pool_server.pool_worker_state_entity().ref(identifier)
+  def worker_ref!(pool_server, identifier, _context \\ nil), do: pool_server.pool_worker_state_entity().ref(identifier)
 
   @doc """
 
@@ -97,8 +98,8 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
 
   def r_terminate!(pool_server, ref, context, options) do
     options_b = put_in(options, [:lock], %{type: :reap, for: 60})
-    case pool_server.worker_management().obtain_lock!(ref, context, options) do
-      {:ack, _lock} -> pool_server.worker_management().worker_terminate(ref, context, options)
+    case pool_server.worker_management().obtain_lock!(ref, context, options_b) do
+      {:ack, _lock} -> pool_server.worker_management().worker_terminate(ref, context, options_b)
       o -> o
     end
   end
@@ -113,8 +114,8 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
 
   def r_remove!(pool_server, ref, context, options) do
     options_b = put_in(options, [:lock], %{type: :reap, for: 60})
-    case pool_server.worker_management().obtain_lock!(ref, context, options) do
-      {:ack, _lock} -> pool_server.worker_management().worker_remove(ref, context, options)
+    case pool_server.worker_management().obtain_lock!(ref, context, options_b) do
+      {:ack, _lock} -> pool_server.worker_management().worker_remove(ref, context, options_b)
       o -> o
     end
   end
@@ -126,7 +127,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
     options_b = options
                 |> put_in([:lock], %{type: :transfer})
     case pool_server.worker_management().obtain_lock!(ref, context, options_b) do
-      {:ack, lock} ->
+      {:ack, _lock} ->
         case pool_server.worker_management().worker_start(ref, state, context) do
           {:ack, pid} ->
             {:ack, pid}
@@ -146,70 +147,96 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def release!(pool_server, context, options \\ %{}), do: pool_server.router().internal_system_call({:release!, options}, context, options)
 
-
-
-
-  @doc """
-
-  """
-  def worker_pid!(pool_server, ref, context \\ Noizu.ElixirCore.CallingContext.system(), options \\ %{}), do: throw :pri0_worker_pid!
-
-
   # @todo we should tweak function signatures for workers! method.
   @doc """
 
   """
-  def workers!(pool_server, server, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
-  def workers!(pool_server, server, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
-  def workers!(pool_server, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
-  def workers!(pool_server, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
-  def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = context), do: throw :pri0_workers!
-  def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = context, options), do: throw :pri0_workers!
+  def workers!(pool_server, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, node(), pool_server.pool_worker_entity().__struct__, context, %{})
+
+  def workers!(pool_server, %Noizu.ElixirCore.CallingContext{} = context, options), do: workers!(pool_server, node(), pool_server.pool_worker_entity().__struct__, context, options)
+
+  def workers!(pool_server, host, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, host, pool_server.pool_worker_entity().__struct__, context, %{})
+
+  def workers!(pool_server, host, %Noizu.ElixirCore.CallingContext{} = context, options), do: workers!(pool_server, host, pool_server.pool_worker_entity().__struct__, context, options)
+
+  def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, host, service_entity, context, %{})
+
+  def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = context, options) do
+    Logger.warn("[V2] New workers!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().workers!(host, service_entity, context, options)
+  end
 
 
   @doc """
 
   """
-  def host!(pool_server, ref, server, context, options \\ %{}), do: throw :pri_host!
+  def host!(pool_server, ref, context, options \\ %{spawn: true}) do
+    Logger.warn("[V2] New host!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().host!(ref, pool_server, context, options)
+  end
 
   @doc """
 
   """
-  def record_event!(pool_server, ref, event, details, context, options \\ %{}), do: throw :pri_record_event!
+  def record_event!(pool_server, ref, event, details, context, options \\ %{}) do
+    Logger.warn("[V2] New record_event!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().record_event!(ref, event, details, context, options)
+  end
 
   @doc """
 
   """
-  def events!(pool_server, ref, context, options \\ %{}), do: throw :pri_events!
+  def events!(pool_server, ref, context, options \\ %{}) do
+    Logger.warn("[V2] New events!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().events!(ref, context, options)
+  end
 
   @doc """
 
   """
-  def set_node!(pool_server, ref, context, options \\ %{}), do: throw :pri_set_node!
+  def set_node!(pool_server, ref, context, options \\ %{}) do
+    Logger.warn("[V2] New set_node!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().set_node!(ref, context, options)
+  end
 
   @doc """
 
   """
-  def register!(pool_server, ref, context, options \\ %{}), do: throw :pri_register!
+  def register!(pool_server, ref, context, options \\ %{}) do
+    Logger.warn("[V2] New register!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().register!(ref, context, options)
+  end
 
   @doc """
 
   """
-  def unregister!(pool_server, ref, context, options \\ %{}), do: throw :pri_unregister!
+  def unregister!(pool_server, ref, context, options \\ %{}) do
+    Logger.warn("[V2] New unregister!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().unregister!(ref, context, options)
+  end
 
   @doc """
 
   """
-  def obtain_lock!(pool_server, ref, context, options \\ %{}), do: throw :pri_obtain_lock!
+  def obtain_lock!(pool_server, ref, context, options \\ %{}) do
+    Logger.warn("[V2] New obtain_lock!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().obtain_lock!(ref, context, options)
+  end
 
   @doc """
 
   """
-  def release_lock!(pool_server, ref, context, options \\ %{}), do: throw :pri_release_lock!
+  def release_lock!(pool_server, ref, context, options \\ %{}) do
+    Logger.warn("[V2] New release_lock!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().release_lock!(ref, context, options)
+  end
 
   @doc """
 
   """
-  def process!(pool_server, ref, base, server, context, options \\ %{}), do: throw :pri_process!
+  def process!(pool_server, ref, context, options \\ %{}) do
+    Logger.warn("[V2] New process!() Implementation Needed")
+    pool_server.worker_lookup_deprecated().process!(ref, pool_server.pool(), pool_server, context, options)
+  end
 
 end

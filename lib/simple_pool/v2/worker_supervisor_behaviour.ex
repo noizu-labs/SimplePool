@@ -16,19 +16,16 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
   @callback group_children(any) ::any
   @callback available_supervisors() ::any
 
-
-
-  @default_max_seconds (5)
-  @default_max_restarts (1000)
-  @default_strategy (:one_for_one)
-
   defmodule Default do
     @moduledoc """
     Reusable functionality implemented here to reduce size of generated code.
     """
     alias Noizu.ElixirCore.OptionSettings
     alias Noizu.ElixirCore.OptionValue
-    alias Noizu.ElixirCore.OptionList
+    #alias Noizu.ElixirCore.OptionList
+    @default_max_seconds (5)
+    @default_max_restarts (1000)
+    @default_strategy (:one_for_one)
 
     def prepare_options(options) do
 

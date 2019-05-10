@@ -53,20 +53,20 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
   def default_terminate_hook(server, reason, state) do
     case reason do
       {:shutdown, {:migrate, _ref, _, :to, _}} ->
-        server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
-        #PRI-0 - disabled until rate limit available - server.worker_lookup_handler().record_event!(state.worker_ref, :migrate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
+        server.worker_management().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
+        #PRI-0 - disabled until rate limit available - server.worker_management().record_event!(state.worker_ref, :migrate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         reason
       {:shutdown, :migrate} ->
-        server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
-        #PRI-0 - disabled until rate limit available - server.worker_lookup_handler().record_event!(state.worker_ref, :migrate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
+        server.worker_management().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
+        #PRI-0 - disabled until rate limit available - server.worker_management().record_event!(state.worker_ref, :migrate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         reason
       {:shutdown, _details} ->
-        server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
-        #PRI-0 - disabled until rate limit available - server.worker_lookup_handler().record_event!(state.worker_ref, :shutdown, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
+        server.worker_management().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
+        #PRI-0 - disabled until rate limit available - server.worker_management().record_event!(state.worker_ref, :shutdown, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         reason
       _ ->
-        server.worker_lookup_handler().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
-        #PRI-0 - disabled until rate limit available - server.worker_lookup_handler().record_event!(state.worker_ref, :terminate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
+        server.worker_management().unregister!(state.worker_ref, Noizu.ElixirCore.CallingContext.system(%{}))
+        #PRI-0 - disabled until rate limit available - server.worker_management().record_event!(state.worker_ref, :terminate, reason, Noizu.ElixirCore.CallingContext.system(%{}), %{})
         reason
     end
   end
@@ -85,7 +85,7 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
 
     quote do
       import unquote(__MODULE__)
-      @behaviour Noizu.SimplePool.InnerStateBehaviour
+      @behaviour Noizu.SimplePool.V2.InnerStateBehaviour
       @base (unquote(Macro.expand(pool, __CALLER__)))
       @worker (Module.concat([@base, "Worker"]))
       @worker_supervisor (Module.concat([@base, "WorkerSupervisor"]))
@@ -106,7 +106,7 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
       end
 
       if (unquote(required.get_direct_link!)) do
-        def get_direct_link!(ref, context), do: @server.get_direct_link!(ref, context)
+        def get_direct_link!(ref, context), do: @server.router().get_direct_link!(ref, context)
       end
 
       if (unquote(required.fetch)) do
@@ -148,7 +148,7 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
         def health_check!(%__MODULE__{} = this, context, options) do
           #TODO accept a health check strategy option
           ref = Noizu.ERP.ref(this)
-          events = @server.worker_lookup_handler().events!(ref, context, options) || []
+          events = @server.worker_management().events!(ref, context, options) || []
           cut_off = :os.system_time(:seconds) - (60*60*15)
           accum = events
                   |> Enum.filter(fn(x) -> x.time > cut_off end)

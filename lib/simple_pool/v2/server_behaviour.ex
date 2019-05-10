@@ -85,7 +85,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         target: 0,
       }
 
-      default_definition = case options.default_definition do
+      _default_definition = case options.default_definition do
         :auto ->
           case a_s[module.pool()] || a_s[:default] do
             d = %Noizu.SimplePool.MonitoringFramework.Service.Definition{} ->
@@ -143,7 +143,6 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
   #=================================================================
   #=================================================================
   defmacro __using__(options) do
-    implementation = Keyword.get(options || [], :implementation, Noizu.SimplePool.V2.Server.DefaultImplementation)
     implementation = Keyword.get(options || [], :implementation, Noizu.SimplePool.V2.ServerBehaviour.Default)
     option_settings = implementation.prepare_options(options)
 
@@ -156,38 +155,41 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       # todo option value
       @timeout 30_000
       @implementation unquote(implementation)
+      @option_settings :override
+
       @behaviour Noizu.SimplePool.V2.ServerBehaviour
+
       alias Noizu.SimplePool.Worker.Link
       alias Noizu.SimplePool.Server.EnvironmentDetails
       alias Noizu.SimplePool.Server.State
-      use GenServer
+
       require Logger
 
       #----------------------------------------------------------
-      @option_settings :overide
+      #
+      #----------------------------------------------------------
+      use GenServer
       use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
-      #----------------------------------------------------------
-
-      #----------------------------------------------------------
       use unquote(message_processing_provider), unquote(option_settings)
-      #----------------------------------------------------------
 
 
       #----------------------------------------------------------
       # @todo We should be passing in information (pool module, instead of making this a sub module.)
       # @We may than provide some helper methods that append the extra data.
-
+      #----------------------------------------------------------
       defmodule Router do
         use unquote(router_provider), unquote(option_settings)
       end
-      #----------------------------------------------------------
 
+      #----------------------------------------------------------
+      #
       #----------------------------------------------------------
       defmodule WorkerManagement do
         use unquote(worker_management_provider), unquote(option_settings)
       end
-      #----------------------------------------------------------
 
+      #----------------------------------------------------------
+      #
       #----------------------------------------------------------
       defmodule ServiceManagement do
         use unquote(service_management_provider), unquote(option_settings)
@@ -195,9 +197,16 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       #----------------------------------------------------------
 
 
+
+      #==========================================================
+      #
+      #==========================================================
       def router(), do: __MODULE__.Router
       def worker_management(), do: __MODULE__.WorkerManagement
       def service_management(), do: __MODULE__.ServiceManagement
+
+      # To be removed shortly.
+      def worker_lookup_deprecated(), do: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
 
       @doc """
       Initialize meta data for this pool. (override default provided by PoolSettingsBehaviour)
@@ -259,9 +268,11 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         :ok
       end
 
-      #---------------------------------------------------------
+
+
+      #==========================================================
       # Built in Worker Convenience Methods.
-      #---------------------------------------------------------
+      #==========================================================
       @doc """
       Request information about a worker.
       """
@@ -339,6 +350,13 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options) do
         __MODULE__.Router.s_call!(identifier, {:health_check!, health_check_options}, context, options)
       end
+
+
+      def worker_sup_start(ref, context) do
+        Logger.warn("[V2] Server.worker_sup_start is deprecated")
+        __MODULE__.WorkerManagement.worker_start(ref, context)
+      end
+
 
       defoverridable [
         start_link: 2,

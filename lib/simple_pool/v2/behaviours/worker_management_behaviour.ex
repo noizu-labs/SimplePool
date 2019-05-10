@@ -8,7 +8,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
   @callback count_supervisor_children() :: any
   @callback group_supervisor_children(any) :: any
   @callback active_supervisors() :: any
-  @callback worker_supervisors() :: any
+
   @callback supervisor_by_index(any) :: any
   @callback available_supervisors() :: any
   @callback supervisor_current_supervisor(any) :: any
@@ -21,7 +21,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
 
   @callback worker_load!(any, any, any) :: any
   @callback worker_ref!(any, any) :: any
-  @callback worker_pid!(any, any, any) :: any
 
   @callback migrate!(any, any, any, any) :: any
   @callback bulk_migrate!(any, any, any) :: any
@@ -40,7 +39,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
 
   @type lock_response :: {:ack, record :: any} | {:nack, {details :: any, record :: any}} | {:nack, details :: any} | {:error, details :: any}
 
-  @callback host!(ref :: tuple, server :: module, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ok, atom} | {:spawn, atom} | {:error, details :: any} | {:restricted, atom}
+  @callback host!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: {:ok, atom} | {:spawn, atom} | {:error, details :: any} | {:restricted, atom}
   @callback record_event!(ref :: tuple, event :: atom, details :: any, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: any
   @callback events!(ref :: tuple, Noizu.ElixirCore.Context.t | nil, opts :: Map.t) :: list
 
@@ -75,11 +74,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
         def active_supervisors(), do: Provider.active_supervisors(@pool_server)
 
         @doc """
-         Get list of all worker supervisors.
-        """
-        def worker_supervisors(), do: Provider.worker_supervisors(@pool_server)
-
-        @doc """
          Get a supervisor module by index position.
         """
         def supervisor_by_index(index), do: Provider.supervisor_by_index(@pool_server, index)
@@ -107,14 +101,17 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
         @doc """
 
         """
-        def worker_terminate(ref, sup, context, options \\ %{}), do: Provider.worker_terminate(@pool_server, ref, sup, context, options)
+        def worker_terminate(ref, context, options \\ %{}), do: Provider.worker_terminate(@pool_server, ref, context, options)
 
         @doc """
 
         """
-        def worker_remove(ref, sup, context, options \\ %{}), do: Provider.worker_remove(@pool_server, ref, sup, context, options)
+        def worker_remove(ref, context, options \\ %{}), do: Provider.worker_remove(@pool_server, ref, context, options)
 
-        def worker_add!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: Provider.worker_add!(@pool_server, ref, context, options)
+        @doc """
+
+        """
+        def worker_add!(ref, context \\ nil, options \\ %{}), do: Provider.worker_add!(@pool_server, ref, context, options)
 
         @doc """
 
@@ -124,23 +121,17 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
         @doc """
 
         """
-        def migrate!(ref, rebase, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: Provider.migrate!(@pool_server, ref, rebase, context, options)
+        def migrate!(ref, rebase, context \\ nil, options \\ %{}), do: Provider.migrate!(@pool_server, ref, rebase, context, options)
 
         @doc """
 
         """
-        def worker_load!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: Provider.worker_load!(@pool_server, ref, context, options)
+        def worker_load!(ref, context \\ nil, options \\ %{}), do: Provider.worker_load!(@pool_server, ref, context, options)
 
         @doc """
 
         """
-        def worker_ref!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{})), do: Provider.worker_ref!(@pool_server, identifier, context)
-
-        @doc """
-
-        """
-        def worker_pid!(ref, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}), do: Provider.worker_pid!(@pool_server, ref, context, options)
-
+        def worker_ref!(identifier, context \\ nil), do: Provider.worker_ref!(@pool_server, identifier, context)
 
         # @todo we should tweak function signatures for workers! method.
         @doc """
@@ -184,7 +175,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
 
 
 
-        def host!(ref, server, context, options \\ %{}), do: Provider.host!(@pool_server, ref, server, context, options)
+        def host!(ref, context, options \\ %{}), do: Provider.host!(@pool_server, ref, context, options)
         def record_event!(ref, event, details, context, options \\ %{}), do: Provider.record_event!(@pool_server, ref, event, details, context, options)
         def events!(ref, context, options \\ %{}), do: Provider.events!(@pool_server, ref, context, options)
         def set_node!(ref, context, options \\ %{}), do: Provider.set_node!(@pool_server, ref, context, options)
@@ -192,7 +183,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
         def unregister!(ref, context, options \\ %{}), do: Provider.unregister!(@pool_server, ref, context, options)
         def obtain_lock!(ref, context, options \\ %{}), do: Provider.obtain_lock!(@pool_server, ref, context, options)
         def release_lock!(ref, context, options \\ %{}), do: Provider.release_lock!(@pool_server, ref, context, options)
-        def process!(ref, base, server, context, options \\ %{}), do: Provider.process!(@pool_server, ref, base, server, context, options)
+        def process!(ref, context, options \\ %{}), do: Provider.process!(@pool_server, ref, context, options)
 
 
         defoverridable [
@@ -204,16 +195,15 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
           available_supervisors: 0,
           current_supervisor: 1,
 
-          worker_supervisors: 0,
+
           worker_start: 2,
           worker_start: 3,
-          worker_terminate: 4,
-          worker_remove: 4,
+          worker_terminate: 3,
+          worker_remove: 3,
           worker_add!: 3,
 
           worker_load!: 3,
           worker_ref!: 2,
-          worker_pid!: 3,
 
           migrate!: 4,
           bulk_migrate!: 3,
@@ -231,7 +221,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
 
 
 
-          host!: 4,
+          host!: 3,
           record_event!: 5,
           events!: 3,
           set_node!: 3,
@@ -239,7 +229,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
           unregister!: 3,
           obtain_lock!: 3,
           release_lock!: 3,
-          process!: 5
+          process!: 3
 
         ]
       end

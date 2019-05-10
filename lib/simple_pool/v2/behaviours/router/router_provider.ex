@@ -58,11 +58,11 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
   """
   def s_call_unsafe(pool_server, ref, extended_call, context, options, timeout) do
     timeout = options[:timeout] || timeout
-    case pool_server.worker_management().worker_pid!(ref, context, options) do
+    case pool_server.worker_management().process!(ref, context, options) do
       {:ack, pid} ->
         case GenServer.call(pid, extended_call, timeout) do
           :s_retry ->
-            case pool_server.worker_management().worker_pid!(ref, context, options) do
+            case pool_server.worker_management().process!(ref, context, options) do
               {:ack, pid} ->
                 GenServer.call(pid, extended_call, timeout)
               error -> error
@@ -77,7 +77,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     Perform a bare s_cast with out exception handling.
   """
   def s_cast_unsafe(pool_server, ref, extended_call, context, options) do
-    case pool_server.worker_management().worker_pid!(ref, context, options) do
+    case pool_server.worker_management().process!(ref, context, options) do
       {:ack, pid} -> GenServer.cast(pid, extended_call)
       error -> error
     end
@@ -283,12 +283,54 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
   #----------------------------------------
   # extended calls
   #----------------------------------------
-  def extended_call_with_redirect_support(pool_server, s_type, ref, call, context, options, timeout) do
-    {s_type, {pool_server, ref, timeout}, {:s, call, context}}
+  def extended_call_with_redirect_support(pool_server, s_type, ref, call, context, _options, timeout \\ nil) do
+    msg_prefix = case s_type do
+      # Standard Message
+      :s_call! -> :s
+      :s_call -> :s
+      :s_cast! -> :s
+      :s_cast -> :s
+
+      # System Message
+      :m_call! -> :m
+      :m_call -> :m
+      :m_cast! -> :m
+      :m_cast -> :m
+
+      # Internal Message (Self Messaging)
+      :i_call! -> :i
+      :i_call -> :i
+      :i_cast! -> :i
+      :i_cast -> :i
+
+      _ -> throw "Unsupported message type: #{inspect s_type}"
+    end
+    {:msg_envelope, {pool_server, {s_type, ref, timeout}}, {msg_prefix, call, context}}
   end
 
-  def extended_call_without_redirect_support(_pool_server, _s_type, _ref, call, context, _options, _timeout) do
-    {:s, call, context}
+  def extended_call_without_redirect_support(_pool_server, s_type, _ref, call, context, _options, _timeout \\ nil) do
+    msg_prefix = case s_type do
+      # Standard Message
+      :s_call! -> :s
+      :s_call -> :s
+      :s_cast! -> :s
+      :s_cast -> :s
+
+      # System Message
+      :m_call! -> :m
+      :m_call -> :m
+      :m_cast! -> :m
+      :m_cast -> :m
+
+      # Internal Message (Self Messaging)
+      :i_call! -> :i
+      :i_call -> :i
+      :i_cast! -> :i
+      :i_cast -> :i
+
+      _ -> throw "Unsupported message type: #{inspect s_type}"
+    end
+    {msg_prefix, call, context}
   end
 
 
@@ -305,11 +347,11 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     GenServer.call(pool_server, extended_call, timeout)
   end
 
-  def self_cast(pool_server, call, context \\ nil, options \\ nil) do
+  def self_cast(pool_server, call, context \\ nil, _options \\ nil) do
     # note, we leave out some of the complexity from the V1 implementation, which verifies that a given node
     # supports the pool service we represent.
     extended_call = {:s, call, context}
-    timeout = options[:timeout] || pool_server.router().option(:defaul_timeout, @default_timeout)
+    #timeout = options[:timeout] || pool_server.router().option(:defaul_timeout, @default_timeout)
     GenServer.cast(pool_server, extended_call)
   end
 
@@ -325,7 +367,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     GenServer.call(pool_server, extended_call, timeout)
   end
 
-  def internal_system_cast(pool_server, call, context \\ nil, options \\ nil) do
+  def internal_system_cast(pool_server, call, context \\ nil, _options \\ nil) do
     extended_call = {:m, call, context}
     GenServer.cast(pool_server, extended_call)
   end
@@ -343,7 +385,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     end
   end
 
-  def remote_system_cast(pool_server, remote_node, call, context \\ nil, options \\ nil) do
+  def remote_system_cast(pool_server, remote_node, call, context \\ nil, _options \\ nil) do
     extended_call = {:m, call, context}
     if (remote_node == node()) do
       GenServer.cast(pool_server, extended_call)
@@ -361,7 +403,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     GenServer.call(pool_server, extended_call, timeout)
   end
 
-  def internal_cast(pool_server, call, context \\ nil, options \\ nil) do
+  def internal_cast(pool_server, call, context \\ nil, _options \\ nil) do
     extended_call = {:i, call, context}
     GenServer.cast(pool_server, extended_call)
   end
@@ -379,7 +421,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     end
   end
 
-  def remote_cast(pool_server, remote_node, call, context \\ nil, options \\ nil) do
+  def remote_cast(pool_server, remote_node, call, context \\ nil, _options \\ nil) do
     extended_call = {:i, call, context}
     if (remote_node == node()) do
       GenServer.cast(pool_server, extended_call)
@@ -401,7 +443,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
         GenServer.cast(link.handle, extended_call)
         {:ok, link}
       else
-        case pool_server.router().worker_pid!(link.ref, context, options_b) do
+        case pool_server.worker_management().process!(link.ref, context, options_b) do
           {:ack, pid} ->
             GenServer.cast(pid, extended_call)
             rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after + :rand.uniform(div(link.update_after, 2))
@@ -409,7 +451,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
           {:nack, details} -> {:error, %Link{link| handle: nil, state: {:error, {:nack, details}}}}
           {:error, details} -> {:error, %Link{link| handle: nil, state: {:error, details}}}
           error -> {:error, %Link{link| handle: nil, state: {:error, error}}}
-        end # end case worker_pid!
+        end # end case process!
       end # end if else
     catch
       :rescue, e ->
@@ -426,7 +468,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
   #----------------------------------------
   def get_direct_link!(pool_server, ref, context, options \\ %{}) do
     options = options || %{}
-    case pool_server.router().worker_ref!(ref, context) do
+    case pool_server.pool_worker_entity().__struct__.ref(ref) do
       nil ->
         %Link{ref: ref, handler: pool_server, handle: nil, state: {:error, :no_ref}}
       {:error, details} ->
@@ -436,7 +478,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
           Map.has_key?(options, :spawn) -> options
           true -> put_in(options, [:spawn], false)
         end
-        case pool_server.router().worker_pid!(ref, context, options_b) do
+        case pool_server.worker_management().process!(ref, context, options_b) do
           {:ack, pid} -> %Link{ref: ref, handler: pool_server, handle: pid, state: :valid}
           {:error, details} -> %Link{ref: ref, handler: pool_server, handle: nil, state: {:error, details}}
           error -> %Link{ref: ref, handler: pool_server, handle: nil, state: {:error, error}}

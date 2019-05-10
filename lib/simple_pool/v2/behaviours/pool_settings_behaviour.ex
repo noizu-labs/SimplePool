@@ -13,6 +13,8 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
     compile options, runtime settings (via the FastGlobal library and our meta function).
   """
 
+
+  @callback base() :: module # deprecated
   @callback pool() :: module
   @callback pool_worker_supervisor() :: module
   @callback pool_server() :: module
@@ -153,6 +155,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
 
         @pool_worker_state_entity Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
 
+        def base, do: @pool
         def pool, do: @pool
         def pool_worker_supervisor, do: @pool_worker_supervisor
         def pool_server, do: @pool_server
@@ -201,6 +204,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
 
 
         defoverridable [
+          base: 0,
           pool: 0,
           pool_worker_supervisor: 0,
           pool_server: 0,
@@ -245,6 +249,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         # may not match pool_worker_state_entity
         @pool_worker_state_entity Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
 
+        defdelegate base(), to: @parent
         defdelegate pool(), to: @parent
         defdelegate pool_worker_supervisor(), to: @parent
         defdelegate pool_server(), to: @parent
@@ -292,6 +297,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         def option_settings(), do: @option_settings
 
         defoverridable [
+          base: 0,
           pool: 0,
           pool_worker_supervisor: 0,
           pool_server: 0,

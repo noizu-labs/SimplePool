@@ -28,7 +28,7 @@ defmodule Noizu.SimplePool.WorkerLookupBehaviourDefault do
                            |> d.update!(context, options_b)
                   {:ack, entity.server}
                 {:nack, details} ->
-                  entity = entity
+                  _entity = entity
                            |> put_in([Access.key(:lock)], nil)
                            |> d.update!(context, options_b)
                   {:error, {:host_pick, {:nack, details}}}
