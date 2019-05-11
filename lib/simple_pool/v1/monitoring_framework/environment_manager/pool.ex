@@ -82,6 +82,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         {k, v} = Task.await(t, await_timeout)
         Process.sleep(1_000)
 
+        IO.inspect v
         case v do
           %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{} ->
             acc

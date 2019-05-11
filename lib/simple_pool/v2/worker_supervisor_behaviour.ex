@@ -102,6 +102,54 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
 
       use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
 
+
+      def worker_start(ref, transfer_state, context) do
+        worker_sup = current_supervisor(ref)
+
+        childSpec = worker_sup.child(ref, transfer_state, context)
+        case Supervisor.start_child(worker_sup, childSpec) do
+          {:ok, pid} -> {:ack, pid}
+          {:error, {:already_started, pid}} ->
+            timeout = 60_000 #@timeout
+            call = {:transfer_state, {:state, transfer_state, time: :os.system_time(:second)}}
+            extended_call = pool_server().router().extended_call(:s_call!, ref, call, context, %{}, nil)
+            #if @s_redirect_feature, do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
+            GenServer.cast(pid, extended_call)
+            Logger.warn(fn ->"#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}" end)
+            {:ack, pid}
+          {:error, :already_present} ->
+            # We may no longer simply restart child as it may have been initilized
+            # With transfer_state and must be restarted with the correct context.
+            Supervisor.delete_child(worker_sup, ref)
+            case Supervisor.start_child(worker_sup, childSpec) do
+              {:ok, pid} -> {:ack, pid}
+              {:error, {:already_started, pid}} -> {:ack, pid}
+              error -> error
+            end
+          error -> error
+        end # end case
+      end
+
+      def worker_start(ref, context) do
+        worker_sup = current_supervisor(ref)
+        childSpec = worker_sup.child(ref, context)
+        case Supervisor.start_child(worker_sup, childSpec) do
+          {:ok, pid} -> {:ack, pid}
+          {:error, {:already_started, pid}} ->
+            {:ack, pid}
+          {:error, :already_present} ->
+            # We may no longer simply restart child as it may have been initialized
+            # With transfer_state and must be restarted with the correct context.
+            Supervisor.delete_child(worker_sup, ref)
+            case Supervisor.start_child(worker_sup, childSpec) do
+              {:ok, pid} -> {:ack, pid}
+              {:error, {:already_started, pid}} -> {:ack, pid}
+              error -> error
+            end
+          error -> error
+        end # end case
+      end
+
       @doc """
       OTP start_link entry point.
       """

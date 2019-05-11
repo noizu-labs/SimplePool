@@ -19,9 +19,14 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
   end
 
   @tag :v2
-  @tag capture_log: true
   test "basic_functionality - s_call!" do
-    :wip
+
+    ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:two)
+
+    # spawn
+    Noizu.SimplePool.Support.TestV2TwoPool.Server.fetch(ref)
+    assert Noizu.SimplePool.Support.TestV2TwoPool.Server.ping!(ref) == :pong
+
   end
 
   @tag :v2

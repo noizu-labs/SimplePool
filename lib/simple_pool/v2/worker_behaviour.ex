@@ -52,6 +52,8 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
     features = MapSet.new(options.features)
     verbose = options.verbose
 
+
+    message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
     quote do
       import unquote(__MODULE__)
       require Logger
@@ -69,6 +71,7 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       @option_settings :override
       @options :override
       @pool_worker_state_entity :override
+      use unquote(message_processing_provider), unquote(option_settings)
       use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
       #--------------------------------------------
 
@@ -118,6 +121,14 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
 
       def clear_inactivity_check(state) do
         Noizu.SimplePool.WorkerBehaviourDefault.clear_inactivity_check(state)
+      end
+
+      def s_call_handler({:fetch, :state}, _from, state, _context) do
+        {:reply, state, state}
+      end
+
+      def s_call_handler(:ping!, _from, state, _context) do
+        {:reply, :pong, state}
       end
 
       defoverridable [

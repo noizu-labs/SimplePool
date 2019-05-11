@@ -172,7 +172,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def host!(pool_server, ref, context, options \\ %{spawn: true}) do
     Logger.warn("[V2] New host!() Implementation Needed")
-    pool_server.worker_lookup_deprecated().host!(ref, pool_server, context, options)
+    pool_server.worker_lookup_deprecated().host!(ref, pool_server, context, options) |> IO.inspect
   end
 
   @doc """
@@ -236,7 +236,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def process!(pool_server, ref, context, options \\ %{}) do
     Logger.warn("[V2] New process!() Implementation Needed")
-    pool_server.worker_lookup_deprecated().process!(ref, pool_server.pool(), pool_server, context, options)
+    pool_server.worker_lookup_deprecated().process!(ref, pool_server.pool(), pool_server, context, options) |> IO.inspect
   end
 
 end

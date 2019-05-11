@@ -24,6 +24,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         """
         def handle_call({:msg_redirect, {__MODULE__, _delivery_details}, call = {_s, _call, _context}}, from, state), do: handle_call(call, from, state)
         def handle_call({:msg_redirect, {call_server, {_call_type, ref, _timeout}}, call = {_type, _payload, context}} = fc, _from, state) do
+          Logger.warn fn -> "Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n" end
           try do
             Logger.error fn -> {"Redirect Failed! #{inspect call_server}-#{inspect fc, pretty: true}", Noizu.ElixirCore.CallingContext.metadata(context)} end
             # Clear lookup entry to allow system to assign correct entry and spawn new entry.
@@ -31,11 +32,12 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}"
           catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}"
           end
-          {:reply, :s_retry, state}
+          {:reply, {:s_retry, call_server, __MODULE__}, state}
         end
 
         def handle_call({:msg_envelope, {__MODULE__, _delivery_details}, call = {_s, _call, _context}}, from, state), do: handle_call(call, from, state)
         def handle_call({:msg_envelope, {call_server, {_call_type, ref, _timeout}}, call = {_type, _payload, context}}, _from, state) do
+          Logger.warn fn -> "Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n" end
           try do
             Logger.warn fn -> {"Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
             # Clear lookup entry to allow system to assign correct entry and spawn new entry.
@@ -43,7 +45,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}"
           catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}"
           end
-          {:reply, :s_retry, state}
+          {:reply, {:s_retry, call_server, __MODULE__}, state}
         end
 
         @doc """

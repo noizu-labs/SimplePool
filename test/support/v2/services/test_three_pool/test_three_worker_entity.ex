@@ -30,11 +30,16 @@ defmodule Noizu.SimplePool.Support.TestV2ThreeWorkerEntity do
       pool: Noizu.SimplePool.Support.TestV2ThreePool,
       override: [:load, :supervisor_hint]
 
-  def supervisor_hint(ref) do
-    "test_" <> ts = id(ref)
-     String.to_integer(ts)
-  end
 
+  def supervisor_hint(ref) do
+    id = id(ref)
+    cond do
+      is_integer(id) -> id
+      is_bitstring(id) ->
+        "test_" <> ts = id
+        String.to_integer(ts)
+    end
+  end
   #-----------------------------------------------------------------------------
   # Behaviour
   #-----------------------------------------------------------------------------

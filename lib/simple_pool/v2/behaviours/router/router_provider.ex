@@ -92,6 +92,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     Forward a call to appropriate worker. Spawn worker if not currently active.
   """
   def s_call_crash_protection!(pool_server, identifier, call, context, options \\ nil, timeout \\ nil) do
+    timeout = timeout || 30_000 #@TODO final logic
     case pool_server.worker_management().worker_ref!(identifier, context) do
       e = {:error, _details} -> e
       ref ->
@@ -305,7 +306,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
 
       _ -> throw "Unsupported message type: #{inspect s_type}"
     end
-    {:msg_envelope, {pool_server, {s_type, ref, timeout}}, {msg_prefix, call, context}}
+    {:msg_envelope, {pool_server.pool_worker(), {s_type, ref, timeout}}, {msg_prefix, call, context}}
   end
 
   def extended_call_without_redirect_support(_pool_server, s_type, _ref, call, context, _options, _timeout \\ nil) do

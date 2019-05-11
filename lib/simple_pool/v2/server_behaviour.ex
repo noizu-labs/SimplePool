@@ -214,6 +214,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
 
       # To be removed shortly.
       def worker_lookup_deprecated(), do: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
+      def worker_lookup_handler(), do: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
 
       @doc """
       Initialize meta data for this pool. (override default provided by PoolSettingsBehaviour)
@@ -393,15 +394,15 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
 
       def m_call_handler({:health_check!, _}, from, state, context) do
         dummy_response = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
-            identifier: pool(),
+            identifier: {node(), pool()},
             process: self(),
             time_stamp: DateTime.utc_now(),
             status: :online,
             directive: :free,
             definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
 
-              identifier: pool(),
-              server: __MODULE__,
+              identifier: {node(), pool()},
+              server: node(),
               pool: pool(),
               service: pool_server(),
               supervisor: pool_supervisor(),

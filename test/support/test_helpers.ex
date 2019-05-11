@@ -9,6 +9,11 @@ defmodule Noizu.SimplePool.TestHelpers do
   def unique_ref(:two), do: {:ref, Noizu.SimplePool.Support.TestTwoWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
   def unique_ref(:three), do: {:ref, Noizu.SimplePool.Support.TestThreeWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
 
+  def unique_ref_v2(:one), do: {:ref, Noizu.SimplePool.Support.TestV2WorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
+  def unique_ref_v2(:two), do: {:ref, Noizu.SimplePool.Support.TestV2TwoWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
+  def unique_ref_v2(:three), do: {:ref, Noizu.SimplePool.Support.TestV2ThreeWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
+
+
   @pool_options %{hard_limit: 250, soft_limit: 150, target: 100}
 
   def wait_hint_release(ref, service, context, timeout \\ 60_000) do
@@ -46,7 +51,9 @@ defmodule Noizu.SimplePool.TestHelpers do
 
   def setup_first() do
     context = Noizu.ElixirCore.CallingContext.system(%{})
+
     Registry.start_link(keys: :unique, name: Noizu.SimplePool.DispatchRegister,  partitions: System.schedulers_online())
+
     initial = %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{
       identifier: node(),
       master_node: :self,
@@ -86,7 +93,6 @@ defmodule Noizu.SimplePool.TestHelpers do
     semaphore_test: #{inspect :rpc.call(node(), Semaphore, :acquire, [:test, 5])}
     ============================================================
     """
-
 
     p = spawn fn ->
 
