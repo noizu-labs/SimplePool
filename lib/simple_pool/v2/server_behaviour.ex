@@ -197,6 +197,13 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       #----------------------------------------------------------
 
 
+      # @deprecated
+      def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: __MODULE__.ServiceManagement.service_health_check!(context)
+      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: __MODULE__.ServiceManagement.service_health_check!(health_check_options, context)
+      def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: __MODULE__.ServiceManagement.service_health_check!(health_check_options, context, options)
+
+
+
 
       #==========================================================
       #
@@ -357,6 +364,62 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         __MODULE__.WorkerManagement.worker_start(ref, context)
       end
 
+      def lock!(context, o) do
+        Logger.warn("[V2] Server.lock! is deprecated")
+        __MODULE__.WorkerManagement.lock!(context, o)
+      end
+
+      def release!(context, o) do
+        Logger.warn("[V2] Server.release! is deprecated")
+        __MODULE__.WorkerManagement.release!(context, o)
+      end
+
+      def m_call_handler({:release!, _}, from, state, context) do
+        state = state
+               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :active)
+               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
+        #{_, e, this} = get_health_check(this, context, options)
+        #{:reply, {:ack, e}, state}
+        {:reply, {:ack, state.environment_details.effective}, state}
+
+      end
+
+      def m_call_handler({:lock!, _}, from, state, context) do
+        state = state
+               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :maintenance)
+               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :locked)
+        {:reply, {:ack, state.environment_details.effective}, state}
+      end
+
+      def m_call_handler({:health_check!, _}, from, state, context) do
+        dummy_response = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
+            identifier: pool(),
+            process: self(),
+            time_stamp: DateTime.utc_now(),
+            status: :online,
+            directive: :free,
+            definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
+
+              identifier: pool(),
+              server: __MODULE__,
+              pool: pool(),
+              service: pool_server(),
+              supervisor: pool_supervisor(),
+              server_options: %{},
+              worker_sup_options: %{},
+              time_stamp: nil,
+              hard_limit: 50,
+              soft_limit: 50,
+              target: 50,
+
+            },
+            allocated: %{},
+            health_index: 5.0,
+            events: [],
+        }
+
+        {:reply, dummy_response, state}
+      end
 
       defoverridable [
         start_link: 2,

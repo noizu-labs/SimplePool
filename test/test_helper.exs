@@ -15,10 +15,7 @@ ExUnit.start()
 alias Noizu.SimplePool.Support.TestPool
 alias Noizu.SimplePool.Support.TestTwoPool
 #alias Noizu.SimplePool.Support.TestThreePool
-
-
 Application.ensure_all_started(:bypass)
-
 
 #-----------------------------------------------
 # Test Schema Setup

@@ -71,9 +71,9 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
 
           max_supervisors: %OptionValue{option: :max_supervisors, default: default_max_supervisors},
 
-          layer2_restart_type: %OptionValue{option: :restart_type, default: default_layer2_restart_type},
-          layer2_max_restarts: %OptionValue{option: :max_restarts, default: default_layer2_max_restarts},
-          layer2_max_seconds: %OptionValue{option: :max_seconds, default: default_layer2_max_seconds},
+          layer2_restart_type: %OptionValue{option: :layer2_restart_type, default: default_layer2_restart_type},
+          layer2_max_restarts: %OptionValue{option: :layer2_max_restarts, default: default_layer2_max_restarts},
+          layer2_max_seconds: %OptionValue{option: :layer2_max_seconds, default: default_layer2_max_seconds},
           layer2_provider: %OptionValue{option: :layer2_provider, default: default_layer2_provider},
         }
       }

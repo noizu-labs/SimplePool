@@ -178,17 +178,44 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
 
 
-        def s_call_handler(_call, _from, _state, _context), do: throw "s_call_handler not overridden by #{__MODULE__}"
-        def m_call_handler(_call, _from, _state, _context), do: throw "m_call_handler not overridden by #{__MODULE__}"
-        def i_call_handler(_call, _from, _state, _context), do: throw "i_call_handler not overridden by #{__MODULE__}"
+        def s_call_handler(call, _from, state, _context) do
+          Logger.warn "s_call_handler not overridden by #{__MODULE__} - #{inspect call}"
+          {:reply, :error, state}
+        end
+        def m_call_handler(call, _from, state, _context) do
+          Logger.warn "m_call_handler not overridden by #{__MODULE__} - #{inspect call}"
+          {:reply, :error, state}
+        end
+        def i_call_handler(call, _from, state, _context) do
+          Logger.warn "i_call_handler not overridden by #{__MODULE__} - #{inspect call}"
+          {:reply, :error, state}
+        end
 
-        def s_cast_handler(_call, _state, _context), do: throw "s_cast_handler not overridden by #{__MODULE__}"
-        def m_cast_handler(_call, _state, _context), do: throw "m_cast_handler not overridden by #{__MODULE__}"
-        def i_cast_handler(_call, _state, _context), do: throw "i_cast_handler not overridden by #{__MODULE__}"
+        def s_cast_handler(call, state, _context) do
+          Logger.warn "s_cast_handler not overridden by #{__MODULE__} - #{inspect call}"
+          {:noreply, state}
+        end
+        def m_cast_handler(call, state, _context) do
+          Logger.warn "m_cast_handler not overridden by #{__MODULE__} - #{inspect call}"
+          {:noreply, state}
+        end
+        def i_cast_handler(call, state, _context) do
+          Logger.warn "i_cast_handler not overridden by #{__MODULE__} - #{inspect call}"
+          {:noreply, state}
+        end
 
-        def s_info_handler(_call, _state, _context), do: throw "s_info_handler not overridden by #{__MODULE__}"
-        def m_info_handler(_call, _state, _context), do: throw "m_info_handler not overridden by #{__MODULE__}"
-        def i_info_handler(_call, _state, _context), do: throw "i_info_handler not overridden by #{__MODULE__}"
+        def s_info_handler(call, state, _context) do
+          Logger.warn "s_info_handler not overridden by #{__MODULE__} - #{inspect call}"
+          {:noreply, state}
+        end
+        def m_info_handler(call, state, _context) do
+          Logger.warn "m_info_handler not overridden by #{__MODULE__} - #{inspect call}"
+          {:noreply, state}
+        end
+        def i_info_handler(call, state, _context) do
+          Logger.warn "i_info_handler not overridden by #{__MODULE__} - #{inspect call}"
+          {:noreply, state}
+        end
 
 
         #===============================================================================================================

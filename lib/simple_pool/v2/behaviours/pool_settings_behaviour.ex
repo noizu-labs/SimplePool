@@ -13,8 +13,9 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
     compile options, runtime settings (via the FastGlobal library and our meta function).
   """
 
+  # @deprecated
+  @callback base() :: module
 
-  @callback base() :: module # deprecated
   @callback pool() :: module
   @callback pool_worker_supervisor() :: module
   @callback pool_server() :: module
@@ -98,6 +99,13 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
     Update Meta Information for module.
     """
     def meta(module, update) do
+      try do
+        if (:ets.info(:semaphore) == :undefined) do
+          Semaphore.start(nil, nil)
+        end
+        rescue e -> IO.puts("semaphore start rescue #{inspect e}")
+        catch e -> IO.puts("semaphore start rescue #{inspect e}")
+      end
       if Semaphore.acquire({{:meta, :write}, module}, 1) do
         existing = case FastGlobal.get(module.meta_key(), :no_entry) do
           :no_entry -> module.meta_init()
@@ -155,6 +163,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
 
         @pool_worker_state_entity Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
 
+        # @deprecated
         def base, do: @pool
         def pool, do: @pool
         def pool_worker_supervisor, do: @pool_worker_supervisor
@@ -249,7 +258,10 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         # may not match pool_worker_state_entity
         @pool_worker_state_entity Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
 
+        # @deprecated
         defdelegate base(), to: @parent
+
+
         defdelegate pool(), to: @parent
         defdelegate pool_worker_supervisor(), to: @parent
         defdelegate pool_server(), to: @parent

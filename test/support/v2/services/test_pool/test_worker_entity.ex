@@ -77,6 +77,7 @@ defmodule Noizu.SimplePool.Support.TestV2WorkerEntity do
   #-------------------
   # ref/1
   #-------------------
+  def ref(identifier) when is_integer(identifier), do: {:ref, __MODULE__, identifier}
   def ref({:ref, __MODULE__, identifier}), do: {:ref, __MODULE__, identifier}
   def ref("ref.noizu-test." <> identifier), do: {:ref, __MODULE__, identifier}
   def ref(%__MODULE__{} = entity), do: {:ref, __MODULE__, entity.identifier}
