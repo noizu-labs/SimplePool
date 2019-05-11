@@ -99,13 +99,6 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
     Update Meta Information for module.
     """
     def meta(module, update) do
-      try do
-        if (:ets.info(:semaphore) == :undefined) do
-          Semaphore.start(nil, nil)
-        end
-        rescue e -> IO.puts("semaphore start rescue #{inspect e}")
-        catch e -> IO.puts("semaphore start rescue #{inspect e}")
-      end
       if Semaphore.acquire({{:meta, :write}, module}, 1) do
         existing = case FastGlobal.get(module.meta_key(), :no_entry) do
           :no_entry -> module.meta_init()

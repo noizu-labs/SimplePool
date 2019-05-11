@@ -45,8 +45,6 @@ defmodule Noizu.SimplePool.TestHelpers do
   end
 
   def setup_first() do
-    IO.puts "#{node()} - Semaphore start: #{inspect Semaphore.start(nil, nil)}"
-
     context = Noizu.ElixirCore.CallingContext.system(%{})
     Registry.start_link(keys: :unique, name: Noizu.SimplePool.DispatchRegister,  partitions: System.schedulers_online())
     initial = %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{
@@ -79,15 +77,21 @@ defmodule Noizu.SimplePool.TestHelpers do
   end
 
   def setup_second() do
-    IO.puts "#{node()} - Semaphore start: #{inspect Semaphore.start(nil, nil)}"
+
+    Application.ensure_all_started(:semaphore)
+
+    IO.puts """
+    =============== SETUP SECOND TEST NODE =====================
+    node: #{node()}
+    semaphore_test: #{inspect :rpc.call(node(), Semaphore, :acquire, [:test, 5])}
+    ============================================================
+    """
+
+
     p = spawn fn ->
 
 
-      IO.puts """
-      =============== SETUP SECOND TEST NODE =====================
-      node: #{node()}
-      ============================================================
-      """
+
 
       :ok = Amnesia.Table.wait(Noizu.SimplePool.Database.tables(), 5_000)
 

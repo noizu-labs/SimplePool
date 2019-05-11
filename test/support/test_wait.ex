@@ -7,7 +7,7 @@ defmodule Mix.Tasks.SecondTestNode do
   use Mix.Task
 
   def run(_) do
-    IO.puts "#{node()} - Semaphore start: #{inspect Semaphore.start(nil, nil)}"
+    :ok
   end
 
 end

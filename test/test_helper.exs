@@ -16,6 +16,9 @@ alias Noizu.SimplePool.Support.TestPool
 alias Noizu.SimplePool.Support.TestTwoPool
 #alias Noizu.SimplePool.Support.TestThreePool
 Application.ensure_all_started(:bypass)
+Application.ensure_all_started(:semaphore)
+
+
 
 #-----------------------------------------------
 # Test Schema Setup
