@@ -49,19 +49,9 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
 
         @doc """
-        Standard or Message
+        Catchall
         """
-        def handle_call(_envelope = {:s, call, context}, from, state), do: s_call_handler(call, from, state, context)
-
-        @doc """
-        System Message
-        """
-        def handle_call(_envelope = {:m, call, context}, from, state), do: m_call_handler(call, from, state, context)
-
-        @doc """
-        Internal Message
-        """
-        def handle_call(_envelope = {:i, call, context}, from, state), do: i_call_handler(call, from, state, context)
+        def handle_call(envelope, from, state), do: __call_handler(envelope, from, state)
 
         #-----------------------------------------------------
         # handle_cast
@@ -96,21 +86,10 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           {:noreply, state}
         end
 
-
         @doc """
-        Standard or Message
+        Catchall
         """
-        def handle_cast(_envelope = {:s, call, context}, state), do: s_cast_handler(call, state, context)
-
-        @doc """
-        System Message
-        """
-        def handle_cast(_envelope = {:m, call, context}, state), do: m_cast_handler(call, state, context)
-
-        @doc """
-        Internal Message
-        """
-        def handle_cast(_envelope = {:i, call, context}, state), do: i_cast_handler(call, state, context)
+        def handle_cast(envelope, state), do: __cast_handler(envelope, state)
 
         #-----------------------------------------------------
         # handle_info
@@ -146,101 +125,48 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
 
         @doc """
-        Standard or Message
+        Catchall
         """
-        def handle_info(_envelope = {:s, call, context}, state), do: s_info_handler(call, state, context)
-
-        @doc """
-        System Message
-        """
-        def handle_info(_envelope = {:m, call, context}, state), do: m_info_handler(call, state, context)
-
-        @doc """
-        Internal Message
-        """
-        def handle_info(_envelope = {:i, call, context}, state), do: i_info_handler(call, state, context)
-
+        def handle_info(envelope, state), do: __info_handler(envelope, state)
 
         #===============================================================================================================
-        # Catch All methods for info, cast, and call
+        # Default delegation
         #===============================================================================================================
-        def handle_call_catch_all(envelope, _from, state) do
-          # todo logging
-          {:noreply, state}
-        end
-
-        def handle_cast_catch_all(envelope, state) do
-          # todo logging
-          {:noreply, state}
-        end
-
-        def handle_info_catch_all(envelope, state) do
-          # todo logging
-          {:noreply, state}
+        def default_call_router(envelope, from, state), do: nil
+        def call_router(envelope, from, state), do: nil
+        def __call_handler(envelope, from, state) do
+          call_router(envelope, from, state) || default_call_router(envelope, from, state) || Noizu.SimplePool.V2.MessageProcessing.DefaultProvider.__delegate_call_handler(__MODULE__, envelope, from, state)
         end
 
 
-        def s_call_handler(call, _from, state, _context) do
-          Logger.warn "s_call_handler not overridden by #{__MODULE__} - #{inspect call}"
-          {:reply, :error, state}
-        end
-        def m_call_handler(call, _from, state, _context) do
-          Logger.warn "m_call_handler not overridden by #{__MODULE__} - #{inspect call}"
-          {:reply, :error, state}
-        end
-        def i_call_handler(call, _from, state, _context) do
-          Logger.warn "i_call_handler not overridden by #{__MODULE__} - #{inspect call}"
-          {:reply, :error, state}
+        def default_cast_router(envelope, state), do: nil
+        def cast_router(envelope, state), do: nil
+        def __cast_handler(envelope, state) do
+          cast_router(envelope, state) || default_cast_router(envelope, state) || Noizu.SimplePool.V2.MessageProcessing.DefaultProvider.__delegate_cast_handler(__MODULE__, envelope, state)
         end
 
-        def s_cast_handler(call, state, _context) do
-          Logger.warn "s_cast_handler not overridden by #{__MODULE__} - #{inspect call}"
-          {:noreply, state}
+        def default_info_router(envelope, state), do: nil
+        def info_router(envelope, state), do: nil
+        def __info_handler(envelope, state) do
+          info_router(envelope, state) || default_info_router(envelope, state) || Noizu.SimplePool.V2.MessageProcessing.DefaultProvider.__delegate_info_handler(__MODULE__, envelope, state)
         end
-        def m_cast_handler(call, state, _context) do
-          Logger.warn "m_cast_handler not overridden by #{__MODULE__} - #{inspect call}"
-          {:noreply, state}
-        end
-        def i_cast_handler(call, state, _context) do
-          Logger.warn "i_cast_handler not overridden by #{__MODULE__} - #{inspect call}"
-          {:noreply, state}
-        end
-
-        def s_info_handler(call, state, _context) do
-          Logger.warn "s_info_handler not overridden by #{__MODULE__} - #{inspect call}"
-          {:noreply, state}
-        end
-        def m_info_handler(call, state, _context) do
-          Logger.warn "m_info_handler not overridden by #{__MODULE__} - #{inspect call}"
-          {:noreply, state}
-        end
-        def i_info_handler(call, state, _context) do
-          Logger.warn "i_info_handler not overridden by #{__MODULE__} - #{inspect call}"
-          {:noreply, state}
-        end
-
 
         #===============================================================================================================
         # Overridable
         #===============================================================================================================
         defoverridable [
-          handle_call_catch_all: 3,
-          handle_cast_catch_all: 2,
-          handle_info_catch_all: 2,
+          call_router: 3,
+          default_call_router: 3,
+          __call_handler: 3,
 
-          s_call_handler: 4,
-          m_call_handler: 4,
-          i_call_handler: 4,
+          cast_router: 2,
+          default_cast_router: 2,
+          __cast_handler: 2,
 
-          s_cast_handler: 3,
-          m_cast_handler: 3,
-          i_cast_handler: 3,
-
-          s_info_handler: 3,
-          m_info_handler: 3,
-          i_info_handler: 3,
+          info_router: 2,
+          default_info_router: 2,
+          __info_handler: 2,
         ]
-
       end
     end
   end

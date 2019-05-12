@@ -375,57 +375,75 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         __MODULE__.WorkerManagement.release!(context, o)
       end
 
-      def m_call_handler({:release!, _}, from, state, context) do
-        state = state
-               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :active)
-               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
-        #{_, e, this} = get_health_check(this, context, options)
-        #{:reply, {:ack, e}, state}
-        {:reply, {:ack, state.environment_details.effective}, state}
 
-      end
-
-      def m_call_handler({:lock!, _}, from, state, context) do
+      #-----------------------------------------------------------------------------------------------------------------
+      # perform
+      #-----------------------------------------------------------------------------------------------------------------
+      def handle_release!(_args, _from, state, _context) do
         state = state
-               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :maintenance)
-               |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :locked)
+                |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :active)
+                |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
         {:reply, {:ack, state.environment_details.effective}, state}
       end
 
-      def m_call_handler({:health_check!, _}, from, state, context) do
+      def handle_lock!(_args, _from, state, _context) do
+        state = state
+                |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :maintenance)
+                |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :locked)
+        {:reply, {:ack, state.environment_details.effective}, state}
+      end
+
+      def handle_health_check!(_args, _from, state, context) do
         dummy_response = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
+          identifier: {node(), pool()},
+          process: self(),
+          time_stamp: DateTime.utc_now(),
+          status: :online,
+          directive: :free,
+          definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
+
             identifier: {node(), pool()},
-            process: self(),
-            time_stamp: DateTime.utc_now(),
-            status: :online,
-            directive: :free,
-            definition: %Noizu.SimplePool.MonitoringFramework.Service.Definition{
+            server: node(),
+            pool: pool(),
+            service: pool_server(),
+            supervisor: pool_supervisor(),
+            server_options: %{},
+            worker_sup_options: %{},
+            time_stamp: nil,
+            hard_limit: 50,
+            soft_limit: 50,
+            target: 50,
 
-              identifier: {node(), pool()},
-              server: node(),
-              pool: pool(),
-              service: pool_server(),
-              supervisor: pool_supervisor(),
-              server_options: %{},
-              worker_sup_options: %{},
-              time_stamp: nil,
-              hard_limit: 50,
-              soft_limit: 50,
-              target: 50,
-
-            },
-            allocated: %{},
-            health_index: 5.0,
-            events: [],
+          },
+          allocated: %{},
+          health_index: 5.0,
+          events: [],
         }
 
         {:reply, dummy_response, state}
+      end
+
+      #------------------------------------------------------------------------
+      # Infrastructure provided call router
+      #------------------------------------------------------------------------
+      def default_call_router(envelope, from, state) do
+        case envelope do
+          {:m, {:release!, args}, context} -> handle_release!(args, from, state, context)
+          {:m, {:lock!, args}, context} -> handle_lock!(args, from, state, context)
+          {:m, {:health_check!, args}, context} -> handle_health_check!(args, from, state, context)
+          _ -> nil
+        end
       end
 
       defoverridable [
         start_link: 2,
         init: 1,
         terminate: 2,
+
+        handle_release!: 4,
+        handle_lock!: 4,
+        handle_health_check!: 4,
+        default_call_router: 3,
 
         fetch: 4,
         save!: 3,

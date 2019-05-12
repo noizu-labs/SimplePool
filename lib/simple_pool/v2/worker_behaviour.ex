@@ -123,14 +123,27 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
         Noizu.SimplePool.WorkerBehaviourDefault.clear_inactivity_check(state)
       end
 
-      def s_call_handler({:fetch, :state}, _from, state, _context) do
-        {:reply, state, state}
+
+      #------------------------------------------------------------------------
+      # Infrastructure Provided Worker Calls
+      #------------------------------------------------------------------------
+      def handle_fetch(:state, _from, state, _context), do: {:reply, state, state}
+      def handle_ping!(_from, state, _context), do: {:reply, :pong, state}
+
+      #------------------------------------------------------------------------
+      # Infrastructure provided call router
+      #------------------------------------------------------------------------
+      def default_call_router(envelope, from, state) do
+        case envelope do
+          {:s, {:fetch, :state}, context} -> handle_fetch(:state, from, state, context)
+          {:s, :ping!, context} -> handle_ping!(from, state, context)
+          _ -> nil
+        end
       end
 
-      def s_call_handler(:ping!, _from, state, _context) do
-        {:reply, :pong, state}
-      end
-
+      #===============================================================================================================
+      # Overridable
+      #===============================================================================================================
       defoverridable [
         start_link: 2,
         start_link: 3,
@@ -141,6 +154,10 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
         clear_migrate_shutdown: 1,
         schedule_inactivity_check: 2,
         clear_inactivity_check: 1,
+
+        handle_fetch: 4,
+        handle_ping!: 3,
+        default_call_router: 3,
       ]
 
     end # end quote
