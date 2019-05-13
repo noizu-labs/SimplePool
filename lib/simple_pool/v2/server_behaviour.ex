@@ -169,7 +169,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       #
       #----------------------------------------------------------
       use GenServer
-      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
+      use Noizu.SimplePool.V2.SettingsBehaviour.Inherited, unquote([option_settings: option_settings])
       use unquote(message_processing_provider), unquote(option_settings)
 
 
@@ -217,7 +217,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def worker_lookup_handler(), do: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
 
       @doc """
-      Initialize meta data for this pool. (override default provided by PoolSettingsBehaviour)
+      Initialize meta data for this pool. (override default provided by SettingsBehaviour)
       """
       def meta_init(), do: @implementation.meta_init(__MODULE__)
 
@@ -426,7 +426,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       #------------------------------------------------------------------------
       # Infrastructure provided call router
       #------------------------------------------------------------------------
-      def default_call_router(envelope, from, state) do
+      def call_router_internal(envelope, from, state) do
         case envelope do
           {:m, {:release!, args}, context} -> handle_release!(args, from, state, context)
           {:m, {:lock!, args}, context} -> handle_lock!(args, from, state, context)
@@ -443,7 +443,8 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         handle_release!: 4,
         handle_lock!: 4,
         handle_health_check!: 4,
-        default_call_router: 3,
+        call_router_internal: 3,
+
 
         fetch: 4,
         save!: 3,

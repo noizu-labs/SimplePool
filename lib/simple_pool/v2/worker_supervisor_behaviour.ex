@@ -12,9 +12,16 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
   """
   require Logger
 
+  @callback worker_start(any, any) :: any
+  @callback worker_start(any, any, any) :: any
+
+  @callback supervisor_by_index(any) :: any
+  @callback available_supervisors() :: any
+  @callback active_supervisors() :: any
+
   @callback count_children() :: any
-  @callback group_children(any) ::any
-  @callback available_supervisors() ::any
+  @callback group_children(any) :: any
+  @callback current_supervisor(any) :: any
 
   defmodule Default do
     @moduledoc """
@@ -79,6 +86,173 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       }
       OptionSettings.expand(settings, options)
     end
+
+
+    def meta_init(module) do
+      options = module.options()
+      max_supervisors = options.max_supervisors
+
+      leading = round(:math.floor(:math.log10(max_supervisors))) + 1
+      supervisor_by_index = Enum.map(1 .. max_supervisors, fn(i) ->
+        {i, Module.concat(module, "Seg#{String.pad_leading("#{i}", leading, "0")}")}
+      end) |> Map.new()
+      available_supervisors = Map.values(supervisor_by_index)
+      active_supervisors = length(available_supervisors)
+      dynamic_supervisor = options.dynamic_supervisor
+      settings = %{
+        active_supervisors: active_supervisors,
+        available_supervisors: available_supervisors,
+        supervisor_by_index: supervisor_by_index,
+        dynamic_supervisor: dynamic_supervisor,
+      }
+      parent_settings = Noizu.SimplePool.V2.SettingsBehaviour.Default.meta_init(module, %{})
+      Map.merge(parent_settings, settings)
+    end
+
+
+
+
+
+
+    def group_children(module, group_fn) do
+      Task.async_stream(module.available_supervisors(), fn(s) ->
+                                                   children = Supervisor.which_children(s)
+                                                   sg = Enum.reduce(children, %{}, fn(worker, acc) ->
+                                                                                     g = group_fn.(worker)
+                                                                                     if g do
+                                                                                       update_in(acc, [g], &((&1 || 0) + 1))
+                                                                                     else
+                                                                                       acc
+                                                                                     end
+                                                   end)
+                                                   {s, sg}
+      end, timeout: 60_000, ordered: false)
+      |> Enum.reduce(%{total: %{}}, fn(outcome, acc) ->
+        case outcome do
+          {:ok, {s, sg}} ->
+            total = Enum.reduce(sg, acc.total, fn({g, c}, a) ->  update_in(a, [g], &((&1 || 0) ++ c)) end)
+            acc = acc
+                  |> put_in([s], sg)
+                  |> put_in([:total], total)
+          _ -> acc
+        end
+      end)
+    end
+
+
+    def count_children(module) do
+      {a,s, u, w} = Task.async_stream(
+                      module.available_supervisors(),
+                      fn(s) ->
+                        u = Supervisor.count_children(s)
+                        {u.active, u.specs, u.supervisors, u.workers}
+                      end,
+                      [ordered: false, timeout: 60_000, on_timeout: :kill_task]
+                    ) |> Enum.reduce({0,0,0,0}, fn(x, {acc_a, acc_s, acc_u, acc_w}) ->
+        case x do
+          {:ok, {a,s, u, w}} -> {acc_a + a, acc_s + s, acc_u + u, acc_w + w}
+          {:exit, :timeout} -> {acc_a, acc_s, acc_u, acc_w}
+          _ -> {acc_a, acc_s, acc_u, acc_w}
+        end
+      end)
+      %{active: a, specs: s, supervisors: u, workers: w}
+    end
+
+    def current_supervisor(module, ref) do
+      cond do
+        module.meta()[:dynamic_supervisor] -> current_supervisor_dynamic(module, ref)
+        true -> current_supervisor_default(module, ref)
+      end
+    end
+
+    def current_supervisor_default(module, ref) do
+      num_supervisors = module.active_supervisors()
+      if num_supervisors == 1 do
+        module.supervisor_by_index(1)
+      else
+        hint = module.pool_worker_state_entity().supervisor_hint(ref)
+        pick = rem(hint, num_supervisors) + 1
+        module.supervisor_by_index(pick)
+      end
+    end
+
+    def current_supervisor_dynamic(module, ref) do
+      num_supervisors = module.active_supervisors()
+      if num_supervisors == 1 do
+        module.supervisor_by_index(1)
+      else
+        hint = module.pool_worker_state_entity().supervisor_hint(ref)
+        # The logic is designed so that the selected supervisor only changes for a subset of items when adding new supervisors
+        # So that, for example, when going from 5 to 6 supervisors only a 6th of entries will be re-assigned to the new bucket.
+        pick = Enum.reduce_while(num_supervisors .. 1, 1, fn(x, acc) ->
+          n = rem(hint, x) + 1
+          cond do
+            n == x -> {:halt, n}
+            true -> {:cont, acc}
+          end
+        end)
+
+        pick = fn(hint, num_supervisors) ->
+          Enum.reduce_while(num_supervisors .. 1, 1, fn(x, acc) ->
+            n = rem(hint, x) + 1
+            cond do
+              n == x -> {:halt, n}
+              true -> {:cont, acc}
+            end
+          end)
+        end
+        module.supervisor_by_index(pick)
+      end
+    end
+
+
+
+    def worker_start(module, ref, transfer_state, context) do
+      worker_sup = module.current_supervisor(ref)
+      childSpec = worker_sup.child(ref, transfer_state, context)
+      case Supervisor.start_child(worker_sup, childSpec) do
+        {:ok, pid} -> {:ack, pid}
+        {:error, {:already_started, pid}} ->
+          timeout = 60_000 #@timeout
+          call = {:transfer_state, {:state, transfer_state, time: :os.system_time(:second)}}
+          extended_call = module.pool_server().router().extended_call(:s_call!, ref, call, context, %{}, nil)
+          #if @s_redirect_feature, do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
+          GenServer.cast(pid, extended_call)
+          Logger.warn(fn ->"#{module} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}" end)
+          {:ack, pid}
+        {:error, :already_present} ->
+          # We may no longer simply restart child as it may have been initilized
+          # With transfer_state and must be restarted with the correct context.
+          Supervisor.delete_child(worker_sup, ref)
+          case Supervisor.start_child(worker_sup, childSpec) do
+            {:ok, pid} -> {:ack, pid}
+            {:error, {:already_started, pid}} -> {:ack, pid}
+            error -> error
+          end
+        error -> error
+      end # end case
+    end
+
+    def worker_start(module, ref, context) do
+      worker_sup = module.current_supervisor(ref)
+      childSpec = worker_sup.child(ref, context)
+      case Supervisor.start_child(worker_sup, childSpec) do
+        {:ok, pid} -> {:ack, pid}
+        {:error, {:already_started, pid}} ->
+          {:ack, pid}
+        {:error, :already_present} ->
+          # We may no longer simply restart child as it may have been initialized
+          # With transfer_state and must be restarted with the correct context.
+          Supervisor.delete_child(worker_sup, ref)
+          case Supervisor.start_child(worker_sup, childSpec) do
+            {:ok, pid} -> {:ack, pid}
+            {:error, {:already_started, pid}} -> {:ack, pid}
+            error -> error
+          end
+        error -> error
+      end # end case
+    end
+
   end
 
   defmacro __using__(options) do
@@ -90,6 +264,7 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
     max_supervisors = options.max_supervisors
     layer2_provider = options.layer2_provider
 
+    message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
     quote do
       @behaviour Noizu.SimplePool.V2.WorkerSupervisorBehaviour
       use Supervisor
@@ -100,55 +275,11 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       @option_settings :override
       @max_supervisors unquote(max_supervisors)
 
-      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
+      use Noizu.SimplePool.V2.SettingsBehaviour.Inherited, unquote([option_settings: option_settings])
+      use unquote(message_processing_provider), unquote(option_settings)
 
-
-      def worker_start(ref, transfer_state, context) do
-        worker_sup = current_supervisor(ref)
-
-        childSpec = worker_sup.child(ref, transfer_state, context)
-        case Supervisor.start_child(worker_sup, childSpec) do
-          {:ok, pid} -> {:ack, pid}
-          {:error, {:already_started, pid}} ->
-            timeout = 60_000 #@timeout
-            call = {:transfer_state, {:state, transfer_state, time: :os.system_time(:second)}}
-            extended_call = pool_server().router().extended_call(:s_call!, ref, call, context, %{}, nil)
-            #if @s_redirect_feature, do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
-            GenServer.cast(pid, extended_call)
-            Logger.warn(fn ->"#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}" end)
-            {:ack, pid}
-          {:error, :already_present} ->
-            # We may no longer simply restart child as it may have been initilized
-            # With transfer_state and must be restarted with the correct context.
-            Supervisor.delete_child(worker_sup, ref)
-            case Supervisor.start_child(worker_sup, childSpec) do
-              {:ok, pid} -> {:ack, pid}
-              {:error, {:already_started, pid}} -> {:ack, pid}
-              error -> error
-            end
-          error -> error
-        end # end case
-      end
-
-      def worker_start(ref, context) do
-        worker_sup = current_supervisor(ref)
-        childSpec = worker_sup.child(ref, context)
-        case Supervisor.start_child(worker_sup, childSpec) do
-          {:ok, pid} -> {:ack, pid}
-          {:error, {:already_started, pid}} ->
-            {:ack, pid}
-          {:error, :already_present} ->
-            # We may no longer simply restart child as it may have been initialized
-            # With transfer_state and must be restarted with the correct context.
-            Supervisor.delete_child(worker_sup, ref)
-            case Supervisor.start_child(worker_sup, childSpec) do
-              {:ok, pid} -> {:ack, pid}
-              {:error, {:already_started, pid}} -> {:ack, pid}
-              error -> error
-            end
-          error -> error
-        end # end case
-      end
+      def worker_start(ref, transfer_state, context), do: Noizu.SimplePool.V2.WorkerSupervisorBehaviour.Default.worker_start(__MODULE__, ref, transfer_state, context)
+      def worker_start(ref, context), do: Noizu.SimplePool.V2.WorkerSupervisorBehaviour.Default.worker_start(__MODULE__, ref, context)
 
       @doc """
       OTP start_link entry point.
@@ -172,134 +303,30 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       @doc """
       Initial Meta Information for Module.
       """
-      def meta_init() do
-        verbose_setting = case options().verbose do
-          :auto -> pool().verbose()
-          v -> v
-        end
-
-        leading = round(:math.floor(:math.log10(@max_supervisors))) + 1
-        supervisor_by_index = Enum.map(1 .. @max_supervisors, fn(i) ->
-          {i, Module.concat(__MODULE__, "Seg#{String.pad_leading("#{i}", leading, "0")}")}
-        end) |> Map.new()
-        available_supervisors = Map.values(supervisor_by_index)
-        active_supervisors = length(available_supervisors)
-
-        dynamic_supervisor = options().dynamic_supervisor
-        %{
-          active_supervisors: active_supervisors,
-          available_supervisors: available_supervisors,
-          supervisor_by_index: supervisor_by_index,
-          dynamic_supervisor: dynamic_supervisor,
-          verbose: verbose_setting,
-        }
-      end
-
+      def meta_init(), do: Noizu.SimplePool.V2.WorkerSupervisorBehaviour.Default.meta_init(__MODULE__)
       def supervisor_by_index(index), do: meta()[:supervisor_by_index][index]
       def available_supervisors(), do: meta()[:available_supervisors]
       def active_supervisors(), do: meta()[:active_supervisors]
 
-      def group_children(group_fn) do
-        Task.async_stream(available_supervisors(), fn(s) ->
-                                                     children = Supervisor.which_children(s)
-                                                     sg = Enum.reduce(children, %{}, fn(worker, acc) ->
-                                                                                       g = group_fn.(worker)
-                                                                                       if g do
-                                                                                         update_in(acc, [g], &((&1 || 0) + 1))
-                                                                                       else
-                                                                                         acc
-                                                                                       end
-                                                     end)
-                                                     {s, sg}
-        end, timeout: 60_000, ordered: false)
-        |> Enum.reduce(%{total: %{}}, fn(outcome, acc) ->
-          case outcome do
-            {:ok, {s, sg}} ->
-              total = Enum.reduce(sg, acc.total, fn({g, c}, a) ->  update_in(a, [g], &((&1 || 0) ++ c)) end)
-              acc = acc
-                    |> put_in([s], sg)
-                    |> put_in([:total], total)
-            _ -> acc
-          end
-        end)
-      end
-
-
-      def count_children() do
-        {a,s, u, w} = Task.async_stream(
-                        available_supervisors(),
-                        fn(s) ->
-                          u = Supervisor.count_children(s)
-                          {u.active, u.specs, u.supervisors, u.workers}
-                        end,
-                        [ordered: false, timeout: 60_000, on_timeout: :kill_task]
-                      ) |> Enum.reduce({0,0,0,0}, fn(x, {acc_a, acc_s, acc_u, acc_w}) ->
-          case x do
-            {:ok, {a,s, u, w}} -> {acc_a + a, acc_s + s, acc_u + u, acc_w + w}
-            {:exit, :timeout} -> {acc_a, acc_s, acc_u, acc_w}
-            _ -> {acc_a, acc_s, acc_u, acc_w}
-          end
-        end)
-        %{active: a, specs: s, supervisors: u, workers: w}
-      end
-
-      def current_supervisor(ref) do
-        cond do
-          meta()[:dynamic_supervisor] -> current_supervisor_dynamic(ref)
-          true -> current_supervisor_default(ref)
-        end
-      end
-
-      def current_supervisor_default(ref) do
-        num_supervisors = active_supervisors()
-        if num_supervisors == 1 do
-          supervisor_by_index(1)
-        else
-          hint = pool_worker_state_entity().supervisor_hint(ref)
-          pick = rem(hint, num_supervisors) + 1
-          supervisor_by_index(pick)
-        end
-      end
-
-      def current_supervisor_dynamic(ref) do
-        num_supervisors = active_supervisors()
-        if num_supervisors == 1 do
-          supervisor_by_index(1)
-        else
-          hint = pool_worker_state_entity().supervisor_hint(ref)
-          # The logic is designed so that the selected supervisor only changes for a subset of items when adding new supervisors
-          # So that, for example, when going from 5 to 6 supervisors only a 6th of entries will be re-assigned to the new bucket.
-          pick = Enum.reduce_while(num_supervisors .. 1, 1, fn(x, acc) ->
-            n = rem(hint, x) + 1
-            cond do
-              n == x -> {:halt, n}
-              true -> {:cont, acc}
-            end
-          end)
-
-          pick = fn(hint, num_supervisors) ->
-            Enum.reduce_while(num_supervisors .. 1, 1, fn(x, acc) ->
-              n = rem(hint, x) + 1
-              cond do
-                n == x -> {:halt, n}
-                true -> {:cont, acc}
-              end
-            end)
-          end
-          supervisor_by_index(pick)
-        end
-      end
+      def group_children(group_fn), do: Noizu.SimplePool.V2.WorkerSupervisorBehaviour.Default.group_children(__MODULE__, group_fn)
+      def count_children(), do: Noizu.SimplePool.V2.WorkerSupervisorBehaviour.Default.count_children(__MODULE__)
+      def current_supervisor(ref), do: Noizu.SimplePool.V2.WorkerSupervisorBehaviour.Default.current_supervisor(__MODULE__, ref)
 
 
       defoverridable [
         start_link: 2,
         init: 1,
-        current_supervisor: 1,
+
+        worker_start: 3,
+        worker_start: 2,
+
         supervisor_by_index: 1,
         available_supervisors: 0,
         active_supervisors: 0,
+
         group_children: 1,
         count_children: 0,
+        current_supervisor: 1,
       ]
 
       #==================================================

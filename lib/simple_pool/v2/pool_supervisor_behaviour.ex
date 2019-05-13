@@ -59,11 +59,11 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       case Supervisor.start_link(module, [context], [{:name, module}, {:restart, :permanent}]) do
         {:ok, sup} ->
           Logger.info(fn ->  {"#{module}.start_link Supervisor Not Started. #{inspect sup}", Noizu.ElixirCore.CallingContext.metadata(context)} end)
-          module.start_children(module, context, definition)
+          module.start_children(sup, context, definition)
           {:ok, sup}
         {:error, {:already_started, sup}} ->
           Logger.info(fn -> {"#{module}.start_link Supervisor Already Started. Handling Unexpected State.  #{inspect sup}" , Noizu.ElixirCore.CallingContext.metadata(context)} end)
-          module.start_children(module, context, definition)
+          module.start_children(sup, context, definition)
           {:ok, sup}
       end
     end
@@ -72,75 +72,136 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
     #
     #------------
     def start_children(module, sup, context, definition \\ :auto) do
-      if module.verbose() do
-        Logger.info(fn -> {
-                            module.banner("#{module}.start_children",
-                              """
+      if module.verbose(), do: start_children_banner(module, sup, context, definition)
 
-                              #{module} START_CHILDREN
-                              Options: #{inspect module.options()}
-                              worker_supervisor: #{module.pool_worker_supervisor()}
-                              worker_server: #{module.pool_server()}
-                              definition: #{inspect definition}
-                              """),
-                            Noizu.ElixirCore.CallingContext.metadata(context)
-                          }
-        end)
+      # Start Children
+      worker_supervisor_process =
+        if (module.pool().stand_alone()) do
+          {:ok, :offline}
+        else
+          start_worker_supervisor_child(module, sup, definition, context)
+        end
+      server_process = start_server_child(module, sup, definition, context)
+      monitor_process = start_monitor_child(module, sup, server_process, definition, context)
+
+      #------------------
+      # start server initilization process.
+      #------------------
+      if server_process != :error && module.auto_load() do
+        spawn fn -> module.pool_sever().load(context, nil) end
       end
 
-      # @TODO - move into runtime meta.
-      max_seconds = module._max_seconds()
-      max_restarts = module._max_restarts()
-
-      # Start Worker Supervisor
-      _s = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_worker_supervisor(), [definition, context],  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
-        {:ok, pid} ->
-          {:ok, pid}
-        {:error, {:already_started, process2_id}} ->
-          Supervisor.restart_child(module, process2_id)
-        error ->
-          Logger.error(fn ->
-            {
-              """
-
-              #{module}.start_children(1) #{inspect module.pool_worker_supervisor()} Already Started. Handling unexpected state.
-              #{inspect error}
-              """, Noizu.ElixirCore.CallingContext.metadata(context)}
-          end)
-          :error
+      #------------------
+      # Response
+      #------------------
+      outcome = cond do
+        server_process == :error || Kernel.match?({:error, _}, server_process) -> :error
+        monitor_process == :error || Kernel.match?({:error, _}, monitor_process) -> :error
+        worker_supervisor_process == :error || Kernel.match?({:error, _}, worker_supervisor_process) -> :error
+        true -> :ok
       end
 
-      # Start Server Supervisor
-      s2 = case Supervisor.start_child(sup, module.pass_through_worker(module.pool_server(), [definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
-        {:ok, pid} ->
-          {:ok, pid}
-        {:error, {:already_started, process2_id}} ->
-          Supervisor.restart_child(module, process2_id)
-        error ->
-          Logger.error(fn ->
-            {
-              """
 
-              #{module}.start_children(1) #{inspect module.pool_server()} Already Started. Handling unexpected state.
-              #{inspect error}
-              """, Noizu.ElixirCore.CallingContext.metadata(context)}
-          end)
-          :error
-      end
-      if s2 != :error && module.auto_load() do
-        spawn fn -> module.pool_sever().load(context, module.options()) end
-      end
-      s2
+      # Return children
+      children_processes = %{
+        worker_supervisor_process: worker_supervisor_process,
+        monitor_process: monitor_process,
+        server_process: server_process
+      }
+
+      {outcome, children_processes}
     end # end start_children
 
     def init(module, [context] = arg) do
       if module.verbose() || true do
         Logger.warn(fn -> {module.banner("#{module} INIT", "args: #{inspect arg}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
       end
-      strategy = module._strategy()
-      max_seconds = module._max_seconds()
-      max_restarts = module._max_restarts()
+      strategy = module.meta()[:strategy]
+      max_seconds = module.meta()[:max_seconds]
+      max_restarts = module.meta()[:max_restarts]
       module.pass_through_supervise([], [{:strategy, strategy}, {:max_restarts, max_restarts}, {:max_seconds, max_seconds}, {:restart, :permanent}])
+    end
+
+    defp start_worker_supervisor_child(module, sup, definition, context) do
+      max_seconds = module.meta()[:max_seconds]
+      max_restarts = module.meta()[:max_restarts]
+
+      case Supervisor.start_child(sup, module.pass_through_worker(module.pool_worker_supervisor(), [definition, context],  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+          {:ok, pid} ->
+            {:ok, pid}
+          {:error, {:already_started, process2_id}} ->
+            Supervisor.restart_child(module, process2_id)
+          error ->
+            Logger.error(fn ->
+              {
+                """
+
+                #{module}.start_worker_supervisor_child #{inspect module.pool_worker_supervisor()} Already Started. Handling unexpected state.
+                #{inspect error}
+                """, Noizu.ElixirCore.CallingContext.metadata(context)}
+            end)
+            :error
+        end
+    end
+
+    defp start_server_child(module, sup, definition, context) do
+      max_seconds = module.meta()[:max_seconds]
+      max_restarts = module.meta()[:max_restarts]
+
+      case Supervisor.start_child(sup, module.pass_through_worker(module.pool_server(), [definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+        {:ok, pid} ->
+          {:ok, pid}
+        {:error, {:already_started, process2_id}} ->
+          Supervisor.restart_child(module, process2_id)
+        error ->
+          Logger.error(fn ->
+            {
+              """
+
+              #{module}.start_server_child #{inspect module.pool_server()} Already Started. Handling unexpected state.
+              #{inspect error}
+              """, Noizu.ElixirCore.CallingContext.metadata(context)}
+          end)
+          :error
+      end
+    end
+
+    defp start_monitor_child(module, sup, server_process, definition, context) do
+      max_seconds = module.meta()[:max_seconds]
+      max_restarts = module.meta()[:max_restarts]
+
+      case Supervisor.start_child(sup, module.pass_through_worker(module.pool_monitor(), [server_process, definition, context], [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+        {:ok, pid} ->
+          {:ok, pid}
+        {:error, {:already_started, process2_id}} ->
+          Supervisor.restart_child(module, process2_id)
+        error ->
+          Logger.error(fn ->
+            {
+              """
+
+              #{module}.start_children(1) #{inspect module.pool_monitor()} Already Started. Handling unexpected state.
+              #{inspect error}
+              """, Noizu.ElixirCore.CallingContext.metadata(context)}
+          end)
+          :error
+      end
+    end
+
+    defp start_children_banner(module, sup, context, definition) do
+      Logger.info(fn -> {
+                          module.banner("#{module}.start_children",
+                            """
+
+                            #{module} START_CHILDREN
+                            Options: #{inspect module.options()}
+                            worker_supervisor: #{module.pool_worker_supervisor()}
+                            worker_server: #{module.pool_server()}
+                            definition: #{inspect definition}
+                            """),
+                          Noizu.ElixirCore.CallingContext.metadata(context)
+                        }
+      end)
     end
 
   end
@@ -149,12 +210,8 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
     implementation = Keyword.get(options || [], :implementation, Noizu.SimplePool.V2.PoolSupervisorBehaviour.Default)
     option_settings = implementation.prepare_options(options)
     options = option_settings.effective_options
-
-    max_restarts = options.max_restarts
-    max_seconds = options.max_seconds
-    strategy = options.strategy
     features = MapSet.new(options.features)
-
+    message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
 
     quote do
       @behaviour Noizu.SimplePool.V2.PoolSupervisorBehaviour
@@ -165,85 +222,44 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       @parent unquote(__MODULE__)
       @module __MODULE__
 
-      @auto_load unquote(MapSet.member?(features, :auto_load))
-
-      @strategy unquote(strategy)
-      @max_seconds unquote(max_seconds)
-      @max_restarts unquote(max_restarts)
-
       #----------------------------
-      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
+      use Noizu.SimplePool.V2.SettingsBehaviour.Inherited, unquote([option_settings: option_settings])
+      use unquote(message_processing_provider), unquote(option_settings)
       #--------------------------------
-
-      #-------------------
-      # @TODO move these into a single runtime_options/otp_options or similar method.
-      #-------------------
-      def _strategy(), do: @strategy
-      def _max_seconds(), do: @max_seconds
-      def _max_restarts(), do: @max_restarts
 
       @doc """
       Auto load setting for pool.
       """
-      def auto_load(), do: @auto_load
+      def auto_load(), do: meta()[:auto_load]
 
       @doc """
       start_link OTP entry point.
       """
-      def start_link(context, definition \\ :auto), do: _imp_start_link(@module, context, definition)
-      defdelegate _imp_start_link(module, context, definition), to: @implementation, as: :start_link
+      def start_link(context, definition \\ :auto), do: @implementation.start_link(@module, context, definition)
 
       @doc """
       Start supervisor's children.
       """
-      def start_children(sup, context, definition \\ :auto), do: _imp_start_children(@module, sup, context, definition)
-      defdelegate _imp_start_children(module, sup, context, definition), to: @implementation, as: :start_children
-
-      #@doc """
-      #Start worker supervisors.
-      #"""
-      #def start_worker_supervisors(sup, context, definition), do: _imp_start_worker_supervisors(@module, sup, context, definition)
-      #defdelegate _imp_start_worker_supervisors(module, sup, context, definition), to: @implementation, as: :start_worker_supervisors
+      def start_children(sup, context, definition \\ :auto), do: @implementation.start_children(@module, sup, context, definition)
 
       @doc """
       OTP Init entry point.
       """
-      def init(arg), do: _imp_init(@module, arg)
-      defdelegate _imp_init(module, arg), to: @implementation, as: :init
+      def init(arg), do: @implementation.init(@module, arg)
 
       #-------------------
       #
       #-------------------
-      def handle_call(msg, from, s), do: handle_call_catchall(msg, from, s)
-      def handle_cast(msg, s), do: handle_cast_catchall(msg, s)
-      def handle_info(msg, s), do: handle_info_catchall(msg, s)
 
-      def handle_call_catchall(msg, from, s), do: throw :pri0_handle_call_catchall
-      def handle_cast_catchall(msg, s), do: throw :pri0_handle_cast_catchall
-      def handle_info_catchall(msg, s), do: throw :pri0_handle_info_catchall
 
       def pass_through_supervise(a,b), do: supervise(a,b)
       def pass_through_supervisor(a,b,c), do: supervisor(a,b,c)
       def pass_through_worker(a,b,c), do: worker(a,b,c)
 
       defoverridable [
-        _strategy: 0,
-        _max_seconds: 0,
-        _max_restarts: 0,
-        auto_load: 0,
-
         start_link: 2,
         start_children: 3,
-        #start_worker_supervisors: 3,
         init: 1,
-
-        handle_call: 3,
-        handle_cast: 2,
-        handle_info: 2,
-
-        handle_call_catchall: 3,
-        handle_cast_catchall: 2,
-        handle_info_catchall: 2,
 
         pass_through_supervise: 2,
         pass_through_supervisor: 3,

@@ -71,8 +71,8 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       @option_settings :override
       @options :override
       @pool_worker_state_entity :override
+      use Noizu.SimplePool.V2.SettingsBehaviour.Inherited, unquote([option_settings: option_settings])
       use unquote(message_processing_provider), unquote(option_settings)
-      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings])
       #--------------------------------------------
 
 
@@ -133,13 +133,28 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       #------------------------------------------------------------------------
       # Infrastructure provided call router
       #------------------------------------------------------------------------
-      def default_call_router(envelope, from, state) do
+      def call_router_internal(envelope, from, state) do
         case envelope do
           {:s, {:fetch, :state}, context} -> handle_fetch(:state, from, state, context)
           {:s, :ping!, context} -> handle_ping!(from, state, context)
           _ -> nil
         end
       end
+
+
+
+
+  # Delegate uncaught calls into inner state.
+  def call_router_catchall(envelope, from, state) do
+    Noizu.SimplePool.V2.MessageProcessingBehaviour.Default.__delegate_call_handler(__MODULE__, envelope, from, state)
+  end
+  def cast_router_catchall(envelope, state) do
+    Noizu.SimplePool.V2.MessageProcessingBehaviour.Default.__delegate_cast_handler(__MODULE__, envelope, state)
+  end
+  def info_router_catchall(envelope, state) do
+    Noizu.SimplePool.V2.MessageProcessingBehaviour.Default.__delegate_info_handler(__MODULE__, envelope, state)
+  end
+
 
       #===============================================================================================================
       # Overridable
@@ -157,7 +172,12 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
 
         handle_fetch: 4,
         handle_ping!: 3,
-        default_call_router: 3,
+        call_router_internal: 3,
+
+
+        call_router_catchall: 3,
+        cast_router_catchall: 2,
+        info_router_catchall: 2,
       ]
 
     end # end quote

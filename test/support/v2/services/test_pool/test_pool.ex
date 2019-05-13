@@ -6,7 +6,7 @@
 defmodule Noizu.SimplePool.Support.TestV2Pool do
   #alias Noizu.Scaffolding.CallingContext
   use Noizu.SimplePool.V2.PoolBehaviour,
-      default_modules: [:pool_supervisor, :worker_supervisor],
+      default_modules: [:pool_supervisor, :worker_supervisor, :monitor],
       worker_state_entity: Noizu.SimplePool.Support.TestV2WorkerEntity,
       verbose: false
 

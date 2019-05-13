@@ -55,6 +55,7 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour do
     option_settings = implementation.prepare_options(options)
     _options = option_settings.effective_options
     #@TODO - use real options.
+    message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
 
     quote do
       @behaviour Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour
@@ -66,7 +67,8 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour do
       #----------------------------------------
       @options :override
       @option_settings :override
-      use Noizu.SimplePool.V2.PoolSettingsBehaviour.Inherited, unquote([option_settings: option_settings, depth: 2])
+      use Noizu.SimplePool.V2.SettingsBehaviour.Inherited, unquote([option_settings: option_settings, depth: 2])
+      use unquote(message_processing_provider), unquote(option_settings)
       #----------------------------------------
 
       #-----------

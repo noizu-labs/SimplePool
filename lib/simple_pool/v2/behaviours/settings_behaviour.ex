@@ -3,7 +3,7 @@
 # Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
+defmodule Noizu.SimplePool.V2.SettingsBehaviour do
   @moduledoc """
     The Noizu.SimplePool.V2.Behaviour provides the entry point for Worker Pools.
     The developer will define a pool such as ChatRoomPool that uses the Noizu.SimplePool.V2.Behaviour Implementation
@@ -21,6 +21,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
   @callback pool_server() :: module
   @callback pool_supervisor() :: module
   @callback pool_worker() :: module
+  @callback pool_monitor() :: module
 
   @callback banner(String.t) :: String.t
   @callback banner(String.t, String.t) :: String.t
@@ -116,14 +117,36 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
     @doc """
     Initial Meta Information for Module.
     """
-    def meta_init(module) do
-      verbose = case module.options().verbose do
-        :auto ->
-          if (module.pool() == module), do: Application.get_env(:noizu_simple_pool, :verbose, false), else: module.pool().verbose()
-        v -> v
-      end
+    def meta_init(module, _arguments \\ %{}) do
+      # Grab effective options
+      options = module.options()
 
-      %{verbose: verbose}
+      # meta variables
+
+      max_restarts = options[:max_restarts] || 1_000_000
+      max_seconds = options[:max_seconds] || 1
+      strategy = options[:strategy] || :one_for_one
+      auto_load = Enum.member?(options[:features] || [], :auto_load)
+
+      response = %{
+        verbose: :pending,
+        stand_alone: :pending,
+        max_restarts: max_restarts,
+        max_seconds: max_seconds,
+        strategy: strategy,
+        auto_load: auto_load
+      }
+
+      # Base vs. Inherited Specific
+      if (module.pool() == module) do
+        verbose = if (options[:verbose] == :auto), do: Application.get_env(:noizu_simple_pool, :verbose, false), else: options[:verbose]
+        stand_alone = module.stand_alone()
+        %{response| verbose: verbose, stand_alone: stand_alone}
+      else
+        verbose = if (options[:verbose] == :auto), do: module.pool().verbose(), else: options[:verbose]
+        stand_alone = module.pool().stand_alone()
+        %{response| verbose: verbose, stand_alone: stand_alone}
+      end
     end
 
     def pool_worker_state_entity(pool, :auto), do: Module.concat(pool, "WorkerStateEntity")
@@ -134,39 +157,44 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
     defmacro __using__(opts) do
       option_settings = Macro.expand(opts[:option_settings], __CALLER__)
       options = option_settings.effective_options
-
       pool_worker_state_entity = Map.get(options, :worker_state_entity, :auto)
+      stand_alone = opts[:stand_alone] || false
 
 
       quote do
-        @behaviour Noizu.SimplePool.V2.PoolSettingsBehaviour
-
+        @behaviour Noizu.SimplePool.V2.SettingsBehaviour
         @module __MODULE__
         @module_str "#{@module}"
         @meta_key Module.concat(@module, Meta)
 
+        @stand_alone unquote(stand_alone)
+
         @pool @module
-        @pool_worker_supervisor Module.concat([@pool, "WorkerSupervisor"])
         @pool_server Module.concat([@pool, "Server"])
-        @pool_worker Module.concat([@pool, "Worker"])
         @pool_supervisor Module.concat([@pool, "PoolSupervisor"])
+        @pool_worker_supervisor Module.concat([@pool, "WorkerSupervisor"])
+        @pool_worker Module.concat([@pool, "Worker"])
+        @pool_monitor Module.concat([@pool, "Monitor"])
+
 
         @options unquote(Macro.escape(options))
         @option_settings unquote(Macro.escape(option_settings))
 
-        @pool_worker_state_entity Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
+        @pool_worker_state_entity Noizu.SimplePool.V2.SettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
 
         # @deprecated
         def base, do: @pool
         def pool, do: @pool
-        def pool_worker_supervisor, do: @pool_worker_supervisor
+
         def pool_server, do: @pool_server
         def pool_supervisor, do: @pool_supervisor
+        def pool_monitor, do: @pool_monitor
+        def pool_worker_supervisor, do: @pool_worker_supervisor
         def pool_worker, do: @pool_worker
         def pool_worker_state_entity, do: @pool_worker_state_entity
 
         def banner(msg), do: banner(@module, msg)
-        defdelegate banner(header, msg), to: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default
+        defdelegate banner(header, msg), to: Noizu.SimplePool.V2.SettingsBehaviour.Default
 
         @doc """
         Get verbosity level.
@@ -182,17 +210,17 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         @doc """
         Runtime meta/book keeping data for pool.
         """
-        def meta(), do: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.meta(@module)
+        def meta(), do: Noizu.SimplePool.V2.SettingsBehaviour.Default.meta(@module)
 
         @doc """
         Append new entries to meta data (internally a map merge is performed).
         """
-        def meta(update), do: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.meta(@module, update)
+        def meta(update), do: Noizu.SimplePool.V2.SettingsBehaviour.Default.meta(@module, update)
 
         @doc """
         Initial Meta Information for Module.
         """
-        def meta_init(), do: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.meta_init(@module)
+        def meta_init(), do: Noizu.SimplePool.V2.SettingsBehaviour.Default.meta_init(@module, %{stand_alone: @stand_alone})
 
         @doc """
         retrieve effective compile time options/settings for pool.
@@ -212,6 +240,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
           pool_server: 0,
           pool_supervisor: 0,
           pool_worker: 0,
+          pool_monitor: 0,
           pool_worker_state_entity: 0,
           banner: 1,
           banner: 2,
@@ -234,22 +263,22 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
       options = option_settings.effective_options
 
       pool_worker_state_entity = Map.get(options, :worker_state_entity, :auto)
-
+      stand_alone = opts[:stand_alone] || false
 
       quote do
         @depth unquote(depth)
-        @behaviour Noizu.SimplePool.V2.PoolSettingsBehaviour
+        @behaviour Noizu.SimplePool.V2.SettingsBehaviour
         @parent Module.split(__MODULE__) |> Enum.slice(0.. -2) |> Module.concat()
         @pool Module.split(__MODULE__) |> Enum.slice(0.. -(@depth + 1)) |> Module.concat()
         @module __MODULE__
         @module_str "#{@module}"
         @meta_key Module.concat(@module, Meta)
-
+        @stand_alone unquote(stand_alone)
         @options unquote(Macro.escape(options))
         @option_settings unquote(Macro.escape(option_settings))
 
         # may not match pool_worker_state_entity
-        @pool_worker_state_entity Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
+        @pool_worker_state_entity Noizu.SimplePool.V2.SettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
 
         # @deprecated
         defdelegate base(), to: @parent
@@ -261,9 +290,11 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         defdelegate pool_supervisor(), to: @parent
         defdelegate pool_worker(), to: @parent
         defdelegate pool_worker_state_entity(), to: @parent
+        defdelegate pool_monitor(), to: @parent
+
 
         def banner(msg), do: banner(@module, msg)
-        defdelegate banner(header, msg), to: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default
+        defdelegate banner(header, msg), to: Noizu.SimplePool.V2.SettingsBehaviour.Default
 
         @doc """
         Get verbosity level.
@@ -279,17 +310,17 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
         @doc """
         Runtime meta/book keeping data for pool.
         """
-        def meta(), do: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.meta(@module)
+        def meta(), do: Noizu.SimplePool.V2.SettingsBehaviour.Default.meta(@module)
 
         @doc """
         Append new entries to meta data (internally a map merge is performed).
         """
-        def meta(update), do: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.meta(@module, update)
+        def meta(update), do: Noizu.SimplePool.V2.SettingsBehaviour.Default.meta(@module, update)
 
         @doc """
         Initial Meta Information for Module.
         """
-        def meta_init(), do: Noizu.SimplePool.V2.PoolSettingsBehaviour.Default.meta_init(@module)
+        def meta_init(), do: Noizu.SimplePool.V2.SettingsBehaviour.Default.meta_init(@module, %{stand_alone: @stand_alone})
 
         @doc """
         retrieve effective compile time options/settings for pool.
@@ -308,6 +339,7 @@ defmodule Noizu.SimplePool.V2.PoolSettingsBehaviour do
           pool_server: 0,
           pool_supervisor: 0,
           pool_worker: 0,
+          pool_monitor: 0,
           pool_worker_state_entity: 0,
           banner: 1,
           banner: 2,
