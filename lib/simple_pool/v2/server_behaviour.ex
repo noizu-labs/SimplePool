@@ -34,6 +34,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
     alias Noizu.ElixirCore.OptionSettings
     alias Noizu.ElixirCore.OptionValue
     alias Noizu.ElixirCore.OptionList
+    alias Noizu.SimplePool.V2.Server.State
     require Logger
 
     # @todo alternative solution for specifying features.
@@ -67,6 +68,8 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         default_definition: meta_init_default_definition(module, options),
       }
     end
+
+
 
     defp meta_init_verbose(module, options) do
       options.verbose == :auto && module.pool().verbose() || options.verbose
@@ -157,11 +160,12 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @implementation unquote(implementation)
       @option_settings :override
 
+
       @behaviour Noizu.SimplePool.V2.ServerBehaviour
 
       alias Noizu.SimplePool.Worker.Link
       alias Noizu.SimplePool.Server.EnvironmentDetails
-      alias Noizu.SimplePool.Server.State
+      alias Noizu.SimplePool.V2.Server.State
 
       require Logger
 
@@ -196,12 +200,10 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       end
       #----------------------------------------------------------
 
-
       # @deprecated
       def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: __MODULE__.ServiceManagement.service_health_check!(context)
       def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: __MODULE__.ServiceManagement.service_health_check!(health_check_options, context)
       def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: __MODULE__.ServiceManagement.service_health_check!(health_check_options, context, options)
-
 
 
 
@@ -256,8 +258,11 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         }
 
         state = %State{
+          pool: pool(),
+
           worker_supervisor: :deprecated,
-          service: pool_server(),
+          service: pool_server(), # deprecated
+
           status_details: :pending,
           extended: %{},
           environment_details: %EnvironmentDetails{definition: definition, effective: effective, status: :init},
@@ -444,7 +449,6 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         handle_lock!: 4,
         handle_health_check!: 4,
         call_router_internal: 3,
-
 
         fetch: 4,
         save!: 3,

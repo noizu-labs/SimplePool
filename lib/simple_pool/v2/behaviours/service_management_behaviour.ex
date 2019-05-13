@@ -26,7 +26,7 @@ defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
         require Logger
         @behaviour Noizu.SimplePool.V2.ServiceManagementBehaviour
         @pool_server Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat()
-        alias Noizu.SimplePool.Server.State, as: ServerState
+        alias Noizu.SimplePool.V2.Server.State, as: ServerState
         alias Noizu.SimplePool.Server.EnvironmentDetails
         alias Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider, as: Provider
 

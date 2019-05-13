@@ -3,8 +3,9 @@
 # Copyright (C) 2019 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
+# @todo should be renamed Default and moved into behaviour definition for consistency.
 defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
-  alias Noizu.SimplePool.Server.State, as: ServerState
+  alias Noizu.SimplePool.V2.Server.State, as: ServerState
   require Logger
 
   @doc """

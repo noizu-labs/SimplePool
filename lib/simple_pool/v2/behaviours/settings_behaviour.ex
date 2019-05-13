@@ -38,7 +38,7 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
   @callback option_settings() :: Map.t
 
   defmodule Default do
-
+    require Logger
 
     @doc """
     Return a banner string.
@@ -151,6 +151,44 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
 
     def pool_worker_state_entity(pool, :auto), do: Module.concat(pool, "WorkerStateEntity")
     def pool_worker_state_entity(_pool, worker_state_entity), do: worker_state_entity
+
+
+
+
+    def profile_start(%{meta: _} = state, profile \\ :default) do
+      state
+      |> update_in([Access.key(:meta), :profiler], &(&1 || %{}))
+      |> put_in([Access.key(:meta), :profiler, profile], %{start: :os.system_time(:millisecond)})
+    end
+
+    def profile_end(%{meta: _} = state, profile, prefix, options) do
+      state = state
+              |> update_in([Access.key(:meta), :profiler], &(&1 || %{}))
+              |> update_in([Access.key(:meta), :profiler, profile], &(&1 || %{}))
+              |> put_in([Access.key(:meta), :profiler, profile, :end], :os.system_time(:millisecond))
+
+
+
+      interval = (state.meta.profiler[profile][:end]) - (state.meta.profiler[profile][:start] || 0)
+      cond do
+        state.meta.profiler[profile][:start] == nil -> Logger.warn(fn -> "[#{prefix} prof] profile_start not invoked for #{profile}" end)
+        options[:error] && interval >= options[:error] ->
+          options[:log] && Logger.error(fn -> "[#{prefix} prof] #{profile} exceeded #{options[:error]} milliseconds @#{interval}" end)
+          state = state
+                  |> put_in([Access.key(:meta), :profiler, profile, :flag], :error)
+        options[:warn] && interval >= options[:warn] ->
+          options[:log] && Logger.warn(fn -> "[#{prefix} prof] #{profile} exceeded #{options[:warn]} milliseconds @#{interval}" end)
+          state = state
+                  |> put_in([Access.key(:meta), :profiler, profile, :flag], :warn)
+        options[:info] && interval >= options[:info] ->
+          options[:log] && Logger.info(fn -> "[#{prefix} prof] #{profile} exceeded #{options[:info]} milliseconds @#{interval}" end)
+          state = state
+                  |> put_in([Access.key(:meta), :profiler, profile, :flag], :info)
+        true ->
+          state = state
+                  |> put_in([Access.key(:meta), :profiler, profile, :flag], :green)
+      end
+    end
   end
 
   defmodule Base do
@@ -176,11 +214,23 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         @pool_worker Module.concat([@pool, "Worker"])
         @pool_monitor Module.concat([@pool, "Monitor"])
 
-
         @options unquote(Macro.escape(options))
         @option_settings unquote(Macro.escape(option_settings))
 
         @pool_worker_state_entity Noizu.SimplePool.V2.SettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
+
+        @short_name Module.split(__MODULE__) |> Enum.slice(-1..-1) |> Module.concat()
+
+        def short_name(), do: @short_name
+
+        def profile_start(%{meta: _} = state, profile \\ :default) do
+          Noizu.SimplePool.V2.SettingsBehaviour.Default.profile_start(state, profile)
+        end
+
+        def profile_end(%{meta: _} = state, profile \\ :default, opts \\ %{info: 100, warn: 300, error: 700, log: true}) do
+          Noizu.SimplePool.V2.SettingsBehaviour.Default.profile_end(state, profile, short_name(), opts)
+        end
+
 
         # @deprecated
         def base, do: @pool
@@ -279,6 +329,19 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
 
         # may not match pool_worker_state_entity
         @pool_worker_state_entity Noizu.SimplePool.V2.SettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
+
+
+        @short_name Module.split(__MODULE__) |> Enum.slice(-2..-1) |> Module.concat()
+
+        def short_name(), do: @short_name
+
+        def profile_start(%{meta: _} = state, profile \\ :default) do
+          Noizu.SimplePool.V2.SettingsBehaviour.Default.profile_start(state, profile)
+        end
+
+        def profile_end(%{meta: _} = state, profile \\ :default, opts \\ %{info: 100, warn: 300, error: 700, log: true}) do
+          Noizu.SimplePool.V2.SettingsBehaviour.Default.profile_end(state, profile, short_name(), opts)
+        end
 
         # @deprecated
         defdelegate base(), to: @parent

@@ -3,6 +3,7 @@
 # Copyright (C) 2019 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
+# @todo should be renamed Default and moved into behaviour definition for consistency.
 defmodule Noizu.SimplePool.V2.Router.RouterProvider do
   @moduledoc """
     Provides implementation for currently supported router call variations,

@@ -3,7 +3,7 @@
 # Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
-defmodule Noizu.SimplePool.V2.StandAloneBehaviour do
+defmodule Noizu.SimplePool.V2.StandAloneServiceBehaviour do
   @moduledoc """
     The Noizu.SimplePool.V2.Behaviour provides the entry point for Worker Pools.
     The developer will define a pool such as ChatRoomPool that uses the Noizu.SimplePool.V2.Behaviour Implementation
