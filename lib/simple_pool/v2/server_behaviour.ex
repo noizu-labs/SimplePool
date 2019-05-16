@@ -160,6 +160,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @implementation unquote(implementation)
       @option_settings :override
 
+      IO.puts "Building #{__MODULE__}"
 
       @behaviour Noizu.SimplePool.V2.ServerBehaviour
 

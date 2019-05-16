@@ -9,7 +9,6 @@ defmodule Noizu.SimplePool.V2.Server.State do
   @type t :: %State{
                worker_supervisor: any, # deprecated
                service: any, # deprecated
-
                pool: any,
                status_details: any,
                status: Map.t,

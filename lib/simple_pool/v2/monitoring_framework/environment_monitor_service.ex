@@ -63,12 +63,11 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
     @vsn 1.0
     alias Noizu.SimplePool.V2.Server.State
 
-    require Logger
     use Noizu.SimplePool.V2.ServerBehaviour,
         worker_state_entity: nil,
         server_monitor: __MODULE__,
         worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
-
+    require Logger
 
     def initial_state(args, context) do
       # @todo attempt to load configuration from persistence store
@@ -113,22 +112,50 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
       # @TODO async spawn, check existing state, setup service monitors that inform us if services fail.
       # @TODO start services from PoolSupervisor so that they are restarted automatically.
       # @TODO ability to specify sequence
-      r = Enum.map(state.entity.configuration.services,
-        fn({k, v}) ->
+
+      # Todo this should be nested under services not by itself in monitors.
+      updated_services = Enum.reduce(state.entity.configuration.services, state.entity.services || %{},
+        fn({_k, v}, acc) ->
           # todo pass in options v.pool_settings
           case pool_supervisor().add_child_supervisor(v.pool.pool_supervisor(), :auto, context) do
             {:ok, pid} ->
-              {v.pool, Process.monitor(pid)}
+              put_in(acc, [v.pool], %{time: DateTime.utc_now(), error: nil, monitor: Process.monitor(pid), supervisor_process: pid})
             e ->
               Logger.error("Problem starting #{v.pool} - #{inspect e}")
-              {v.pool, e}
+              put_in(acc, [v.pool], %{time: DateTime.utc_now(), error: e, monitor: nil, supervisor_process: nil})
           end
         end
-      ) |> Map.new()
+      )
 
-      Logger.warn("STARTING SERVICES: #{inspect r}")
+      monitor_lookup = Enum.map(updated_services,  fn({k,v}) -> v.monitor && {v.monitor, k} end)
+                       |> Enum.filter(&(&1 != nil))
+                       |> Map.new()
 
-      {:reply, r, state}
+      state = state
+              |> put_in([Access.key(:entity), Access.key(:services)], updated_services)
+              |> put_in([Access.key(:entity), Access.key(:meta), Access.key(:monitor_lookup)], monitor_lookup)
+
+      IO.puts """
+        =====================================
+        updated_services: #{inspect updated_services, pretty: true, limit: :infinity}
+        =====================================
+      """
+
+      {:reply, updated_services, state}
+    end
+
+    def process_service_down_event(reference, process, reason, state) do
+      cond do
+        state.entity == nil ->
+          Logger.error "[ServiceDown] Unknown State.Entity."
+          {:noreply, state}
+        rl = state.entity.meta[:monitor_lookup][reference] ->
+          Logger.error "[ServiceDown] Service Has Stopped #{rl}."
+          {:noreply, state}
+        true ->
+          Logger.error "[ServiceDown] Unknown DownLink #{inspect {reference, process, reason}}."
+          {:noreply, state}
+      end
     end
 
     #------------------------------------------------------------------------
@@ -142,6 +169,17 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
       end
     end
 
+
+
+    #------------------------------------------------------------------------
+    # info router
+    #------------------------------------------------------------------------
+    def info_router_user(envelope, state) do
+      case envelope do
+        {:DOWN, reference, :process, process, reason} -> process_service_down_event(reference, process, reason, state)
+        _ -> nil
+      end
+    end
 
 
 

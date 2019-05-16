@@ -19,17 +19,27 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
   end
 
   @tag :v2
-  test "basic_functionality - s_call!" do
-
+  test "basic_functionality - fetch" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:one)
+    f = Noizu.SimplePool.Support.TestV2Pool.Server.fetch(ref, :state)
+    assert f.worker_ref == ref
 
-    # spawn
-    f = Noizu.SimplePool.Support.TestV2Pool.Server.fetch(ref)
-    IO.puts """
-    TestV2TwoPool: #{inspect f, pretty: true, limit: :infinity}
-    """
+    {pid, host} = Noizu.SimplePool.Support.TestV2Pool.Server.fetch(ref, :process)
+    assert host == :"first@127.0.0.1"
+    p_info = Process.info(pid)
+    assert p_info[:dictionary][:"$initial_call"] == {Noizu.SimplePool.Support.TestV2Pool.Worker, :init, 1}
+  end
+
+  @tag :v2
+  test "basic_functionality - ping!" do
+    ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:one)
+    Noizu.SimplePool.Support.TestV2Pool.Server.fetch(ref)
     assert Noizu.SimplePool.Support.TestV2Pool.Server.ping!(ref) == :pong
+  end
 
+  @tag :v2
+  test "basic_functionality - s_call!" do
+    :wip
   end
 
   @tag :v2

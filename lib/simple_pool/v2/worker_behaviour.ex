@@ -127,16 +127,18 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       #------------------------------------------------------------------------
       # Infrastructure Provided Worker Calls
       #------------------------------------------------------------------------
-      def handle_fetch(:state, _from, state, _context), do: {:reply, state, state}
-      def handle_ping!(_from, state, _context), do: {:reply, :pong, state}
+      def fetch(:state, _from, state, _context), do: {:reply, state, state}
+      def fetch(:process, _from, state, _context), do: {:reply, {self(), node()}, state}
+      def ping!(_from, state, _context), do: {:reply, :pong, state}
 
       #------------------------------------------------------------------------
       # Infrastructure provided call router
       #------------------------------------------------------------------------
       def call_router_internal(envelope, from, state) do
         case envelope do
-          {:s, {:fetch, :state}, context} -> handle_fetch(:state, from, state, context)
-          {:s, :ping!, context} -> handle_ping!(from, state, context)
+          {:s, {:fetch, :state}, context} -> fetch(:state, from, state, context)
+          {:s, {:fetch, :process}, context} -> fetch(:process, from, state, context)
+          {:s, :ping!, context} -> ping!(from, state, context)
           _ -> nil
         end
       end
@@ -170,11 +172,14 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
         schedule_inactivity_check: 2,
         clear_inactivity_check: 1,
 
-        handle_fetch: 4,
-        handle_ping!: 3,
+        # Infrastructure Provided Worker Methods
+        fetch: 4,
+        ping!: 3,
+
+        # Routing for Infrastructure Provided Worker Methods
         call_router_internal: 3,
 
-
+        # Catch All (For worker delegates to inner_state entity)
         call_router_catchall: 3,
         cast_router_catchall: 2,
         info_router_catchall: 2,
