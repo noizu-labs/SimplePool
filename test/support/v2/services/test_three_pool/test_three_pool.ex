@@ -8,6 +8,7 @@ defmodule Noizu.SimplePool.Support.TestV2ThreePool do
   use Noizu.SimplePool.V2.PoolBehaviour,
       default_modules: [:pool_supervisor, :worker_supervisor, :monitor],
       worker_state_entity: Noizu.SimplePool.Support.TestV2ThreeWorkerEntity,
+      dispatch_table: Noizu.SimplePool.TestDatabase.TestV2ThreePool.DispatchTable,
       verbose: false
 
   defmodule Worker do

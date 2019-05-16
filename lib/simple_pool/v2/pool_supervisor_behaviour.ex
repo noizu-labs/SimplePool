@@ -202,7 +202,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       IO.puts """
 
       +++++++++++++++++++++++++ Registry V2 ++++++++++++++++++++++++++
-      #{module.pool_registry()} -> #{inspect r}}
+      #{module.pool_registry()} -> #{inspect registry_options} - #{inspect r}}
       ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
       """
