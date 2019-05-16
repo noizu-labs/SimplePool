@@ -215,8 +215,8 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def service_management(), do: __MODULE__.ServiceManagement
 
       # To be removed shortly.
-      def worker_lookup_deprecated(), do: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
-      def worker_lookup_handler(), do: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
+      def worker_lookup_deprecated(), do: Noizu.SimplePool.V2.WorkerLookupBehaviour.Dynamic
+      def worker_lookup_handler(), do: Noizu.SimplePool.V2.WorkerLookupBehaviour.Dynamic
 
       @doc """
       Initialize meta data for this pool. (override default provided by SettingsBehaviour)
@@ -234,44 +234,53 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
             {banner("START_LINK #{__MODULE__} (#{inspect pool_server()}@#{inspect self()})\ndefinition#{default_snippet}: #{inspect final_definition}"), Noizu.ElixirCore.CallingContext.metadata(context)}
           end)
         end
-        GenServer.start_link(__MODULE__, [final_definition, context], name: __MODULE__, restart: :permanent)
+        args = %{definition: final_definition, context: context}
+        GenServer.start_link(__MODULE__, args, name: __MODULE__, restart: :permanent)
       end
 
       #---------------
       # init
       #---------------
-      def init([definition, context] = args) do
+      def init(%{context: context, definition: definition} = args) do
         verbose() && Logger.info(fn -> {banner("INIT #{__MODULE__} (#{inspect pool_server()}@#{inspect self()})\n args: #{inspect args, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
 
         # @TODO we can avoid this jump by directly delegating to server_provider() and updating server_prover to fetch option_settings on its own.
+        #server.enable_server!(node())
         #module.server_provider().init(module, :deprecated, definition, context, module.option_settings())
 
-        #server.enable_server!(node())
+        state = initial_state(args, context)
+
+        __MODULE__.ServiceManagement.record_service_event!(:start, %{definition: definition, options: @option_settings}, context, %{})
+
+        {:ok, state}
+      end
+
+      def initial_state(args, context) do
         #options = module.option_settings()
-        # TODO load real effective
-        effective = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
-          identifier: {node(), pool()},
-          time_stamp: DateTime.utc_now(),
-          status: :online,
-          directive: :init,
-          definition: definition,
-        }
+        # @TODO load real effective
+        # @TODO V2 health check and monitors are different these structures need to be updated.
 
-        state = %State{
+        #effective = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
+        #  identifier: {node(), pool()},
+        #  time_stamp: DateTime.utc_now(),
+        #  status: :online,
+        #  directive: :init,
+        #  definition: args.definition,
+        #}
+
+        %State{
           pool: pool(),
-
           worker_supervisor: :deprecated,
           service: pool_server(), # deprecated
 
           status_details: :pending,
           extended: %{},
-          environment_details: %EnvironmentDetails{definition: definition, effective: effective, status: :init},
+          #environment_details: %EnvironmentDetails{definition: definition, effective: effective, status: :init},
+          environment_details: {:error, :nyi},
           options: @option_settings
         }
-
-        __MODULE__.ServiceManagement.record_service_event!(:start, %{definition: definition, options: @option_settings}, context, %{})
-        {:ok, state}
       end
+
 
       def terminate(reason, state) do
         context = nil
@@ -443,6 +452,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       defoverridable [
         start_link: 2,
         init: 1,
+        initial_state: 2,
         terminate: 2,
 
         handle_release!: 4,

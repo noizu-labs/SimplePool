@@ -4,20 +4,156 @@
 #-------------------------------------------------------------------------------
 defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
   @behaviour Noizu.SimplePool.V2.MonitoringFramework.MonitorBehaviour
-
+  alias Noizu.ElixirCore.CallingContext
   use Noizu.SimplePool.V2.StandAloneServiceBehaviour,
       default_modules: [:pool_supervisor, :monitor],
       worker_state_entity: nil,
       verbose: false
 
+  def reconfigure(%Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration{} = config, %CallingContext{} = context, opts \\ %{}) do
+    server_system_call({:reconfigure, config, opts}, context, opts[:call])
+  end
+
+  def bring_services_online(%CallingContext{} =  context, opts \\ %{}) do
+    server_system_call({:bring_services_online, opts}, context, opts[:call])
+  end
+
+  def status_wait(target, %CallingContext{} = context, opts \\ %{}) do
+    # @TODO implement
+    :online
+  end
+
+  def reconfigure_remote(elixir_node, %Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration{} = config, %CallingContext{} = context, opts \\ %{}) do
+    remote_server_system_call(node(),{:reconfigure, config, opts}, context, opts[:call])
+  end
+
+  def bring_services_online_remote(elixir_node, %CallingContext{} =  context, opts \\ %{}) do
+    remote_server_system_call(node(),{:bring_services_online, opts}, context, opts[:call])
+  end
+
+  def status_wait_remote(elixir_node, target, %CallingContext{} = context, opts \\ %{}) do
+    if (elixir_node == node()) do
+      # @TODO implement
+      :online
+    else
+      :rpc.call(elixir_node, __MODULE__, :status_wait, [target, context, opts], 600_000)
+    end
+  end
+
+
+  defdelegate primary(), to: __MODULE__.Server
+  defdelegate start_services(context, options), to: __MODULE__.Server
+  defdelegate supports_service?(elixir_node, service, context, options), to: __MODULE__.Server
+  defdelegate rebalance(source_nodes, target_nodes, services, context, options), to: __MODULE__.Server
+  defdelegate offload(elixir_nodes, services, context, options), to: __MODULE__.Server
+  defdelegate lock_services(elixir_nodes, services, context, options), to: __MODULE__.Server
+  defdelegate release_services(elixir_nodes, services, context, options), to: __MODULE__.Server
+  def select_host(ref, service, context, options) do
+    # @todo incomplete logic
+    {:ack, node()}
+  end
+  defdelegate record_server_event!(elixir_node, event, details, context, options), to: __MODULE__.Server
+  defdelegate record_service_event!(elixir_node, service, event, details, context, options), to: __MODULE__.Server
+
+
+
+
+
   defmodule Server do
     @vsn 1.0
+    alias Noizu.SimplePool.V2.Server.State
+
+    require Logger
     use Noizu.SimplePool.V2.ServerBehaviour,
         worker_state_entity: nil,
         server_monitor: __MODULE__,
         worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
 
-    @behaviour Noizu.SimplePool.V2.MonitoringFramework.MonitorBehaviour
+
+    def initial_state(args, context) do
+      # @todo attempt to load configuration from persistence store
+      configuration_id = args.definition || {:default, node()}
+
+      monitor_configuration = %Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration{
+        identifier: configuration_id,
+        master_node: :self,
+        services: %{},
+        entry_point: nil,
+      }
+
+      entity = %Noizu.SimplePool.V2.MonitoringFramework.MonitorState{
+        identifier: configuration_id,
+        configuration: monitor_configuration,
+        services: %{},
+        event_agent: nil, # @todo start agent.
+      }
+
+      %State{
+        pool: pool(),
+        entity: entity,
+        status_details: :pending,
+        extended: %{},
+        environment_details: {:error, :nyi},
+        options: option_settings()
+      }
+    end
+
+    def reconfigure(state, config, context, opts) do
+      # TODO - compare new configuration to existing configuration, update agent and service entries as appropriate.
+      new_service_state = Enum.map(config.services, fn({k,v}) ->
+        {v.pool, %Noizu.SimplePool.V2.MonitoringFramework.ServiceState{pool: v.pool}}
+      end) |> Map.new()
+      state = state
+              |> put_in([Access.key(:entity), Access.key(:configuration)], config)
+              |> put_in([Access.key(:entity), Access.key(:services)], new_service_state)
+      {:reply, state.entity, state}
+    end
+
+    def bring_services_online(state, context, opts) do
+      # @TODO async spawn, check existing state, setup service monitors that inform us if services fail.
+      # @TODO start services from PoolSupervisor so that they are restarted automatically.
+      # @TODO ability to specify sequence
+      r = Enum.map(state.entity.configuration.services,
+        fn({k, v}) ->
+          # todo pass in options v.pool_settings
+          case pool_supervisor().add_child_supervisor(v.pool.pool_supervisor(), :auto, context) do
+            {:ok, pid} ->
+              {v.pool, Process.monitor(pid)}
+            e ->
+              Logger.error("Problem starting #{v.pool} - #{inspect e}")
+              {v.pool, e}
+          end
+        end
+      ) |> Map.new()
+
+      Logger.warn("STARTING SERVICES: #{inspect r}")
+
+      {:reply, r, state}
+    end
+
+    #------------------------------------------------------------------------
+    # call router
+    #------------------------------------------------------------------------
+    def call_router_user(envelope, from, state) do
+      case envelope do
+        {:m, {:reconfigure, config, opts}, context} -> reconfigure(state, config, context, opts)
+        {:m, {:bring_services_online, opts}, context} -> bring_services_online(state, context, opts)
+        _ -> nil
+      end
+    end
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def primary(), do: throw :wip
     def start_services(context, options), do: throw :wip

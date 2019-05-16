@@ -13,7 +13,7 @@ defmodule Noizu.SimplePool.TestHelpers do
   def unique_ref_v2(:two), do: {:ref, Noizu.SimplePool.Support.TestV2TwoWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
   def unique_ref_v2(:three), do: {:ref, Noizu.SimplePool.Support.TestV2ThreeWorkerEntity, "test_#{inspect :os.system_time(:microsecond)}"}
 
-
+  require Logger
   @pool_options %{hard_limit: 250, soft_limit: 150, target: 100}
 
   def wait_hint_release(ref, service, context, timeout \\ 60_000) do
@@ -67,20 +67,42 @@ defmodule Noizu.SimplePool.TestHelpers do
         Noizu.SimplePool.Support.TestThreePool =>
           Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestThreePool, @pool_options),
 
-        Noizu.SimplePool.Support.TestV2Pool =>
-          Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2Pool, @pool_options),
-
-        Noizu.SimplePool.Support.TestV2ThreePool =>
-          Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2ThreePool, @pool_options),
-
       },
       entry_point: :pending
     }
 
+    # Start Legacy V1
     Noizu.MonitoringFramework.EnvironmentPool.PoolSupervisor.start_link(context, %Noizu.SimplePool.MonitoringFramework.Service.Definition{server_options: %{initial: initial}})
     {:ack, _} = Noizu.MonitoringFramework.EnvironmentPool.Server.register(initial, context)
     Noizu.MonitoringFramework.EnvironmentPool.Server.start_services(context)
     :online = Noizu.MonitoringFramework.EnvironmentPool.Server.status_wait([:online, :degraded], context)
+
+    # Start V2 Monitor
+    monitor_name = {:default, node()}
+    Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.start(monitor_name, context)
+
+    # - Set Temporary Pool Configuration
+    test_v2_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2Pool)
+    test_v2_three_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2ThreePool)
+    v2_config = Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.new(monitor_name)
+                |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_pool)
+                |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_three_pool)
+
+    Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.reconfigure(v2_config, context, %{persist: false})
+    Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.bring_services_online(context)
+    status = Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.status_wait([:online, :degraded], context)
+    case status do
+      e = {:error, details} ->
+
+      Logger.error("""
+
+      ================================================================
+      !!! Unable to bring system fully online:  #{inspect details} !!!
+      ================================================================
+      """)
+      e
+      _ -> status
+    end
   end
 
   def setup_second() do
@@ -116,11 +138,6 @@ defmodule Noizu.SimplePool.TestHelpers do
             Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestTwoPool, @pool_options),
           Noizu.SimplePool.Support.TestThreePool =>
             Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestThreePool, @pool_options),
-
-          Noizu.SimplePool.Support.TestV2TwoPool =>
-            Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2TwoPool, @pool_options),
-          Noizu.SimplePool.Support.TestV2ThreePool =>
-            Noizu.SimplePool.MonitoringFramework.Service.HealthCheck.template(Noizu.SimplePool.Support.TestV2ThreePool, @pool_options),
         },
         entry_point: :pending
       }
@@ -129,6 +146,36 @@ defmodule Noizu.SimplePool.TestHelpers do
       {:ack, _} = Noizu.MonitoringFramework.EnvironmentPool.Server.register(nil, context)
       :ok = Noizu.MonitoringFramework.EnvironmentPool.Server.start_services(context)
       :online = Noizu.MonitoringFramework.EnvironmentPool.Server.status_wait([:online, :degraded], context)
+
+
+
+
+      # Start V2 Monitor
+      monitor_name = {:default, node()}
+      Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.start(monitor_name, context)
+
+      # - Set Temporary Pool Configuration
+      test_v2_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2Pool)
+      test_v2_two_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2TwoPool)
+      v2_config = Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.new(monitor_name)
+                  |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_pool)
+                  |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_two_pool)
+
+      Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.reconfigure(v2_config, context, %{persist: false})
+      Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.bring_services_online(context)
+      status = Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.status_wait([:online, :degraded], context)
+      case status do
+        e = {:error, details} ->
+
+          Logger.error("""
+
+          ================================================================
+          !!! Unable to bring system fully online:  #{inspect details} !!!
+          ================================================================
+          """)
+          e
+        _ -> status
+      end
 
       receive do
         :halt -> IO.puts "halting process"

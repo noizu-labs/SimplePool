@@ -21,11 +21,14 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
   @tag :v2
   test "basic_functionality - s_call!" do
 
-    ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:two)
+    ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:one)
 
     # spawn
-    Noizu.SimplePool.Support.TestV2TwoPool.Server.fetch(ref)
-    assert Noizu.SimplePool.Support.TestV2TwoPool.Server.ping!(ref) == :pong
+    f = Noizu.SimplePool.Support.TestV2Pool.Server.fetch(ref)
+    IO.puts """
+    TestV2TwoPool: #{inspect f, pretty: true, limit: :infinity}
+    """
+    assert Noizu.SimplePool.Support.TestV2Pool.Server.ping!(ref) == :pong
 
   end
 

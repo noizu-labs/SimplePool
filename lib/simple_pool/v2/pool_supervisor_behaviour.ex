@@ -47,32 +47,76 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
     #------------
     #
     #------------
-    def start_link(module, context, definition \\ :auto) do
+    def start_link(module, definition \\ :auto, context \\ nil) do
       if module.verbose() do
         Logger.info(fn ->
           header = "#{module}.start_link"
-          body = "args: #{inspect %{context: context, definition: definition}}"
+          body = "args: #{inspect %{definition: definition, context: context}}"
           metadata = Noizu.ElixirCore.CallingContext.metadata(context)
           {module.banner(header, body), metadata}
         end)
       end
-      case Supervisor.start_link(module, [context], [{:name, module}, {:restart, :permanent}]) do
+      case Supervisor.start_link(module, [definition, context], [{:name, module}, {:restart, :permanent}]) do
         {:ok, sup} ->
           Logger.info(fn ->  {"#{module}.start_link Supervisor Not Started. #{inspect sup}", Noizu.ElixirCore.CallingContext.metadata(context)} end)
-          module.start_children(sup, context, definition)
+          module.start_children(sup, definition, context)
           {:ok, sup}
         {:error, {:already_started, sup}} ->
           Logger.info(fn -> {"#{module}.start_link Supervisor Already Started. Handling Unexpected State.  #{inspect sup}" , Noizu.ElixirCore.CallingContext.metadata(context)} end)
-          module.start_children(sup, context, definition)
+          module.start_children(sup, definition, context)
           {:ok, sup}
+      end
+    end
+
+    def add_child_supervisor(module, child, definition \\ :auto, context \\ nil) do
+      max_seconds = module.meta()[:max_seconds]
+      max_restarts = module.meta()[:max_restarts]
+
+      case Supervisor.start_child(module, module.pass_through_supervisor(child, [definition, context],  [name: child, restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+        {:ok, pid} ->
+          {:ok, pid}
+        {:error, {:already_started, process2_id}} ->
+          Supervisor.restart_child(module, process2_id)
+        error ->
+          Logger.error(fn ->
+            {
+              """
+
+              #{module}.add_child_supervisor #{inspect child} Already Started. Handling unexpected state.
+              #{inspect error}
+              """, Noizu.ElixirCore.CallingContext.metadata(context)}
+          end)
+          :error
+      end
+    end
+
+    def add_child_worker(module, child, definition \\ :auto, context \\ nil) do
+      max_seconds = module.meta()[:max_seconds]
+      max_restarts = module.meta()[:max_restarts]
+
+      case Supervisor.start_child(module, module.pass_through_worker(child, [definition, context],  [name: child, restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+        {:ok, pid} ->
+          {:ok, pid}
+        {:error, {:already_started, process2_id}} ->
+          Supervisor.restart_child(module, process2_id)
+        error ->
+          Logger.error(fn ->
+            {
+              """
+
+              #{module}.add_child_worker #{inspect child} Already Started. Handling unexpected state.
+              #{inspect error}
+              """, Noizu.ElixirCore.CallingContext.metadata(context)}
+          end)
+          :error
       end
     end
 
     #------------
     #
     #------------
-    def start_children(module, sup, context, definition \\ :auto) do
-      if module.verbose(), do: start_children_banner(module, sup, context, definition)
+    def start_children(module, sup, definition \\ :auto, context \\ nil) do
+      if module.verbose(), do: start_children_banner(module, sup, definition, context)
 
       # Start Children
       worker_supervisor_process =
@@ -112,7 +156,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       {outcome, children_processes}
     end # end start_children
 
-    def init(module, [context] = arg) do
+    def init(module, [definition, context] = arg) do
       if module.verbose() || true do
         Logger.warn(fn -> {module.banner("#{module} INIT", "args: #{inspect arg}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
       end
@@ -126,7 +170,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       max_seconds = module.meta()[:max_seconds]
       max_restarts = module.meta()[:max_restarts]
 
-      case Supervisor.start_child(sup, module.pass_through_worker(module.pool_worker_supervisor(), [definition, context],  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
+      case Supervisor.start_child(sup, module.pass_through_supervisor(module.pool_worker_supervisor(), [definition, context],  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
           {:ok, pid} ->
             {:ok, pid}
           {:error, {:already_started, process2_id}} ->
@@ -188,7 +232,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       end
     end
 
-    defp start_children_banner(module, sup, context, definition) do
+    defp start_children_banner(module, sup, definition, context) do
       Logger.info(fn -> {
                           module.banner("#{module}.start_children",
                             """
@@ -235,12 +279,15 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       @doc """
       start_link OTP entry point.
       """
-      def start_link(context, definition \\ :auto), do: @implementation.start_link(@module, context, definition)
+      def start_link(definition \\ :auto, context \\ nil), do: @implementation.start_link(@module, definition, context)
 
       @doc """
       Start supervisor's children.
       """
-      def start_children(sup, context, definition \\ :auto), do: @implementation.start_children(@module, sup, context, definition)
+      def start_children(sup, definition \\ :auto, context \\ nil), do: @implementation.start_children(@module, sup, definition, context)
+
+      def add_child_supervisor(child, definition \\ :auto, context \\ nil), do: @implementation.add_child_supervisor(@module, child, definition, context)
+      def add_child_worker(child, definition \\ :auto, context \\ nil), do: @implementation.add_child_worker(@module, child, definition, context)
 
       @doc """
       OTP Init entry point.
@@ -260,6 +307,9 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
         start_link: 2,
         start_children: 3,
         init: 1,
+
+        add_child_supervisor: 3,
+        add_child_worker: 3,
 
         pass_through_supervise: 2,
         pass_through_supervisor: 3,

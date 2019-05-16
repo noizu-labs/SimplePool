@@ -46,12 +46,59 @@ defmodule Noizu.SimplePool.V2.StandAloneServiceBehaviour do
       def start(context \\ nil, definition \\ :auto), do: __MODULE__.PoolSupervisor.start_link(context, definition)
       def stand_alone(), do: true
 
+
+      #-------------- Routing Delegates -------------------
+      # Convenience methods should be placed at the pool level,
+      # which will in turn hook into the Server.Router and worker spawning logic
+      # to delivery commands to the correct worker processes.
+      #----------------------------------------------------
+      defdelegate s_call(identifier, call, context, options \\ nil, timeout \\ nil), to: __MODULE__.Server.Router
+      defdelegate s_call!(identifier, call, context, options \\ nil, timeout \\ nil), to: __MODULE__.Server.Router
+      defdelegate s_cast(identifier, call, context, options \\ nil), to: __MODULE__.Server.Router
+      defdelegate s_cast!(identifier, call, context, options \\ nil), to: __MODULE__.Server.Router
+      defdelegate get_direct_link!(ref, context, options), to: __MODULE__.Server.Router
+      defdelegate link_forward!(link, call, context, options \\ nil), to: __MODULE__.Server.Router
+      defdelegate server_call(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :self_call
+      defdelegate server_cast(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :self_cast
+      defdelegate server_internal_call(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :internal_call
+      defdelegate server_internal_cast(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :internal_cast
+      defdelegate remote_server_internal_call(remote_node, call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :remote_call
+      defdelegate remote_server_internal_cast(remote_node, call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :remote_cast
+      defdelegate server_system_call(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :internal_system_call
+      defdelegate server_system_cast(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :internal_system_cast
+      defdelegate remote_server_system_call(elixir_node, call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :remote_system_call
+      defdelegate remote_server_system_cast(elixir_node, call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :remote_system_cast
+
+
+
       #--------------------------
       # Overridable
       #--------------------------
       defoverridable [
         start: 2,
-        stand_alone: 0
+        stand_alone: 0,
+
+
+        #-----------------------------
+        # Routing Overrides
+        #-----------------------------
+        s_call: 5,
+        s_call!: 5,
+        s_cast: 4,
+        s_cast!: 4,
+        get_direct_link!: 3,
+        link_forward!: 4,
+        server_call: 3,
+        server_cast: 3,
+        server_internal_call: 3,
+        server_internal_cast: 3,
+        remote_server_internal_call: 4,
+        remote_server_internal_cast: 4,
+        server_system_call: 3,
+        server_system_cast: 3,
+        remote_server_system_call: 4,
+        remote_server_system_cast: 4,
+
       ]
 
       #-----------------------------------------
