@@ -119,12 +119,15 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       if module.verbose(), do: start_children_banner(module, sup, definition, context)
 
       # Start Children
-      worker_supervisor_process =
+      {worker_supervisor_process, registry_process} =
         if (module.pool().stand_alone()) do
-          {:ok, :offline}
+          {{:ok, :offline}, {:ok, :offline}}
         else
-          start_worker_supervisor_child(module, sup, definition, context)
+          {start_worker_supervisor_child(module, sup, definition, context),  start_registry_child(module, sup, context) }
         end
+
+
+
       server_process = start_server_child(module, sup, definition, context)
       monitor_process = start_monitor_child(module, sup, server_process, definition, context)
 
@@ -142,6 +145,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
         server_process == :error || Kernel.match?({:error, _}, server_process) -> :error
         monitor_process == :error || Kernel.match?({:error, _}, monitor_process) -> :error
         worker_supervisor_process == :error || Kernel.match?({:error, _}, worker_supervisor_process) -> :error
+        registry_process == :error || Kernel.match?({:error, _}, registry_process) -> :error
         true -> :ok
       end
 
@@ -150,7 +154,8 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       children_processes = %{
         worker_supervisor_process: worker_supervisor_process,
         monitor_process: monitor_process,
-        server_process: server_process
+        server_process: server_process,
+        registry_process: registry_process
       }
 
       {outcome, children_processes}
@@ -164,6 +169,45 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       max_seconds = module.meta()[:max_seconds]
       max_restarts = module.meta()[:max_restarts]
       module.pass_through_supervise([], [{:strategy, strategy}, {:max_restarts, max_restarts}, {:max_seconds, max_seconds}, {:restart, :permanent}])
+    end
+
+    defp start_registry_child(module, sup, context) do
+      registry_options = (module.pool().options()[:registry_options] || [])
+                         |> put_in([:name], module.pool_registry())
+                         |> update_in([:keys], &(&1 || :unique))
+                         |> update_in([:partitions], &(&1 || 256)) # @TODO - processor count * 4
+
+
+      max_seconds = module.meta()[:max_seconds]
+      max_restarts = module.meta()[:max_restarts]
+      #Registry.start_link(keys: :unique, name: GoldenRatio.Dispatch.AlertRegistry,  partitions: 256)
+      # module.pass_through_worker(Registry, registry_options,  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])
+      r = case Supervisor.start_child(sup,  Registry.child_spec(registry_options)) do
+        {:ok, pid} ->
+          {:ok, pid}
+        {:error, {:already_started, process2_id}} ->
+          Supervisor.restart_child(module, process2_id)
+        error ->
+          Logger.error(fn ->
+            {
+              """
+
+              #{module}.start_registry_child #{inspect module.pool_registry()} Error
+              #{inspect error}
+              """, Noizu.ElixirCore.CallingContext.metadata(context)}
+          end)
+          :error
+      end
+
+      IO.puts """
+
+      +++++++++++++++++++++++++ Registry V2 ++++++++++++++++++++++++++
+      #{module.pool_registry()} -> #{inspect r}}
+      ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+      """
+
+      r
     end
 
     defp start_worker_supervisor_child(module, sup, definition, context) do
@@ -180,7 +224,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
               {
                 """
 
-                #{module}.start_worker_supervisor_child #{inspect module.pool_worker_supervisor()} Already Started. Handling unexpected state.
+                #{module}.start_worker_supervisor_child #{inspect module.pool_worker_supervisor()} Error
                 #{inspect error}
                 """, Noizu.ElixirCore.CallingContext.metadata(context)}
             end)
@@ -202,7 +246,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
             {
               """
 
-              #{module}.start_server_child #{inspect module.pool_server()} Already Started. Handling unexpected state.
+              #{module}.start_server_child #{inspect module.pool_server()} Error
               #{inspect error}
               """, Noizu.ElixirCore.CallingContext.metadata(context)}
           end)
@@ -224,7 +268,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
             {
               """
 
-              #{module}.start_children(1) #{inspect module.pool_monitor()} Already Started. Handling unexpected state.
+              #{module}.start_children(1) #{inspect module.pool_monitor()} Error.
               #{inspect error}
               """, Noizu.ElixirCore.CallingContext.metadata(context)}
           end)

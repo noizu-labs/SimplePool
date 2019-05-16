@@ -189,6 +189,21 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
                   |> put_in([Access.key(:meta), :profiler, profile, :flag], :green)
       end
     end
+
+
+    def expand_table(module, table, name) do
+      # Apply Schema Naming Convention if not specified
+      if (table == :auto) do
+        path = Module.split(module)
+        root_table = Application.get_env(:noizu_scaffolding, :default_database, Module.concat([List.first(path), "Database"]))
+                     |> Module.split()
+        inner_path = Enum.slice(path, 1..-1)
+        Module.concat(root_table ++ inner_path ++ [name])
+      else
+        table
+      end
+    end
+
   end
 
   defmodule Base do
@@ -198,6 +213,9 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
       pool_worker_state_entity = Map.get(options, :worker_state_entity, :auto)
       stand_alone = opts[:stand_alone] || false
 
+      dispatch_table = options.dispatch_table
+      #dispatch_monitor_table = options.dispatch_monitor_table
+      registry_options = options.registry_options
 
       quote do
         @behaviour Noizu.SimplePool.V2.SettingsBehaviour
@@ -213,6 +231,9 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         @pool_worker_supervisor Module.concat([@pool, "WorkerSupervisor"])
         @pool_worker Module.concat([@pool, "Worker"])
         @pool_monitor Module.concat([@pool, "Monitor"])
+        @pool_registry Module.concat([@pool, "Registry"])
+
+        @pool_dispatch_table Noizu.SimplePool.V2.SettingsBehaviour.Default.expand_table(@pool, unquote(options.dispatch_table), DispatchTable)
 
         @options unquote(Macro.escape(options))
         @option_settings unquote(Macro.escape(option_settings))
@@ -220,6 +241,8 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         @pool_worker_state_entity Noizu.SimplePool.V2.SettingsBehaviour.Default.pool_worker_state_entity(@pool, unquote(pool_worker_state_entity))
 
         @short_name Module.split(__MODULE__) |> Enum.slice(-1..-1) |> Module.concat()
+
+
 
         def short_name(), do: @short_name
 
@@ -231,7 +254,6 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
           Noizu.SimplePool.V2.SettingsBehaviour.Default.profile_end(state, profile, short_name(), opts)
         end
 
-
         # @deprecated
         def base, do: @pool
         def pool, do: @pool
@@ -242,6 +264,8 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         def pool_worker_supervisor, do: @pool_worker_supervisor
         def pool_worker, do: @pool_worker
         def pool_worker_state_entity, do: @pool_worker_state_entity
+        def pool_dispatch_table(), do: @pool_dispatch_table
+        def pool_registry(), do: @pool_registry
 
         def banner(msg), do: banner(@module, msg)
         defdelegate banner(header, msg), to: Noizu.SimplePool.V2.SettingsBehaviour.Default
@@ -347,13 +371,16 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         defdelegate base(), to: @parent
 
 
-        defdelegate pool(), to: @parent
-        defdelegate pool_worker_supervisor(), to: @parent
-        defdelegate pool_server(), to: @parent
-        defdelegate pool_supervisor(), to: @parent
-        defdelegate pool_worker(), to: @parent
-        defdelegate pool_worker_state_entity(), to: @parent
-        defdelegate pool_monitor(), to: @parent
+        defdelegate pool(), to: @pool
+        defdelegate pool_worker_supervisor(), to: @pool
+        defdelegate pool_server(), to: @pool
+        defdelegate pool_supervisor(), to: @pool
+        defdelegate pool_worker(), to: @pool
+        defdelegate pool_worker_state_entity(), to: @pool
+        defdelegate pool_monitor(), to: @pool
+
+        defdelegate pool_dispatch_table(), to: @pool
+        defdelegate pool_registry(), to: @pool
 
 
         def banner(msg), do: banner(@module, msg)
