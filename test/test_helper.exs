@@ -26,6 +26,9 @@ Application.ensure_all_started(:semaphore)
 Amnesia.start
 
 
+#-------------------------
+# V1 Core Tables
+#-------------------------
 if !Amnesia.Table.exists?(Noizu.SimplePool.Database.DispatchTable) do
   :ok = Noizu.SimplePool.Database.DispatchTable.create()
   :ok = Noizu.SimplePool.Database.Dispatch.MonitorTable.create()
@@ -38,6 +41,20 @@ if !Amnesia.Table.exists?(Noizu.SimplePool.Database.DispatchTable) do
   :ok = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.create()
 end
 
+
+#-------------------------
+# V2 Core Tables
+#-------------------------
+if !Amnesia.Table.exists?(Noizu.SimplePool.V2.Database.SettingTable) do
+  :ok = Noizu.SimplePool.V2.Database.SettingTable.create()
+  :ok = Noizu.SimplePool.V2.Database.ConfigurationTable.create()
+  :ok = Noizu.SimplePool.V2.Database.NodeTable.create()
+  :ok = Noizu.SimplePool.V2.Database.ServiceTable.create()
+end
+
+#---------------------
+# Test Pool: Dispatch Tables
+#---------------------
 if !Amnesia.Table.exists?(Noizu.SimplePool.TestDatabase.TestV2Pool.DispatchTable) do
   :ok = Noizu.SimplePool.TestDatabase.TestV2Pool.DispatchTable.create()
 end
