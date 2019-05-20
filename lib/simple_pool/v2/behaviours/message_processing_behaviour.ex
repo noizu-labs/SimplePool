@@ -24,6 +24,8 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
   @callback info_router_catchall(any, any) :: any
   @callback __info_handler(any, any) :: any
 
+  @callback as_cast(tuple) :: tuple
+  @callback as_info(tuple) :: tuple
 
   defmodule Default do
     #-----------------------------------------------------
@@ -203,19 +205,19 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       if m.meta()[:inactivity_check] do
         l = :os.system_time(:seconds)
         case state.inner_state.__struct__.__cast_handler(envelope, state.inner_state) do
-          {:reply, response, inner_state} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
-          {:reply, response, inner_state, hibernate} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
+          {:reply, _response, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
+          {:reply, _response, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
-          {:stop, reason, response, inner_state} -> {:stop, reason, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
+          {:stop, reason, _response, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
           {:noreply, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
           {:noreply, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
         end
       else
         case state.inner_state.__struct__.__cast_handler(envelope, state.inner_state) do
-          {:reply, response, inner_state} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
-          {:reply, response, inner_state, hibernate} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
+          {:reply, _response, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+          {:reply, _response, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
-          {:stop, reason, response, inner_state} -> {:stop, reason, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+          {:stop, reason, _response, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
           {:noreply, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
           {:noreply, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
         end
@@ -235,22 +237,33 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       if m.meta()[:inactivity_check] do
         l = :os.system_time(:seconds)
         case state.inner_state.__struct__.__info_handler(envelope, state.inner_state) do
-          {:reply, response, inner_state} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
-          {:reply, response, inner_state, hibernate} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
+          {:reply, _response, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
+          {:reply, _response, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
-          {:stop, reason, response, inner_state} -> {:stop, reason, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
+          {:stop, reason, _response, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
           {:noreply, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
           {:noreply, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
         end
       else
         case state.inner_state.__struct__.__info_handler(envelope, state.inner_state) do
-          {:reply, response, inner_state} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
-          {:reply, response, inner_state, hibernate} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
+          {:reply, _response, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+          {:reply, _response, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
-          {:stop, reason, response, inner_state} -> {:stop, reason, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
+          {:stop, reason, _response, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
           {:noreply, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
           {:noreply, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
         end
+      end
+    end
+
+    def as_cast(response) do
+      case response do
+        {:reply, _response, state} -> {:noreply, state}
+        {:reply, _response, state, hibernate} -> {:noreply, state, hibernate}
+        {:stop, reason, state} -> {:stop, reason, state}
+        {:stop, reason, _response, state} -> {:stop, reason, state}
+        {:noreply, state} -> {:noreply, state}
+        {:noreply, state, hibernate} -> {:noreply, state, hibernate}
       end
     end
 
@@ -302,6 +315,9 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           info_router_user(msg, state) || info_router_internal(msg, state) || info_router_catchall(msg, state)
         end
 
+        defdelegate as_cast(t), to: Default
+        defdelegate as_info(t), to: Default, as: :as_cast
+
         #===============================================================================================================
         # Overridable
         #===============================================================================================================
@@ -323,6 +339,9 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           info_router_internal: 2,
           info_router_catchall: 2,
           __info_handler: 2,
+
+          as_cast: 1,
+          as_info: 1,
         ]
       end
     end

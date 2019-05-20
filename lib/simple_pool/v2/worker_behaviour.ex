@@ -127,23 +127,90 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       #------------------------------------------------------------------------
       # Infrastructure Provided Worker Calls
       #------------------------------------------------------------------------
-      def fetch(:state, _from, state, _context), do: {:reply, state, state}
-      def fetch(:process, _from, state, _context), do: {:reply, {self(), node()}, state}
-      def ping!(_from, state, _context), do: {:reply, :pong, state}
+      def fetch(state, :state, _from, _context), do: {:reply, state, state}
+      def fetch(state, :process, _from, _context), do: {:reply, {self(), node()}, state}
+      def ping!(state, _from, _context), do: {:reply, :pong, state}
+
+      def save!(state, _from, _context, _opts) do
+        Logger.error("#{__MODULE__}.save! NYI")
+        {:reply, :nyi, state}
+      end
+      def reload!(state, _from, _context, _opts) do
+        Logger.error("#{__MODULE__}.reload! NYI")
+        {:reply, :nyi, state}
+      end
+      def load(state, _from, _context, _opts) do
+        Logger.error("#{__MODULE__}.load NYI")
+        {:reply, :nyi, state}
+      end
+      def shutdown(state, _from, _context, _opts) do
+        Logger.error("#{__MODULE__}.shutdown NYI")
+        {:reply, :nyi, state}
+      end
+      def migrate!(state, _ref, _rebase, _from, _context, _opts) do
+        Logger.error("#{__MODULE__}.migrate! NYI")
+        {:reply, :nyi, state}
+      end
+      def health_check!(state, _from, _context, _opts) do
+        Logger.error("#{__MODULE__}.health_check! NYI")
+        {:reply, :nyi, state}
+      end
+      def kill!(state, _from, _context) do
+        Logger.error("#{__MODULE__}.kill! NYI")
+        {:reply, :nyi, state}
+      end
+      def crash!(state, _from, _context, _opts) do
+        Logger.error("#{__MODULE__}.crash! NYI")
+        {:reply, :nyi, state}
+      end
+      def activity_check(state, _ref, _context) do
+        Logger.error("#{__MODULE__}.activity_check NYI")
+        #NYI
+        {:noreply, state}
+      end
 
       #------------------------------------------------------------------------
       # Infrastructure provided call router
       #------------------------------------------------------------------------
       def call_router_internal(envelope, from, state) do
         case envelope do
-          {:s, {:fetch, :state}, context} -> fetch(:state, from, state, context)
-          {:s, {:fetch, :process}, context} -> fetch(:process, from, state, context)
-          {:s, :ping!, context} -> ping!(from, state, context)
+          {:s, {:fetch, :state}, context} -> fetch(state, :state, from, context)
+          {:s, {:fetch, :process}, context} -> fetch(state, :process, from, context)
+          {:s, :ping!, context} -> ping!(state, from, context)
+
+          {:s, {:health_check!, opts}, context} -> health_check!(state, from, context, opts)
+          {:s, :kill!, context} -> kill!(state, from, context)
+          {:s, {:crash!, opts}, context} -> crash!(state, from, context, opts)
+
+          {:s, {:save!, opts}, context} -> save!(state, from, context, opts)
+          {:s, {:reload!, opts}, context} -> reload!(state, from, context, opts)
+          {:s, {:load, opts}, context} -> load(state, from, context, opts)
+          {:s, {:shutdown, opts}, context} -> shutdown(state, from, context, opts)
+          {:s, {:migrate!, ref, rebase, opts}, context} -> migrate!(state, ref, rebase, from, context, opts)
           _ -> nil
         end
       end
 
+      def cast_router_internal(envelope, state) do
+        case envelope do
+          # Todo include kill! options to standardize function signatures.
+          {:s, :kill!, context} -> kill!(state, :cast, context) |> as_cast()
+          {:s, {:crash!, opts}, context} -> crash!(state, :cast, context, opts) |> as_cast()
+          {:s, {:save!, opts}, context} -> save!(state, :cast, context, opts) |> as_cast()
+          {:s, {:reload!, opts}, context} -> reload!(state, :cast, context, opts) |> as_cast()
+          {:s, {:load, opts}, context} -> load(state, :cast, context, opts) |> as_cast()
+          {:s, {:shutdown, opts}, context} -> shutdown(state, :cast, context, opts) |> as_cast()
+          {:s, {:migrate!, ref, rebase, opts}, context} -> migrate!(state, ref, rebase, :cast, context, opts) |> as_cast()
+          _ -> nil
+        end
+      end
 
+      def info_router_internal(envelope, state) do
+        case envelope do
+          {:i, {:activity_check, ref}, context} -> activity_check(state, ref, context)
+          _ -> nil
+        end
+      end
 
 
   # Delegate uncaught calls into inner state.
@@ -175,9 +242,20 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
         # Infrastructure Provided Worker Methods
         fetch: 4,
         ping!: 3,
+        save!: 4,
+        reload!: 4,
+        load: 4,
+        shutdown: 4,
+        migrate!: 6,
+        health_check!: 4,
+        kill!: 3,
+        crash!: 4,
+        activity_check: 3,
 
         # Routing for Infrastructure Provided Worker Methods
         call_router_internal: 3,
+        info_router_internal: 2,
+        cast_router_internal: 2,
 
         # Catch All (For worker delegates to inner_state entity)
         call_router_catchall: 3,

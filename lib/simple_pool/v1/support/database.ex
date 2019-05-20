@@ -13,7 +13,6 @@ defdatabase Noizu.SimplePool.Database do
   #--------------------------------------
   # Dispatch
   #--------------------------------------
-
   deftable DispatchTable, [:identifier, :server, :entity], type: :set, index: [] do
     @type t :: %DispatchTable{identifier: tuple, server: atom, entity: Noizu.SimplePool.DispatchEntity.t}
   end
@@ -25,7 +24,6 @@ defdatabase Noizu.SimplePool.Database do
   #--------------------------------------
   # Monitoring Framework
   #--------------------------------------
-
   deftable MonitoringFramework.SettingTable, [:setting, :value], type: :bag, index: [] do
     @type t :: %MonitoringFramework.SettingTable{setting: atom, value: any}
   end

@@ -4,13 +4,10 @@
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.MonitorBehaviour do
-
-  @callback health_check!() :: any
-  @callback report_service_event!() :: any
-  @callback lock!() :: any
-  @callback release!() :: any
-
-
+  @callback health_check(any, any) :: any
+  @callback record_service_event!(any, any, any, any) :: any
+  @callback lock!(any, any) :: any
+  @callback release!(any, any) :: any
 
   defmodule Default do
     alias Noizu.ElixirCore.OptionSettings
@@ -55,8 +52,6 @@ defmodule Noizu.SimplePool.V2.MonitorBehaviour do
       use Noizu.SimplePool.V2.SettingsBehaviour.Inherited, unquote([option_settings: option_settings])
       use unquote(message_processing_provider), unquote(option_settings)
 
-
-
       #---------------
       # start_link
       #---------------
@@ -78,12 +73,11 @@ defmodule Noizu.SimplePool.V2.MonitorBehaviour do
         :ok
       end
 
+      def health_check(context, opts \\ %{}), do: :wip
+      def record_service_event!(event, details, context, opts \\ %{}), do: :wip
 
-
-      def health_check!(), do: :wip
-      def report_service_event!(), do: :wip
-      def lock!(), do: :wip
-      def release!(), do: :wip
+      def lock!(context, opts \\ %{}), do: :wip
+      def release!(context, opts \\ %{}), do: :wip
 
     end
   end
