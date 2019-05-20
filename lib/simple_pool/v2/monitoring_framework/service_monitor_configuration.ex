@@ -38,6 +38,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration do
               |> update_in([:server], &(&1 || @default_server_options))
               |> update_in([:worker], &(&1 || @default_worker_options))
               |> update_in([:monitor], &(&1 || @default_monitor_options))
+
     meta = %{
       server: pool.pool_server(),
       supervisor: pool.pool_supervisor(),

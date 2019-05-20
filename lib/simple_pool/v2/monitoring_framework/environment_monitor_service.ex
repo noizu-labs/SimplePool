@@ -28,6 +28,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
   @behaviour Noizu.SimplePool.V2.MonitoringFramework.MonitorBehaviour
   alias Noizu.ElixirCore.CallingContext
   alias Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration
+
   use Noizu.SimplePool.V2.StandAloneServiceBehaviour,
       default_modules: [:pool_supervisor, :monitor],
       worker_state_entity: nil,
@@ -70,6 +71,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
   #-----------------------------------
   #
   #-----------------------------------
+
   defdelegate primary(), to: __MODULE__.Server
   defdelegate start_services(context, options), to: __MODULE__.Server
   defdelegate supports_service?(elixir_node, service, context, options), to: __MODULE__.Server
@@ -77,9 +79,16 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
   defdelegate offload(elixir_nodes, services, context, options), to: __MODULE__.Server
   defdelegate lock_services(elixir_nodes, services, context, options), to: __MODULE__.Server
   defdelegate release_services(elixir_nodes, services, context, options), to: __MODULE__.Server
-  defdelegate select_host(ref, service, context, opts \\ %{}), to: __MODULE__.Server
+
+
+  #defdelegate select_host(ref, service, context, opts \\ %{}), to: __MODULE__.Server
   defdelegate record_server_event!(elixir_node, event, details, context, options), to: __MODULE__.Server
   defdelegate record_service_event!(elixir_node, service, event, details, context, options), to: __MODULE__.Server
+
+  def select_host(ref, service, context, options) do
+    # @todo incomplete logic
+    {:ack, node()}
+  end
 
   defmodule Server do
     @vsn 1.0
@@ -232,8 +241,6 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
     def select_host(ref, service, context, options), do: throw :wip
     def record_server_event!(elixir_node, event, details, context, options), do: throw :wip
     def record_service_event!(elixir_node, service, event, details, context, options), do: throw :wip
-
-
 
   end # end defmodule Server
 

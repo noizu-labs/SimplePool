@@ -36,6 +36,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
     @default_worker_supervisor_options ([])
     @default_pool_supervisor_options ([])
     @default_monitor_options ([])
+    @default_registry_options ([partitions: 256, keys: :unique])
 
     #---------
     #
@@ -46,6 +47,11 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
           features: %OptionList{option: :features, default: Application.get_env(:noizu_simple_pool, :default_features, @default_features), valid_members: @features, membership_set: false},
           default_modules: %OptionList{option: :default_modules, default: Application.get_env(:noizu_simple_pool, :default_modules, @default_modules), valid_members: @modules, membership_set: true},
           verbose: %OptionValue{option: :verbose, default: Application.get_env(:noizu_simple_pool, :verbose, false)},
+
+          dispatch_table: %OptionValue{option: :dispatch_table, default: :auto},
+          #dispatch_monitor_table: %OptionValue{option: :dispatch_monitor_table, default: :auto},
+          registry_options: %OptionValue{option: :registry_options, default: Application.get_env(:noizu_simple_pool, :default_registry_options, @default_registry_options)},
+
           monitor_options: %OptionValue{option: :monitor_options, default: Application.get_env(:noizu_simple_pool, :default_monitor_options, @default_monitor_options)},
           worker_options: %OptionValue{option: :worker_options, default: Application.get_env(:noizu_simple_pool, :default_worker_options, @default_worker_options)},
           server_options: %OptionValue{option: :server_options, default: Application.get_env(:noizu_simple_pool, :default_server_options, @default_server_options)},

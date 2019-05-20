@@ -91,14 +91,6 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
     end
   end
 
-
-
-
-
-
-
-
-
   @doc """
 
   """

@@ -8,6 +8,7 @@ defmodule Noizu.SimplePool.Support.TestV2TwoPool do
   use Noizu.SimplePool.V2.PoolBehaviour,
       default_modules: [:pool_supervisor, :worker_supervisor, :monitor],
       worker_state_entity: Noizu.SimplePool.Support.TestV2TwoWorkerEntity,
+      dispatch_table: Noizu.SimplePool.TestDatabase.TestV2TwoPool.DispatchTable,
       verbose: false
 
   def banner(_header, _msg) do

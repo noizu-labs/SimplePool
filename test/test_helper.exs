@@ -38,7 +38,19 @@ if !Amnesia.Table.exists?(Noizu.SimplePool.Database.DispatchTable) do
   :ok = Noizu.SimplePool.Database.MonitoringFramework.Service.EventTable.create()
 end
 
+if !Amnesia.Table.exists?(Noizu.SimplePool.TestDatabase.TestV2Pool.DispatchTable) do
+  :ok = Noizu.SimplePool.TestDatabase.TestV2Pool.DispatchTable.create()
+end
+if !Amnesia.Table.exists?(Noizu.SimplePool.TestDatabase.TestV2TwoPool.DispatchTable) do
+  :ok = Noizu.SimplePool.TestDatabase.TestV2TwoPool.DispatchTable.create()
+end
+if !Amnesia.Table.exists?(Noizu.SimplePool.TestDatabase.TestV2ThreePool.DispatchTable) do
+  :ok = Noizu.SimplePool.TestDatabase.TestV2ThreePool.DispatchTable.create()
+end
+
+
 :ok = Amnesia.Table.wait(Noizu.SimplePool.Database.tables(), 5_000)
+:ok = Amnesia.Table.wait(Noizu.SimplePool.TestDatabase.tables(), 5_000)
 
 true = Node.connect(:"second@127.0.0.1")
 :rpc.call(:"second@127.0.0.1", Amnesia, :start, [])
