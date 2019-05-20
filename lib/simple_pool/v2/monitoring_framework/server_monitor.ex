@@ -34,17 +34,6 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
       worker_state_entity: nil,
       verbose: false
 
-  def lock_server(context, opts), do: :wip
-  def release_server(context, opts), do: :wip
-
-  def lock_service(service, context, opts), do: :wip
-  def release_service(service, context, opts), do: :wip
-
-  def health_check(context, opts), do: :wip
-  # def health_check(context, %{refresh: true})
-
-  def record_server_event!(event, details, context, opts \\ %{}), do: :wip
-
   #-----------------------------------
   #
   #-----------------------------------
@@ -71,24 +60,15 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
   #-----------------------------------
   #
   #-----------------------------------
-
-  defdelegate primary(), to: __MODULE__.Server
-  defdelegate start_services(context, options), to: __MODULE__.Server
-  defdelegate supports_service?(elixir_node, service, context, options), to: __MODULE__.Server
-  defdelegate rebalance(source_nodes, target_nodes, services, context, options), to: __MODULE__.Server
-  defdelegate offload(elixir_nodes, services, context, options), to: __MODULE__.Server
-  defdelegate lock_services(elixir_nodes, services, context, options), to: __MODULE__.Server
-  defdelegate release_services(elixir_nodes, services, context, options), to: __MODULE__.Server
-
-
-  #defdelegate select_host(ref, service, context, opts \\ %{}), to: __MODULE__.Server
-  defdelegate record_server_event!(elixir_node, event, details, context, options), to: __MODULE__.Server
-  defdelegate record_service_event!(elixir_node, service, event, details, context, options), to: __MODULE__.Server
-
-  def select_host(ref, service, context, options) do
-    # @todo incomplete logic
-    {:ack, node()}
-  end
+  defdelegate supports_service?(service, context, options), to: __MODULE__.Server
+  defdelegate health_check(context, opts), to: __MODULE__.Server
+  defdelegate lock_server(context, opts), to: __MODULE__.Server
+  defdelegate release_server(context, opts), to: __MODULE__.Server
+  defdelegate lock_services(services, context, options), to: __MODULE__.Server
+  defdelegate release_services(services, context, options), to: __MODULE__.Server
+  defdelegate select_host(ref, service, context, opts \\ %{}), to: __MODULE__.Server
+  defdelegate record_server_event!(event, details, context, options), to: __MODULE__.Server
+  defdelegate record_service_event!(service, event, details, context, options), to: __MODULE__.Server
 
   defmodule Server do
     @vsn 1.0
@@ -188,12 +168,6 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
       end
     end
 
-    def select_host(ref, service, context, opts \\ %{}) do
-      # @TODO - To Optimize Host Selection,
-      # 1. Load from FastGlobal instead of Amnesia.
-      # 2. Instead of randomly selecting from hints use weight information and a dice roll to determine bucket.
-      {:ack, node()}
-    end
 
     #------------------------------------------------------------------------
     # call router
@@ -221,26 +195,21 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
 
 
 
+    def select_host(ref, service, context, opts \\ %{}) do
+      # @TODO - To Optimize Host Selection,
+      # 1. Load from FastGlobal instead of Amnesia.
+      # 2. Instead of randomly selecting from hints use weight information and a dice roll to determine bucket.
+      {:ack, node()}
+    end
 
-
-
-
-
-
-
-
-
-    def primary(), do: throw :wip
-    def start_services(context, options), do: throw :wip
-    def supports_service?(elixir_node, service, context, options), do: throw :wip
-    def rebalance(source_nodes, target_nodes, services, context, options), do: throw :wip
-    def offload(elixir_nodes, services, context, options), do: throw :wip
-    def lock_services(elixir_nodes, services, context, options), do: throw :wip
-    def release_services(elixir_nodes, services, context, options), do: throw :wip
-    def select_host(ref, service, context, options), do: throw :wip
-    def record_server_event!(elixir_node, event, details, context, options), do: throw :wip
-    def record_service_event!(elixir_node, service, event, details, context, options), do: throw :wip
+    def supports_service?(service, context, options), do: :nyi
+    def health_check(context, opts), do: :nyi
+    def lock_server(context, opts), do: :nyi
+    def release_server(context, opts), do: :nyi
+    def lock_services(services, context, opts), do: :nyi
+    def release_services(services, context, opts), do: :nyi
+    def record_server_event!(event, details, context, opts), do: :nyi
+    def record_service_event!(service, event, details, context, opts), do: :nyi
 
   end # end defmodule Server
-
 end

@@ -38,4 +38,9 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ClusterMonitorBehaviour do
     Record a server (elixir node) level event.
   """
   @callback record_cluster_event!(event :: atom, details :: any, CallingContext.t | nil, options :: Map.t) :: :ack | :nack | {:error, details :: any}
+
+  @doc """
+  retrieve cluster wide health check
+  """
+  @callback health_check(CallingContext.t | nil, Map.t) :: any
 end
