@@ -215,10 +215,6 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def worker_management(), do: __MODULE__.WorkerManagement
       def service_management(), do: __MODULE__.ServiceManagement
 
-      # To be removed shortly.
-      def worker_lookup_deprecated(), do: Noizu.SimplePool.V2.WorkerLookupBehaviour.Dynamic
-      def worker_lookup_handler(), do: Noizu.SimplePool.V2.WorkerLookupBehaviour.Dynamic
-
       @doc """
       Initialize meta data for this pool. (override default provided by SettingsBehaviour)
       """

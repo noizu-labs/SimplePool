@@ -17,8 +17,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ClusterMonitor do
 
     use Noizu.SimplePool.V2.ServerBehaviour,
         worker_state_entity: nil,
-        server_monitor: Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor,
-        worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic # Deprecated
+        server_monitor: Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
     require Logger
 
     def initial_state(args, context) do

@@ -163,9 +163,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, host, service_entity, context, %{})
 
   def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = context, options) do
-    Logger.warn("[V2] New workers!() Implementation Needed")
-    pool_server.worker_lookup_deprecated().workers!(host, service_entity, context, options)
-
     if dispatch_schema_online?(pool_server) do
       v = pool_server.pool_dispatch_table().match!([identifier: {:ref, service_entity, :_}, server: host])
           |> Amnesia.Selection.values
@@ -173,7 +170,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
     else
       {:nack, []}
     end
-
   end
 
   def dispatch_get!(ref, pool_server, context, options) do
@@ -294,9 +290,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
 
   """
   def host!(pool_server, ref, context, options \\ %{spawn: true}) do
-    #Logger.warn("[V2] New host!() Implementation Needed")
-    #pool_server.worker_lookup_deprecated().host!(ref, pool_server, context, options) |> IO.inspect
-
     # @TODO load from meta or pool.options
     sm = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
 
@@ -368,8 +361,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
 
   """
   def record_event!(pool_server, ref, event, details, context, options \\ %{}) do
-    #Logger.warn("[V2] New record_event!() Implementation Needed")
-    #pool_server.worker_lookup_deprecated().record_event!(ref, event, details, context, options)
+    Logger.warn("[V2] New record_event!() Implementation Needed")
     :wip
   end
 
@@ -377,8 +369,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
 
   """
   def events!(pool_server, ref, context, options \\ %{}) do
-    #Logger.warn("[V2] New events!() Implementation Needed")
-    #pool_server.worker_lookup_deprecated().events!(ref, context, options)
+    Logger.warn("[V2] New events!() Implementation Needed")
     []
   end
 
@@ -387,7 +378,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def set_node!(pool_server, ref, context, options \\ %{}) do
     #Logger.warn("[V2] New set_node!() Implementation Needed")
-    #pool_server.worker_lookup_deprecated().set_node!(ref, context, options)
     sm = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
     wm = pool_server.worker_management()
 
@@ -427,7 +417,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def register!(pool_server, ref, context, options \\ %{}) do
     #Logger.warn("[V2] New register!() Implementation Needed")
-    #pool_server.worker_lookup_deprecated().register!(ref, context, options)
     Registry.register(pool_server.pool_registry(), {:worker, ref}, :process)
   end
 
@@ -436,7 +425,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def unregister!(pool_server, ref, context, options \\ %{}) do
     #Logger.warn("[V2] New unregister!() Implementation Needed")
-    #pool_server.worker_lookup_deprecated().unregister!(ref, context, options)
 
     #Registry.unregister(pool_server.pool_registry(), ref)
     Registry.unregister(pool_server.pool_registry(), {:worker, ref})
@@ -447,7 +435,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def obtain_lock!(pool_server, ref, context, options \\ %{}) do
     #Logger.warn("[V2] New obtain_lock!() Implementation Needed")
-    #pool_server.worker_lookup_deprecated().obtain_lock!(ref, context, options)
 
     options_b = update_in(options, [:lock], &(Map.merge(&1 || %{}, %{type: :general})))
     dispatch_obtain_lock!(ref, pool_server, context, options_b)
@@ -465,7 +452,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def process!(pool_server, ref, context, options \\ %{}) do
     #Logger.warn("[V2] New process!() Implementation Needed")
-    #pool_server.worker_lookup_deprecated().process!(ref, pool_server.pool(), pool_server, context, options) |> IO.inspect
 
     # @TODO load from meta or pool.options
     sm = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
