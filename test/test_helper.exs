@@ -45,11 +45,11 @@ end
 #-------------------------
 # V2 Core Tables
 #-------------------------
-if !Amnesia.Table.exists?(Noizu.SimplePool.V2.Database.SettingTable) do
-  :ok = Noizu.SimplePool.V2.Database.SettingTable.create()
-  :ok = Noizu.SimplePool.V2.Database.ConfigurationTable.create()
-  :ok = Noizu.SimplePool.V2.Database.NodeTable.create()
-  :ok = Noizu.SimplePool.V2.Database.ServiceTable.create()
+if !Amnesia.Table.exists?(Noizu.SimplePool.V2.Database.MonitoringFramework.SettingTable) do
+  :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.SettingTable.create()
+  :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.ConfigurationTable.create()
+  :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.NodeTable.create()
+  :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.ServiceTable.create()
 end
 
 #---------------------

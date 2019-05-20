@@ -5,7 +5,7 @@
 
 defmodule Noizu.SimplePool.V2.WorkerLookupBehaviour.Dynamic do
   use Noizu.SimplePool.V2.WorkerLookupBehaviour.DefaultImplementation,
-      server_monitor: Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService
+      server_monitor: Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
 
 
 

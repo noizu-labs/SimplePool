@@ -79,7 +79,7 @@ defmodule Noizu.SimplePool.TestHelpers do
 
     # Start V2 Monitor
     monitor_name = {:default, node()}
-    Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.start(monitor_name, context)
+    Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.start(monitor_name, context)
 
     # - Set Temporary Pool Configuration
     test_v2_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2Pool)
@@ -88,9 +88,9 @@ defmodule Noizu.SimplePool.TestHelpers do
                 |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_pool)
                 |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_three_pool)
 
-    Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.reconfigure(v2_config, context, %{persist: false})
-    Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.bring_services_online(context)
-    status = Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.status_wait([:online, :degraded], context)
+    Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.reconfigure(v2_config, context, %{persist: false})
+    Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.bring_services_online(context)
+    status = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.status_wait([:online, :degraded], context)
     case status do
       e = {:error, details} ->
 
@@ -152,7 +152,7 @@ defmodule Noizu.SimplePool.TestHelpers do
 
       # Start V2 Monitor
       monitor_name = {:default, node()}
-      Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.start(monitor_name, context)
+      Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.start(monitor_name, context)
 
       # - Set Temporary Pool Configuration
       test_v2_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2Pool)
@@ -161,9 +161,9 @@ defmodule Noizu.SimplePool.TestHelpers do
                   |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_pool)
                   |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_two_pool)
 
-      Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.reconfigure(v2_config, context, %{persist: false})
-      Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.bring_services_online(context)
-      status = Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService.status_wait([:online, :degraded], context)
+      Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.reconfigure(v2_config, context, %{persist: false})
+      Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.bring_services_online(context)
+      status = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.status_wait([:online, :degraded], context)
       case status do
         e = {:error, details} ->
 

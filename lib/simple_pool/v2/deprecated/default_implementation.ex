@@ -16,7 +16,7 @@ defmodule Noizu.SimplePool.V2.WorkerLookupBehaviour.DefaultImplementation do
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
         dispatch: %OptionValue{option: :dispatch, default:  Application.get_env(:noizu_simple_pool, :default_dispatch, Noizu.SimplePool.DispatchRepo)},
         dispatch_monitor: %OptionValue{option: :dispatch_monitor, default:  Application.get_env(:noizu_simple_pool, :default_dispatch_monitor, Noizu.SimplePool.Dispatch.MonitorRepo)},
-        server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitor, Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService)},
+        server_monitor:   %OptionValue{option: :server_monitor, default:  Application.get_env(:noizu_simple_pool, :default_server_monitor, Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor)},
         registry:   %OptionValue{option: :registry, default:  Application.get_env(:noizu_simple_pool, :default_registry, Noizu.SimplePool.DispatchRegister)},
       }
     }

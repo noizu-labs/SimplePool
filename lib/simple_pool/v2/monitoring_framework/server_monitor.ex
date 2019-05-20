@@ -1,20 +1,20 @@
 #-------------------------------------------------------------------------------
 # Author: Keith Brings
-# Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
+# Copyright (C) 2019 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
-defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
+defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
   @moduledoc """
   V2 Arch:
 
-  Every node will have an EnvironmentMonitorService responsible for state on that node.
-  The EnvironmentMonitorService will push/pull data to any other available monitors.
+  Every node will have an ServerMonitor responsible for state on that node.
+  The ServerMonitor will push/pull data to any other available monitors.
   It will keep the list available in a fg cache, and poll on init to find all available nodes that host a environment monitor service.
 
   Per node health information will be synced and stored in fast global caches on each monitor for determining host tenancy of new jobs.
   Event data will be persisted to riak and queryable by server or service (or both).
   Rate Limiters will apply to avoid flooding riak during a failure event. A simple ets counter may be used for this that is reset hourly.
 
-  The EnvironmentMonitorService api surface as a rule will also be performed on the hosting node.
+  The ServerMonitor api surface as a rule will also be performed on the hosting node.
   A ClusterMonitorService will also be available for coordinating changes across the cluster.
   Rebalance/Migrate operations will belong to the ClusterMonitorService since they require cross node coordination.
 
@@ -96,7 +96,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService do
 
     use Noizu.SimplePool.V2.ServerBehaviour,
         worker_state_entity: nil,
-        server_monitor: __MODULE__,
+        server_monitor: Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor,
         worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
     require Logger
 

@@ -298,7 +298,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
     #pool_server.worker_lookup_deprecated().host!(ref, pool_server, context, options) |> IO.inspect
 
     # @TODO load from meta or pool.options
-    sm = Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService
+    sm = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
 
     case dispatch_get!(ref, pool_server, context, options) do
       nil ->
@@ -388,7 +388,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   def set_node!(pool_server, ref, context, options \\ %{}) do
     #Logger.warn("[V2] New set_node!() Implementation Needed")
     #pool_server.worker_lookup_deprecated().set_node!(ref, context, options)
-    sm = Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService
+    sm = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
     wm = pool_server.worker_management()
 
     Task.async(fn ->
@@ -468,7 +468,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
     #pool_server.worker_lookup_deprecated().process!(ref, pool_server.pool(), pool_server, context, options) |> IO.inspect
 
     # @TODO load from meta or pool.options
-    sm = Noizu.SimplePool.V2.MonitoringFramework.EnvironmentMonitorService
+    sm = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
     server = pool_server
     base = pool_server.pool()
     wm = pool_server.worker_management()
