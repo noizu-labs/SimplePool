@@ -50,6 +50,12 @@ if !Amnesia.Table.exists?(Noizu.SimplePool.V2.Database.MonitoringFramework.Setti
   :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.ConfigurationTable.create()
   :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.NodeTable.create()
   :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.ServiceTable.create()
+
+  :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.DetailedServiceEventTable.create()
+  :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.ServiceEventTable.create()
+  :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.DetailedServerEventTable.create()
+  :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.ServerEventTable.create()
+  :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.ClusterEventTable.create()
 end
 
 #---------------------

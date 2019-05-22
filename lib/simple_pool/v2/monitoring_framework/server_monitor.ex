@@ -11,8 +11,8 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
   It will keep the list available in a fg cache, and poll on init to find all available nodes that host a environment monitor service.
 
   Per node health information will be synced and stored in fast global caches on each monitor for determining host tenancy of new jobs.
-  Event data will be persisted to riak and queryable by server or service (or both).
-  Rate Limiters will apply to avoid flooding riak during a failure event. A simple ets counter may be used for this that is reset hourly.
+  Event data will be persisted to local and distributed mnesia tables. (Core events will be persisted across cluster, other events will be persisted locally)
+  Rate Limiters will apply to avoid flooding mnesia during a failure event. A simple ets counter may be used for this that is reset periodically.
 
   The ServerMonitor api surface as a rule will also be performed on the hosting node.
   A ClusterMonitorService will also be available for coordinating changes across the cluster.
@@ -68,7 +68,6 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
   defdelegate release_services(services, context, options), to: __MODULE__.Server
   defdelegate select_host(ref, service, context, opts \\ %{}), to: __MODULE__.Server
   defdelegate record_server_event!(event, details, context, options), to: __MODULE__.Server
-  defdelegate record_service_event!(service, event, details, context, options), to: __MODULE__.Server
 
   defmodule Server do
     @vsn 1.0
@@ -168,7 +167,6 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
       end
     end
 
-
     #------------------------------------------------------------------------
     # call router
     #------------------------------------------------------------------------
@@ -179,8 +177,6 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
         _ -> nil
       end
     end
-
-
 
     #------------------------------------------------------------------------
     # info router
@@ -208,8 +204,20 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
     def release_server(context, opts), do: :nyi
     def lock_services(services, context, opts), do: :nyi
     def release_services(services, context, opts), do: :nyi
-    def record_server_event!(event, details, context, opts), do: :nyi
-    def record_service_event!(service, event, details, context, opts), do: :nyi
+
+    @temporary_core_events MapSet.new([:start, :shutdown])
+    def core_events() do
+      # TODO use fast global wrapper around SettingTable
+      @temporary_core_events
+    end
+
+    def record_server_event!(event, details, context, opts) do
+      if MapSet.member?(core_events(), event) do
+        Logger.info("TODO - write to ServerEventTable #{inspect event}")
+      else
+        Logger.info("TODO - write to DetailedServerEventTable #{inspect event}")
+      end
+    end
 
   end # end defmodule Server
 end

@@ -22,3 +22,15 @@ config :noizu_mnesia_versioning,
 config :logger, :console,
        format: "$time $metadata[$level] $message\n",
        metadata: [:context_token]
+
+# @TODO design lib to build and test with out test config here.
+config :pooler, pools:
+  [
+                       [
+                              name: :"riak@127.0.0.1",
+                              group: :riak,
+                              max_count: 500,
+                              init_count: 0,
+                              start_mfa: { Riak.Connection, :start_link, [] }
+                       ]
+]

@@ -38,6 +38,20 @@ defmodule Noizu.SimplePool.V2.MonitorBehaviour do
       OptionSettings.expand(settings, options)
     end
 
+
+    @temporary_core_events MapSet.new([:start, :shutdown])
+    def core_events(pool) do
+      # TODO use fast global wrapper around SettingTable
+      @temporary_core_events
+    end
+
+    def record_service_event!(pool, event, details, context, opts) do
+      if MapSet.member?(core_events(pool), event) do
+        Logger.info("TODO - write to ServiceEventTable #{inspect event}")
+      else
+        Logger.info("TODO - write to DetailedServiceEventTable #{inspect event}")
+      end
+    end
   end
 
   defmacro __using__(options) do
@@ -49,6 +63,7 @@ defmodule Noizu.SimplePool.V2.MonitorBehaviour do
 
     quote do
       use GenServer
+      @pool :pending
       use Noizu.SimplePool.V2.SettingsBehaviour.Inherited, unquote([option_settings: option_settings])
       use unquote(message_processing_provider), unquote(option_settings)
 
@@ -74,11 +89,12 @@ defmodule Noizu.SimplePool.V2.MonitorBehaviour do
       end
 
       def health_check(context, opts \\ %{}), do: :wip
-      def record_service_event!(event, details, context, opts \\ %{}), do: :wip
+      def record_service_event!(event, details, context, opts \\ %{}) do
+        Noizu.SimplePool.V2.MonitorBehaviour.Default.record_service_event!(@pool, event, details, context, opts)
+      end
 
       def lock!(context, opts \\ %{}), do: :wip
       def release!(context, opts \\ %{}), do: :wip
-
     end
   end
 

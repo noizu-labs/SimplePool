@@ -47,8 +47,13 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ClusterMonitor do
     def lock_services(servers, services, context, opts), do: :wip
     def release_services(servers, services, context, opts), do: :wip
     def select_host(ref, service, context, opts), do: :wip
-    def record_cluster_event!(event, details, context, opts), do: :wip
+
     def health_check(context, opts), do: :wip
+
+
+    def record_cluster_event!(event, details, context, opts) do
+      Logger.info("TODO - write to ClusterEventTable #{inspect event}")
+    end
 
   end # end defmodule Server
 end

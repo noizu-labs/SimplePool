@@ -31,6 +31,12 @@ defmodule Noizu.SimplePool.V2.Support.Schema.Core do
                   create_table(Database.MonitoringFramework.ConfigurationTable, [disk: neighbors])
                   create_table(Database.MonitoringFramework.NodeTable, [disk: neighbors])
                   create_table(Database.MonitoringFramework.ServiceTable, [disk: neighbors])
+
+                  create_table(Database.MonitoringFramework.DetailedServiceEventTable, [disk: neighbors])
+                  create_table(Database.MonitoringFramework.ServiceEventTable, [disk: neighbors])
+                  create_table(Database.MonitoringFramework.DetailedServerEventTable, [disk: neighbors])
+                  create_table(Database.MonitoringFramework.ServerEventTable, [disk: neighbors])
+                  create_table(Database.MonitoringFramework.ClusterEventTable, [disk: neighbors])
                   :success
         end,
         rollback: fn() ->
@@ -38,6 +44,12 @@ defmodule Noizu.SimplePool.V2.Support.Schema.Core do
           destroy_table(Database.MonitoringFramework.ConfigurationTable)
           destroy_table(Database.MonitoringFramework.NodeTable)
           destroy_table(Database.MonitoringFramework.ServiceTable)
+
+          destroy_table(Database.MonitoringFramework.DetailedServiceEventTable)
+          destroy_table(Database.MonitoringFramework.ServiceEventTable)
+          destroy_table(Database.MonitoringFramework.DetailedServerEventTable)
+          destroy_table(Database.MonitoringFramework.ServerEventTable)
+          destroy_table(Database.MonitoringFramework.ClusterEventTable)
           :removed
         end
       }
