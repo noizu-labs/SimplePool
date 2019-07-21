@@ -236,7 +236,7 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
 
 
       def delayed_init(state, context) do
-        Noizu.SimplePool.V2.WorkerBehaviour.Default.init(__MODULE__, state, context)
+        Noizu.SimplePool.V2.WorkerBehaviour.Default.delayed_init(__MODULE__, state, context)
       end
       #-------------------------------------------------------------------------
       # Inactivity Check Handling Feature Section

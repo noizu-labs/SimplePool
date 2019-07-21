@@ -544,9 +544,9 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
               {:nack, :not_registered}
             end
           host == node() ->
-            IO.puts "++++++++++++++++++++++++++++++ Calling Registry Lookup"
-            IO.puts "++++++++++++++++++++++++++++++ Calling Registry Lookup #{inspect {r, {:worker, ref} }}"
-            IO.puts "++++++++++++++++++++++++++++++ Calling Registry Lookup #{inspect Registry.lookup(r, {:worker, ref})}"
+            #IO.puts "++++++++++++++++++++++++++++++ Calling Registry Lookup"
+            #IO.puts "++++++++++++++++++++++++++++++ Calling Registry Lookup #{inspect {r, {:worker, ref} }}"
+            #IO.puts "++++++++++++++++++++++++++++++ Calling Registry Lookup #{inspect Registry.lookup(r, {:worker, ref})}"
 
             case Registry.lookup(r, {:worker, ref}) do
               [] ->
