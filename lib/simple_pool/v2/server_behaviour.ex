@@ -1,6 +1,6 @@
 #-------------------------------------------------------------------------------
 # Author: Keith Brings
-# Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
+# Copyright (C) 2019 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.ServerBehaviour do
@@ -38,8 +38,8 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
     require Logger
 
     # @todo alternative solution for specifying features.
-    @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
-    @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
+    @features ([:auto_load, :auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
+    @default_features ([:auto_load, :lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
     @default_timeout 15_000
     @default_shutdown_timeout 30_000
@@ -160,8 +160,6 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @implementation unquote(implementation)
       @option_settings :override
 
-      IO.puts "Building #{__MODULE__}"
-
       @behaviour Noizu.SimplePool.V2.ServerBehaviour
 
       alias Noizu.SimplePool.Worker.Link
@@ -201,12 +199,14 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       end
       #----------------------------------------------------------
 
+      def load(context, options \\ %{}) do
+        __MODULE__.ServiceManagement.load(context, options)
+      end
+
       # @deprecated
       def service_health_check!(%Noizu.ElixirCore.CallingContext{} = context), do: __MODULE__.ServiceManagement.service_health_check!(context)
       def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context), do: __MODULE__.ServiceManagement.service_health_check!(health_check_options, context)
       def service_health_check!(health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options), do: __MODULE__.ServiceManagement.service_health_check!(health_check_options, context, options)
-
-
 
       #==========================================================
       #
@@ -271,9 +271,9 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
           service: pool_server(), # deprecated
 
           status_details: :pending,
-          extended: %{},
+          extended: %{load_process: nil},
           #environment_details: %EnvironmentDetails{definition: definition, effective: effective, status: :init},
-          environment_details: {:error, :nyi},
+          environment_details: %{},
           options: @option_settings
         }
       end
@@ -434,11 +434,49 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         {:reply, dummy_response, state}
       end
 
+      def handle_load(args, from, state, context) do
+        state = if async_load() do
+          load_workers_async(state, context, args)
+        else
+          load_workers(state, context, args)
+        end
+        {:reply, :ok, state}
+      end
+
+      def load_workers(state, context, _options) do
+        __MODULE__.ServiceManagement.load_complete(state, self(), context)
+      end
+
+      def load_workers_async(state, context, options) do
+        process = spawn fn ->
+          load_workers(state, context, options)
+          __MODULE__.Router.internal_cast({:load_complete, self()}, context)
+        end
+        __MODULE__.ServiceManagement.load_begin(state, process, context)
+      end
+
+      def handle_load_complete(process, state, context) do
+        state = __MODULE__.ServiceManagement.load_complete(state, process, context)
+        {:noreply, state}
+      end
+
+
+      @doc """
+      Auto load setting for pool.
+      """
+      def auto_load(), do: meta()[:auto_load]
+
+      @doc """
+      Auto load setting for pool.
+      """
+      def async_load(), do: meta()[:async_load]
+
       #------------------------------------------------------------------------
       # Infrastructure provided call router
       #------------------------------------------------------------------------
       def call_router_internal(envelope, from, state) do
         case envelope do
+          {:m, {:load, args}, context} -> handle_load(args, from, state, context)
           {:m, {:release!, args}, context} -> handle_release!(args, from, state, context)
           {:m, {:lock!, args}, context} -> handle_lock!(args, from, state, context)
           {:m, {:health_check!, args}, context} -> handle_health_check!(args, from, state, context)
@@ -446,12 +484,26 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         end
       end
 
+      def cast_router_internal(envelope, state) do
+        case envelope do
+          {:m, {:load_complete, process}, context} -> handle_load_complete(process, state, context)
+          _ -> nil
+        end
+      end
+
+
       defoverridable [
         start_link: 2,
         init: 1,
         initial_state: 2,
+        load: 2,
         terminate: 2,
 
+        load_workers: 3,
+        load_workers_async: 3,
+
+        handle_load: 4,
+        handle_load_complete: 3,
         handle_release!: 4,
         handle_lock!: 4,
         handle_health_check!: 4,

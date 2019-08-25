@@ -1,6 +1,6 @@
 #-------------------------------------------------------------------------------
 # Author: Keith Brings
-# Copyright (C) 2018 Noizu Labs, Inc. All rights reserved.
+# Copyright (C) 2019 Noizu Labs, Inc. All rights reserved.
 #-------------------------------------------------------------------------------
 
 defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
@@ -20,8 +20,8 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
     alias Noizu.ElixirCore.OptionList
     require Logger
 
-    @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
-    @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
+    @features ([:auto_load, :auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
+    @default_features ([:auto_load, :lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
 
     @default_max_seconds (1)
     @default_max_restarts (1_000_000)
@@ -135,7 +135,9 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       # start server initilization process.
       #------------------
       if server_process != :error && module.auto_load() do
-        spawn fn -> module.pool_sever().load(context, nil) end
+        spawn fn ->
+          server = module.pool_server().load(context)
+        end
       end
 
       #------------------
@@ -215,21 +217,21 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       max_restarts = module.meta()[:max_restarts]
 
       case Supervisor.start_child(sup, module.pass_through_supervisor(module.pool_worker_supervisor(), [definition, context],  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])) do
-          {:ok, pid} ->
-            {:ok, pid}
-          {:error, {:already_started, process2_id}} ->
-            Supervisor.restart_child(module, process2_id)
-          error ->
-            Logger.error(fn ->
-              {
-                """
+        {:ok, pid} ->
+          {:ok, pid}
+        {:error, {:already_started, process2_id}} ->
+          Supervisor.restart_child(module, process2_id)
+        error ->
+          Logger.error(fn ->
+            {
+              """
 
-                #{module}.start_worker_supervisor_child #{inspect module.pool_worker_supervisor()} Error
-                #{inspect error}
-                """, Noizu.ElixirCore.CallingContext.metadata(context)}
-            end)
-            :error
-        end
+              #{module}.start_worker_supervisor_child #{inspect module.pool_worker_supervisor()} Error
+              #{inspect error}
+              """, Noizu.ElixirCore.CallingContext.metadata(context)}
+          end)
+          :error
+      end
     end
 
     defp start_server_child(module, sup, definition, context) do

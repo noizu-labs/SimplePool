@@ -127,6 +127,8 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
       max_seconds = options[:max_seconds] || 1
       strategy = options[:strategy] || :one_for_one
       auto_load = Enum.member?(options[:features] || [], :auto_load)
+      async_load = Enum.member?(options[:features] || [], :async_load)
+
 
       response = %{
         verbose: :pending,
@@ -134,7 +136,9 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         max_restarts: max_restarts,
         max_seconds: max_seconds,
         strategy: strategy,
-        auto_load: auto_load
+        auto_load: auto_load,
+        async_load: async_load,
+        featuers: MapSet.new(options[:features] || [])
       }
 
       # Base vs. Inherited Specific

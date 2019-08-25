@@ -39,14 +39,27 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   @doc """
 
   """
-  def load_complete(%ServerState{} = this, _process, _context) do
+  def load_complete(pool_server, %ServerState{} = this, _process, _context) do
     this
     |> put_in([Access.key(:status), Access.key(:loading)], :complete)
     |> put_in([Access.key(:status), Access.key(:state)], :ready)
-    |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
-    |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :online)
+    #|> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
+    #|> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :online)
     |> put_in([Access.key(:extended), Access.key(:load_process)], nil)
   end
+
+  @doc """
+
+  """
+  def load_begin(pool_server, %ServerState{} = this, process, _context) do
+    this
+    |> put_in([Access.key(:status), Access.key(:loading)], :started)
+    |> put_in([Access.key(:status), Access.key(:state)], :loading)
+    #|> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :loading)
+    #|> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :loading)
+    |> put_in([Access.key(:extended), Access.key(:load_process)], process)
+  end
+
 
   @doc """
 

@@ -58,7 +58,12 @@ defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
         @doc """
 
         """
-        def load_complete(this, process, context), do: Provider.load_complete(@pool_server, process, context)
+        def load_complete(this, process, context), do: Provider.load_complete(@pool_server, this, process, context)
+
+        @doc """
+
+        """
+        def load_begin(this, process, context), do: Provider.load_begin(@pool_server, this, process, context)
 
         @doc """
 
@@ -97,6 +102,7 @@ defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
 
           load: 2,
           load_complete: 3,
+          load_begin: 3,
 
           status_wait: 3,
 
