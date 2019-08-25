@@ -188,7 +188,10 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
         {:ok, pid} ->
           {:ok, pid}
         {:error, {:already_started, process2_id}} ->
-          Supervisor.restart_child(module, process2_id)
+          case Supervisor.restart_child(sup, module.pool_registry()) do
+            {:error, :running} -> {:ok, process2_id}
+            e -> e
+          end
         error ->
           Logger.error(fn ->
             {
