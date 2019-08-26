@@ -133,7 +133,20 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
       defdelegate remote_server_system_call(elixir_node, call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :remote_system_call
       defdelegate remote_server_system_cast(elixir_node, call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :remote_system_cast
 
-      defdelegate load(worker, context, options \\ %{}), to: __MODULE__.Server
+      #==========================================================
+      # Built in Worker Convenience Methods.
+      #==========================================================
+      defdelegate fetch!(ref, request \\ :state, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate save!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate save_async!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate reload!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate reload_async!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate load!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate load_async!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate ping(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate kill!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate crash!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
+      defdelegate health_check!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
 
 
       #--------------------------
