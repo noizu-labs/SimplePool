@@ -299,9 +299,11 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       #-----------------------------
       # load!/5
       #-----------------------------
-      def load!(state, _args, _from, _context, _opts \\ nil) do
-        Logger.error("#{__MODULE__}.load! Required")
-        {:reply, :nyi, state}
+      def load!(state, _args, _from, context, opts \\ nil) do
+        worker_state_entity = __MODULE__.pool_worker_state_entity()
+        inner_state = worker_state_entity.load(state.worker_ref, context, opts)
+        state = %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, initialized: inner_state && true || false}
+        {:reply, inner_state, state}
       end
 
       #-----------------------------
