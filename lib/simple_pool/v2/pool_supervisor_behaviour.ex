@@ -136,7 +136,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       #------------------
       if server_process != :error && module.auto_load() do
         spawn fn ->
-          server = module.pool_server().load(context)
+          server = module.pool_server().load_pool(context)
         end
       end
 

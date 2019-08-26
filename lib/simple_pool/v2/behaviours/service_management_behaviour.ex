@@ -48,12 +48,12 @@ defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
         @doc """
 
         """
-        def status(context \\ nil), do: Provider.status(@pool_server, context)
+        def status(args \\ {}, context \\ nil), do: Provider.status(@pool_server, args, context)
 
         @doc """
 
         """
-        def load(context \\ nil, options \\ nil), do: Provider.load(@pool_server, context, options)
+        def load_pool(args \\ {}, context \\ nil, options \\ nil), do: Provider.load_pool(@pool_server, args, context, options)
 
         @doc """
 
@@ -78,7 +78,7 @@ defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
         @doc """
 
         """
-        def server_kill!(context \\ nil, options \\ %{}), do: Provider.server_kill!(@pool_server, context, options)
+        def server_kill!(args \\ {}, context \\ nil, options \\ %{}), do: Provider.server_kill!(@pool_server, args, context, options)
 
         @doc """
 
@@ -100,7 +100,7 @@ defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
 
           status: 1,
 
-          load: 2,
+          load_pool: 2,
           load_complete: 3,
           load_begin: 3,
 

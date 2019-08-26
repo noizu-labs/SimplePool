@@ -29,12 +29,12 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   @doc """
 
   """
-  def status(pool_server, context \\ nil), do: pool_server.router().internal_call(:status, context)
+  def status(pool_server, args \\ {}, context \\ nil), do: pool_server.router().internal_call({:status, args}, context)
 
   @doc """
 
   """
-  def load(pool_server, context \\ nil, options \\ nil), do: pool_server.router().internal_system_call({:load, options}, context)
+  def load_pool(pool_server, args \\ {}, context \\ nil, options \\ nil), do: pool_server.router().internal_system_call({:load_pool, args, options}, context)
 
   @doc """
 
@@ -109,7 +109,7 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   """
   def entity_status(pool_server, context, options \\ %{}) do
     try do
-      pool_server.router().internal_system_call({:status, options}, context, options)
+      pool_server.router().internal_system_call({:status, {}, options}, context, options)
     catch
       :rescue, e ->
         case e do
@@ -128,21 +128,21 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   @doc """
 
   """
-  def server_kill!(pool_server, context \\ nil, options \\ %{}), do: pool_server.router().internal_cast({:server_kill!, options}, context, options)
+  def server_kill!(pool_server, args \\ {}, context \\ nil, options \\ %{}), do: pool_server.router().internal_cast({:server_kill!, args, options}, context, options)
 
   @doc """
 
   """
   def service_health_check!(pool_server, %Noizu.ElixirCore.CallingContext{} = context) do
-    pool_server.router().internal_system_call({:health_check!, %{}}, context)
+    pool_server.router().internal_system_call({:health_check!, {}, %{}}, context)
   end
 
   def service_health_check!(pool_server, health_check_options, %Noizu.ElixirCore.CallingContext{} = context) do
-    pool_server.router().internal_system_call({:health_check!, health_check_options}, context)
+    pool_server.router().internal_system_call({:health_check!, health_check_options, %{}}, context)
   end
 
   def service_health_check!(pool_server, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options) do
-    pool_server.router().internal_system_call({:health_check!, health_check_options}, context, options)
+    pool_server.router().internal_system_call({:health_check!, health_check_options, options}, context, options)
   end
 
 

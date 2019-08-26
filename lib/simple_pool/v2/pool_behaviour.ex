@@ -133,7 +133,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
       defdelegate remote_server_system_call(elixir_node, call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :remote_system_call
       defdelegate remote_server_system_cast(elixir_node, call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :remote_system_cast
 
-
+      defdelegate load(worker, context, options \\ %{}), to: __MODULE__.Server
 
 
       #--------------------------

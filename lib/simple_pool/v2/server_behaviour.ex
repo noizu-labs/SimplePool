@@ -20,6 +20,8 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
   @callback fetch(any, any, any, any) :: any
   @callback save!(any, any, any) :: any
   @callback save_async!(any, any, any) :: any
+  @callback load!(any, any, any) :: any
+  @callback load_async!(any, any, any) :: any
   @callback reload!(any, any, any) :: any
   @callback reload_async!(any, any, any) :: any
   @callback ping!(any, any, any) :: any
@@ -199,8 +201,8 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       end
       #----------------------------------------------------------
 
-      def load(context, options \\ %{}) do
-        __MODULE__.ServiceManagement.load(context, options)
+      def load_pool(context, options \\ %{}) do
+        __MODULE__.ServiceManagement.load_pool(context, options)
       end
 
       # @deprecated
@@ -295,81 +297,94 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       @doc """
       Request information about a worker.
       """
-      def fetch(ref, request \\ :state, context \\ nil, options \\ %{}) do
+      def fetch!(ref, request \\ :state, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_call!(ref, {:fetch, request}, context, options)
+        __MODULE__.Router.s_call!(ref, {:fetch!, {request}, options}, context, options)
       end
 
       @doc """
       Tell a worker to save its state.
       """
-      def save!(identifier, context \\ nil, options \\ %{}) do
+      def save!(ref, args \\ {}, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_call!(identifier, :save!, context, options)
+        __MODULE__.Router.s_call!(ref, {:save!, args, options}, context, options)
       end
 
       @doc """
       Tell a worker to save its state, do not wait for response.
       """
-      def save_async!(identifier, context \\ nil, options \\ %{}) do
+      def save_async!(ref, args \\ {}, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_cast!(identifier, :save!, context, options)
+        __MODULE__.Router.s_cast!(ref, {:save!, args, options}, context, options)
       end
 
       @doc """
       Tell a worker to reload its state.
       """
-      def reload!(identifier, context \\ nil, options \\ %{}) do
+      def reload!(ref, args \\ {}, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_call!(identifier, {:reload!, options}, context, options)
+        __MODULE__.Router.s_call!(ref, {:reload!, args, options}, context, options)
       end
 
       @doc """
       Tell a worker to reload its state, do not wait for a response.
       """
-      def reload_async!(identifier, context \\ nil, options \\ %{}) do
+      def reload_async!(ref, args \\ {}, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_cast!(identifier, {:reload!, options}, context, options)
+        __MODULE__.Router.s_cast!(ref, {:reload!, args, options}, context, options)
+      end
+
+      @doc """
+      Start a new worker
+      """
+      def load!(ref, args \\ {}, context \\ nil, options \\ %{}) do
+        context = Noizu.ElixirCore.CallingContext.system(context)
+        __MODULE__.Router.s_call!(ref, {:load!, args, options}, context, options)
+      end
+
+      @doc """
+      Start a new worker (async)
+      """
+      def load_async!(ref, args \\ {}, context \\ nil, options \\ %{}) do
+        context = Noizu.ElixirCore.CallingContext.system(context)
+        __MODULE__.Router.s_cast!(ref, {:load!, args, options}, context, options)
       end
 
       @doc """
       Ping worker.
       """
-      def ping!(identifier, context \\ nil, options \\ %{}) do
+      def ping(ref, args \\ {}, context \\ nil, options \\ %{}) do
         timeout = options[:timeout] || @timeout
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_call(identifier, :ping!, context, options, timeout)
+        __MODULE__.Router.s_call(ref, {:ping, args, options}, context, options, timeout)
       end
 
       @doc """
       Send worker a kill request.
       """
-      def kill!(identifier, context \\ nil, options \\ %{}) do
+      def kill!(ref, args \\ {}, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_cast!(identifier, :kill!, context, options)
+        __MODULE__.Router.s_cast!(ref, {:kill!, args, options}, context, options)
       end
 
       @doc """
       Send a worker a crash (throw error) request.
       """
-      def crash!(identifier, context \\ nil, options \\ %{}) do
+      def crash!(ref, args \\ {}, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_cast!(identifier, :crash!, context, options)
+        __MODULE__.Router.s_cast!(ref, {:crash!, args, options}, context, options)
       end
 
       @doc """
       Request a health report from worker.
       """
-      def health_check!(identifier, %Noizu.ElixirCore.CallingContext{} = context) do
-        __MODULE__.Router.s_call!(identifier, {:health_check!, %{}}, context)
-      end
-      def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context) do
-        __MODULE__.Router.s_call!(identifier, {:health_check!, health_check_options}, context)
-      end
-      def health_check!(identifier, health_check_options, %Noizu.ElixirCore.CallingContext{} = context, options) do
-        __MODULE__.Router.s_call!(identifier, {:health_check!, health_check_options}, context, options)
+      def health_check!(ref, args \\ {}, context \\ nil, options \\ %{}) do
+        __MODULE__.Router.s_call!(ref, {:health_check!, args, options}, context, options)
       end
 
+      #-----------------------------------------------------------------------------------------------------------------
+      #
+      #-----------------------------------------------------------------------------------------------------------------
 
       def worker_sup_start(ref, context) do
         Logger.warn("[V2] Server.worker_sup_start is deprecated")
@@ -388,23 +403,31 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
 
 
       #-----------------------------------------------------------------------------------------------------------------
-      # perform
+      # Internal Call Handlers
       #-----------------------------------------------------------------------------------------------------------------
-      def handle_release!(_args, _from, state, _context) do
+      def handle_status(state, _args, _from, _context, _options \\ nil) do
+        {:reply, %{status: state.status_details, environment: state.environment_details}, state}
+      end
+
+      def handle_server_kill!(state, _args, _from, context, _options \\ nil) do
+        {:stop, {:user_requested, context}, state}
+      end
+
+      def handle_release!(state, _args, _from, _context, _options \\ nil) do
         state = state
                 |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :active)
                 |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
         {:reply, {:ack, state.environment_details.effective}, state}
       end
 
-      def handle_lock!(_args, _from, state, _context) do
+      def handle_lock!(state, _args, _from, _context, _options \\ nil) do
         state = state
                 |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:directive)], :maintenance)
                 |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :locked)
         {:reply, {:ack, state.environment_details.effective}, state}
       end
 
-      def handle_health_check!(_args, _from, state, context) do
+      def handle_health_check!(state, _args, _from, _context, _options \\ nil) do
         dummy_response = %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{
           identifier: {node(), pool()},
           process: self(),
@@ -434,32 +457,40 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         {:reply, dummy_response, state}
       end
 
-      def handle_load(args, from, state, context) do
+      def handle_load_pool(state, args, from, context, options \\ nil) do
         state = if async_load() do
-          load_workers_async(state, context, args)
+          load_pool_workers_async(state, args, from, context, options)
         else
-          load_workers(state, context, args)
+          load_pool_workers(state, args, from, context, options)
         end
         {:reply, :ok, state}
       end
 
-      def load_workers(state, context, _options) do
+      def handle_load_complete(state, {process}, from, context, options \\ nil) do
+        state = __MODULE__.ServiceManagement.load_complete(state, process, context)
+        {:noreply, state}
+      end
+
+      #-----------------------------------------------------------------------------------------------------------------
+      # Internal Scaffolding
+      #-----------------------------------------------------------------------------------------------------------------
+
+      def load_pool_workers(state, _args, _from, context, _options) do
         __MODULE__.ServiceManagement.load_complete(state, self(), context)
       end
 
-      def load_workers_async(state, context, options) do
+      def load_pool_workers_async(state, args, from, context, options) do
         process = spawn fn ->
-          load_workers(state, context, options)
+          load_pool_workers(state, args, from, context, options)
           __MODULE__.Router.internal_cast({:load_complete, self()}, context)
         end
         __MODULE__.ServiceManagement.load_begin(state, process, context)
       end
 
-      def handle_load_complete(process, state, context) do
-        state = __MODULE__.ServiceManagement.load_complete(state, process, context)
-        {:noreply, state}
-      end
 
+      #------------------------------------------------------------------------
+      # Runtime Setting Getters
+      #------------------------------------------------------------------------
 
       @doc """
       Auto load setting for pool.
@@ -476,18 +507,34 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       #------------------------------------------------------------------------
       def call_router_internal(envelope, from, state) do
         case envelope do
-          {:m, {:load, args}, context} -> handle_load(args, from, state, context)
-          {:m, {:release!, args}, context} -> handle_release!(args, from, state, context)
-          {:m, {:lock!, args}, context} -> handle_lock!(args, from, state, context)
-          {:m, {:health_check!, args}, context} -> handle_health_check!(args, from, state, context)
+          {:i, {:status, args}, context} -> handle_status(state, args, from, context)
+          {:i, {:status, args, options}, context} -> handle_status(state, args, from, context, options)
+
+          {:m, {:load_pool, args}, context} -> handle_load_pool(state, args, from, context)
+          {:m, {:load_pool, args, opts}, context} -> handle_load_pool(state, args, from, context, opts)
+
+          {:m, {:release!, args}, context} -> handle_release!(state, args, from, context)
+          {:m, {:release!, args, opts}, context} -> handle_release!(state, args, from, context, opts)
+
+          {:m, {:lock!, args}, context} -> handle_lock!(state, args, from, context)
+          {:m, {:lock!, args, opts}, context} -> handle_lock!(state, args, from, context, opts)
+
+          {:m, {:health_check!, args}, context} -> handle_health_check!(state, args, from, context)
+          {:m, {:health_check!, args, opts}, context} -> handle_health_check!(state, args, from, context, opts)
           _ -> nil
         end
       end
 
       def cast_router_internal(envelope, state) do
         case envelope do
-          {:m, {:load_complete, process}, context} -> handle_load_complete(process, state, context)
-          _ -> nil
+          {:i, {:server_kill!, args}, context} -> handle_server_kill!(state, args, :cast, context) |> as_cast()
+          {:i, {:server_kill!, args, options}, context} -> handle_server_kill!(state, args, :cast, context, options) |> as_cast()
+
+          {:m, {:load_complete, args}, context} -> handle_load_complete(state, args, :cast, context) |> as_cast()
+          {:m, {:load_complete, args, opts}, context} -> handle_load_complete(state, args, :cast, context, opts) |> as_cast()
+          _ ->
+            r = call_router_internal(envelope, :cast, state)
+            r && as_cast(r)
         end
       end
 
@@ -496,29 +543,32 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         start_link: 2,
         init: 1,
         initial_state: 2,
-        load: 2,
         terminate: 2,
 
-        load_workers: 3,
-        load_workers_async: 3,
+        load_pool: 2,
+        load_pool_workers: 5,
+        load_pool_workers_async: 5,
 
-        handle_load: 4,
-        handle_load_complete: 3,
-        handle_release!: 4,
-        handle_lock!: 4,
-        handle_health_check!: 4,
+        handle_status: 5,
+        handle_server_kill!: 5,
+        handle_load_pool: 5,
+        handle_load_complete: 5,
+        handle_release!: 5,
+        handle_lock!: 5,
+        handle_health_check!: 5,
         call_router_internal: 3,
+        cast_router_internal: 2,
 
-        fetch: 4,
-        save!: 3,
-        save_async!: 3,
-        reload!: 3,
-        reload_async!: 3,
-        ping!: 3,
-        kill!: 3,
-        crash!: 3,
-        health_check!: 2,
-        health_check!: 3,
+        fetch!: 4,
+        save!: 4,
+        save_async!: 4,
+        reload!: 4,
+        reload_async!: 4,
+        load!: 4,
+        load_async!: 4,
+        ping: 4,
+        kill!: 4,
+        crash!: 4,
         health_check!: 4,
       ]
 
