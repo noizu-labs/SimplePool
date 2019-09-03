@@ -346,10 +346,10 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
 
 
       #-----------------------------
-      # activity_check/5
+      # inactivity_check/5
       #-----------------------------
-      def activity_check(state, _args, :info, _context, _opts \\ nil) do
-        Logger.error("#{__MODULE__}.activity_check! NYI")
+      def inactivity_check(state, _args, _from, _context, _opts \\ nil) do
+        Logger.error("#{__MODULE__}.inactivity_check! NYI")
         {:noreply, state}
       end
 
@@ -409,8 +409,8 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
 
       def info_router_internal(envelope, state) do
         case envelope do
-          {:i, {:activity_check, args}, context} -> activity_check(state, args, :info, context) |> as_cast()
-          {:i, {:activity_check, args, opts}, context} -> activity_check(state, args, :info, context, opts) |> as_cast()
+          {:i, {:inactivity_check, args}, context} -> inactivity_check(state, args, :info, context) |> as_cast()
+          {:i, {:inactivity_check, args, opts}, context} -> inactivity_check(state, args, :info, context, opts) |> as_cast()
           _ -> nil
         end
       end
@@ -454,7 +454,7 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
         health_check!: 5,
         kill!: 5,
         crash!: 5,
-        activity_check: 5,
+        inactivity_check: 5,
 
         # Routing for Infrastructure Provided Worker Methods
         call_router_internal: 3,

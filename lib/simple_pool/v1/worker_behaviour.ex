@@ -9,7 +9,7 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
   alias Noizu.ElixirCore.OptionList
   require Logger
 
-  @methods ([:verbose, :options, :option_settings, :start_link, :terminate, :init, :schedule_migrate_shutdown, :clear_migrate_shutdown, :schedule_inactivity_check, :clear_inactivity_check, :save!, :fetch, :reload!, :delayed_init])
+  @methods ([:verbose, :options, :option_settings, :start_link, :terminate, :init, :schedule_migrate_shutdown, :clear_migrate_shutdown, :schedule_inactivity_check, :clear_inactivity_check, :inactivity_check, :save!, :fetch, :reload!, :delayed_init])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
 
@@ -181,20 +181,25 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       # Inactivity Check Handling Feature Section
       #-------------------------------------------------------------------------
 
-      if (unquote(required.schedule_inactivity_check)) do
+      #if (unquote(required.schedule_inactivity_check)) do
         def schedule_inactivity_check(context, state) do
           Noizu.SimplePool.WorkerBehaviourDefault.schedule_inactivity_check(@check_interval_ms, context, state)
         end
-      end
-      if (unquote(required.clear_inactivity_check)) do
+      #end
+      #if (unquote(required.clear_inactivity_check)) do
         def clear_inactivity_check(state) do
           Noizu.SimplePool.WorkerBehaviourDefault.clear_inactivity_check(state)
         end
-      end
+      #end
 
       def handle_info({:i, {:activity_check, ref}, context} = call, %Noizu.SimplePool.Worker.State{initialized: _i} = state) do
-        Noizu.SimplePool.WorkerBehaviourDefault.handle_activity_check(__MODULE__, @server, @worker_state_entity, @kill_interval_s, call, state)
+        #Noizu.SimplePool.WorkerBehaviourDefault.handle_activity_check(__MODULE__, @server, @worker_state_entity, @kill_interval_s, call, state)
+        inactivity_check(call, state)
       end # end handle_info/:activity_check
+
+      def inactivity_check(call, state) do
+         Noizu.SimplePool.WorkerBehaviourDefault.handle_activity_check(__MODULE__, @server, @worker_state_entity, @kill_interval_s, call, state)
+      end
 
       #-------------------------------------------------------------------------
       # Special Section for handlers that require full context
@@ -303,6 +308,18 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
           Noizu.SimplePool.WorkerBehaviourDefault.handle_call_forwarding(@worker_state_entity, @inactivity_check, call, from, state)
         end
       end # end call forwarding feature section
+
+
+      #===============================================================================================================
+      # Overridable (Note hybrid mode is used here as legacy remains in a deprecated state pending total migration to SimplePool V2
+      #===============================================================================================================
+      defoverridable [
+        schedule_inactivity_check: 2,
+        clear_inactivity_check: 1,
+        inactivity_check: 2,
+      ]
+
+
       @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__

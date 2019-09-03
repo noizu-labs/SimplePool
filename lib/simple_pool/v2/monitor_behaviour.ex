@@ -95,6 +95,20 @@ defmodule Noizu.SimplePool.V2.MonitorBehaviour do
 
       def lock!(context, opts \\ %{}), do: :wip
       def release!(context, opts \\ %{}), do: :wip
+
+
+      #===============================================================================================================
+      # Overridable
+      #===============================================================================================================
+      defoverridable [
+        start_link: 3,
+        init: 1,
+        terminate: 2,
+        health_check: 2,
+        record_service_event!: 4,
+        lock!: 2,
+        release!: 2
+      ]
     end
   end
 

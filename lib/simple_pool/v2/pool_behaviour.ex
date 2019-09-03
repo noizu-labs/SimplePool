@@ -28,7 +28,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
     @features ([:auto_load, :auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
     @default_features ([:auto_load, :lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection, :migrate_shutdown])
 
-    @modules ([:worker, :server, :worker_supervisor, :pool_supervisor, :monitor])
+    @modules ([:worker, :server, :worker_supervisor, :pool_supervisor, :monitor, :record_keeper])
     @default_modules ([])
 
     @default_worker_options ([])
@@ -36,6 +36,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
     @default_worker_supervisor_options ([])
     @default_pool_supervisor_options ([])
     @default_monitor_options ([])
+    @default_record_keeper_options ([])
     @default_registry_options ([partitions: 256, keys: :unique])
 
     #---------
@@ -52,6 +53,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
           #dispatch_monitor_table: %OptionValue{option: :dispatch_monitor_table, default: :auto},
           registry_options: %OptionValue{option: :registry_options, default: Application.get_env(:noizu_simple_pool, :default_registry_options, @default_registry_options)},
 
+          record_keeper_options: %OptionValue{option: :record_keeper_options, default: Application.get_env(:noizu_simple_pool, :default_record_keeper_options, @default_record_keeper_options)},
           monitor_options: %OptionValue{option: :monitor_options, default: Application.get_env(:noizu_simple_pool, :default_monitor_options, @default_monitor_options)},
           worker_options: %OptionValue{option: :worker_options, default: Application.get_env(:noizu_simple_pool, :default_worker_options, @default_worker_options)},
           server_options: %OptionValue{option: :server_options, default: Application.get_env(:noizu_simple_pool, :default_server_options, @default_server_options)},
@@ -210,6 +212,12 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
       if (unquote(default_modules.monitor)) do
         defmodule Monitor do
           use Noizu.SimplePool.V2.MonitorBehaviour, unquote(options.monitor_options)
+        end
+      end
+
+      if (unquote(default_modules.record_keeper)) do
+        defmodule RecordKeeper do
+          use Noizu.SimplePool.V2.RecordKeeperBehaviour, unquote(options.record_keeper_options)
         end
       end
 
