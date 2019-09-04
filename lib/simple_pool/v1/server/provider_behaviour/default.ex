@@ -33,13 +33,14 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
         }
 
       server.record_service_event!(:start, %{definition: definition, options: options}, context, %{})
+      server.enable_server!()
       {:ok, state}
     end
 
     def terminate(server, reason, %State{} = this, context, options) do
       server.record_service_event!(:terminate, %{reason: reason}, context, options)
       Logger.warn( fn -> server.base().banner("Terminate #{inspect this, pretty: true}\nReason: #{inspect reason}") end)
-      #this.server.disable_server!(node())
+      server.disable_server!()
       :ok
     end
 

@@ -17,14 +17,14 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
 
   require Logger
 
-  @callback fetch(any, any, any, any) :: any
+  @callback fetch!(any, any, any, any) :: any
   @callback save!(any, any, any) :: any
   @callback save_async!(any, any, any) :: any
   @callback load!(any, any, any) :: any
   @callback load_async!(any, any, any) :: any
   @callback reload!(any, any, any) :: any
   @callback reload_async!(any, any, any) :: any
-  @callback ping!(any, any, any) :: any
+  @callback ping(any, any, any) :: any
   @callback kill!(any, any, any) :: any
   @callback crash!(any, any, any) :: any
   @callback health_check!(any, any) :: any

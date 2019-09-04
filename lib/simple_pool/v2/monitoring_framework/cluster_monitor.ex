@@ -4,8 +4,8 @@
 #-------------------------------------------------------------------------------
 defmodule Noizu.SimplePool.V2.MonitoringFramework.ClusterMonitor do
   @behaviour Noizu.SimplePool.V2.MonitoringFramework.ClusterMonitorBehaviour
-  alias Noizu.ElixirCore.CallingContext
-  alias Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration
+  #alias Noizu.ElixirCore.CallingContext
+  #alias Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration
   use Noizu.SimplePool.V2.StandAloneServiceBehaviour,
       default_modules: [:pool_supervisor, :monitor],
       worker_state_entity: nil,
@@ -30,7 +30,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ClusterMonitor do
         server_monitor: Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
     require Logger
 
-    def initial_state(args, context) do
+    def initial_state(_args, _context) do
       # @todo attempt to load configuration from persistence store
       %State{
         pool: pool(),
@@ -42,17 +42,17 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ClusterMonitor do
       }
     end
 
-    def rebalance(source_servers, target_servers, services, context, opts), do: :wip
-    def offload(servers, services, context, opts), do: :wip
-    def lock_services(servers, services, context, opts), do: :wip
-    def release_services(servers, services, context, opts), do: :wip
-    def select_host(ref, service, context, opts), do: :wip
+    def rebalance(_source_servers, _target_servers, _services, _context, _opts), do: :wip
+    def offload(_servers, _services, _context, _opts), do: :wip
+    def lock_services(_servers, _services, _context, _opts), do: :wip
+    def release_services(_servers, _services, _context, _opts), do: :wip
+    def select_host(_ref, _service, _context, _opts), do: :wip
 
-    def health_check(context, opts), do: :wip
+    def health_check(_context, _opts), do: :wip
 
 
-    def record_cluster_event!(event, details, context, opts) do
-      Logger.info("TODO - write to ClusterEventTable #{inspect event}")
+    def record_cluster_event!(event, _details, _context, _opts) do
+      Logger.info(fn -> "TODO - write to ClusterEventTable #{inspect event}" end)
     end
 
   end # end defmodule Server

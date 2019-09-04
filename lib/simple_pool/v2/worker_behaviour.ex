@@ -48,8 +48,8 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
     def init(pool_worker, {:migrate, ref, initial_state, context}) do
 
       wm = pool_worker.pool_server().worker_management()
-      server = pool_worker.pool_server()
-      base = pool_worker.pool()
+      #server = pool_worker.pool_server()
+      #base = pool_worker.pool()
 
 
       br = :os.system_time(:millisecond)
@@ -70,8 +70,8 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
 
     def init(pool_worker, {ref, context}) do
       wm = pool_worker.pool_server().worker_management()
-      server = pool_worker.pool_server()
-      base = pool_worker.pool()
+      #server = pool_worker.pool_server()
+      #base = pool_worker.pool()
 
       br = :os.system_time(:millisecond)
       wm.register!(ref, context)
@@ -97,8 +97,8 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
 
       worker_state_entity = pool_worker.pool_worker_state_entity()
       mod = pool_worker
-      wm = pool_worker.pool_server().worker_management()
-      server = pool_worker.pool_server()
+      #wm = pool_worker.pool_server().worker_management()
+      #server = pool_worker.pool_server()
       base = pool_worker.pool()
 
       ref = state.worker_ref
@@ -163,7 +163,19 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       end
     end
 
+    def schedule_inactivity_check(check_interval_ms, context, state) do
+      {:ok, t_ref} = :timer.send_after(check_interval_ms, self(), {:i, {:activity_check, state.worker_ref}, context})
+      put_in(state, [Access.key(:extended), :t_ref], t_ref)
+    end
 
+    def clear_inactivity_check(state) do
+      case Map.get(state.extended, :t_ref) do
+        nil -> state
+        t_ref ->
+          :timer.cancel(t_ref)
+          put_in(state, [Access.key(:extended), :t_ref], nil)
+      end
+    end
 
     def schedule_migrate_shutdown(migrate_shutdown_interval_ms, context, state) do
       {:ok, mt_ref} = :timer.send_after(migrate_shutdown_interval_ms, self(), {:i, {:migrate_shutdown, state.worker_ref}, context})

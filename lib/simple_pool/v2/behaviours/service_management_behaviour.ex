@@ -10,8 +10,9 @@ defmodule Noizu.SimplePool.V2.ServiceManagementBehaviour do
   @callback enable_server!(any) :: any
   @callback disable_server!(any) :: any
   @callback status(any) :: any
-  @callback load(any, any) :: any
+  @callback load_pool(any, any) :: any
   @callback load_complete(any, any, any) :: any
+  @callback load_begin(any, any, any) :: any
   @callback status_wait(any, any, any) :: any
   @callback entity_status(any, any) :: any
   @callback server_kill!(any, any) :: any

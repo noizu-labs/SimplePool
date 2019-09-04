@@ -102,6 +102,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @worker_supervisors Enum.map(1..@max_supervisors, fn(x) -> {x, Module.concat([@base, "WorkerSupervisor_S#{x}"])} end) |> Map.new()
 
       @server (__MODULE__)
+      @active_key Module.concat(Enabled, @server)
       @pool_supervisor (Module.concat([@base, "PoolSupervisor"]))
       @pool_async_load (unquote(Map.get(options, :async_load, false)))
       @simple_pool_group ({@base, @worker, @worker_supervisor, __MODULE__, @pool_supervisor})
@@ -284,20 +285,16 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         def terminate(reason, state), do: @server_provider.terminate(__MODULE__, reason, state, nil, %{})
       end # end terminate
 
-      if (unquote(required.enable_server!)) do
-        def enable_server!(elixir_node) do
-          #@TODO reimplement pri1
-          #@server_monitor.enable_server!(@base, elixir_node)
-          :pending
-        end
+      def enable_server!(elixir_node \\ nil) do
+        Noizu.SimplePool.ServerBehaviourDefault.enable_server!(__MODULE__, @active_key, elixir_node)
       end
 
-      if (unquote(required.disable_server!)) do
-        def disable_server!(elixir_node) do
-          #@TODO reimplement pri1
-          #@server_monitor.disable_server!(@base, elixir_node)
-          :pending
-        end
+      def server_online?(elixir_node \\ nil) do
+        Noizu.SimplePool.ServerBehaviourDefault.server_online?(__MODULE__, @active_key, elixir_node)
+      end
+
+      def disable_server!(elixir_node \\ nil) do
+        Noizu.SimplePool.ServerBehaviourDefault.disable_server!(__MODULE__, @active_key, elixir_node)
       end
 
       if (unquote(required.worker_sup_start)) do
@@ -959,13 +956,23 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       end # end if required link_forward!
 
 
-      if unquote(required.record_service_event!) do
-        def record_service_event!(event, details, context, options) do
-          @server_monitor.record_service_event!(node(), @base, event, details, context, options)
-        end
+
+      def record_service_event!(event, details, context, options \\ %{}) do
+        @server_monitor.record_service_event!(node(), @base, event, details, context, options)
       end
 
       def handle_info({:compile_warning_supress, call, context}, state), do: @server_provider.internal_info_handler(call, context, state)
+
+      #===============================================================================================================
+      # Overridable (Note hybrid mode is used here as legacy remains in a deprecated state pending total migration to SimplePool V2
+      #===============================================================================================================
+      defoverridable [
+        record_service_event!: 4,
+        enable_server!: 1,
+        server_online?: 1,
+        disable_server!: 1,
+      ]
+
       @before_compile unquote(__MODULE__)
     end # end quote
   end #end __using__

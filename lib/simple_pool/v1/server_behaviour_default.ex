@@ -7,6 +7,47 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
   alias Noizu.SimplePool.Worker.Link
   require Logger
 
+  def enable_server!(mod, active_key, elixir_node \\ nil) do
+    cond do
+      elixir_node == nil || elixir_node == node() ->
+        if Semaphore.acquire({:fg_write_record, active_key}, 5) do
+          FastGlobal.put(active_key, true)
+        else
+          {:error, :lock}
+        end
+      true -> :rpc.call(elixir_node, mod, :enable_server!, [])
+    end
+  end
+
+  def server_online?(mod, active_key, elixir_node \\ nil) do
+    cond do
+      elixir_node == nil || elixir_node == node() ->
+        case FastGlobal.get(active_key, :no_match) do
+          :no_match ->
+            if Semaphore.acquire({:fg_write_record, active_key}, 5) do
+              FastGlobal.put(active_key, false)
+            else
+              false
+            end
+          v -> v
+        end
+      true -> :rpc.call(elixir_node, mod, :server_online?, [])
+    end
+  end
+
+  def disable_server!(mod, active_key, elixir_node \\ nil) do
+    cond do
+      elixir_node == nil || elixir_node == node() ->
+        if Semaphore.acquire({:fg_write_record, active_key}, 5) do
+          FastGlobal.put(active_key, false)
+        else
+          {:error, :lock}
+        end
+      true -> :rpc.call(elixir_node, mod, :disable_server!, [])
+    end
+  end
+
+
   def verbose(verbose, base) do
     if verbose == :auto do
       if Application.get_env(:noizu_simple_pool, base, %{})[:PoolSupervisor][:verbose] do
@@ -140,36 +181,41 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
 
   def crash_protection_rs_call!({mod, base, worker_lookup_handler, s_redirect_feature, log_timeout}, identifier, call, context, options, timeout) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_call!, {mod, identifier, timeout}, {:s, call, context}}, else: {:s, call, context}
-    try do
-      mod.s_call_unsafe(identifier, extended_call, context, options, timeout)
-    catch
-      :exit, e ->
-        case e do
-          {:timeout, c} ->
-            try do
-              if log_timeout do
-                worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
-              else
-                Logger.warn fn -> base.banner("#{mod}.s_call! - timeout.\n call: #{inspect extended_call}") end
-              end
-              {:error, {:timeout, c}}
-            catch
-              :exit, e ->  {:error, {:exit, e}}
-            end # end inner try
-          o  ->
-            try do
-              if log_timeout do
-                worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
-              else
-                Logger.warn fn -> base.banner("#{mod}.s_call! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}") end
-              end
-              {:error, {:exit, o}}
-            catch
-              :exit, e ->
-                {:error, {:exit, e}}
-            end # end inner try
-        end
-    end # end try
+
+    if mod.server_online?() do
+      try do
+        mod.s_call_unsafe(identifier, extended_call, context, options, timeout)
+      catch
+        :exit, e ->
+          case e do
+            {:timeout, c} ->
+              try do
+                if log_timeout do
+                  worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
+                else
+                  Logger.warn fn -> base.banner("#{mod}.s_call! - timeout.\n call: #{inspect extended_call}") end
+                end
+                {:error, {:timeout, c}}
+              catch
+                :exit, e ->  {:error, {:exit, e}}
+              end # end inner try
+            o  ->
+              try do
+                if log_timeout do
+                  worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+                else
+                  Logger.warn fn -> base.banner("#{mod}.s_call! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}") end
+                end
+                {:error, {:exit, o}}
+              catch
+                :exit, e ->
+                  {:error, {:exit, e}}
+              end # end inner try
+          end
+      end # end try
+    else
+      {:error, {:service, :offline}}
+    end
   end
 
   @doc """
@@ -190,38 +236,41 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
 
   def crash_protection_rs_cast!({mod, base, worker_lookup_handler, s_redirect_feature, log_timeout}, identifier, call, context, options) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast!, {mod, identifier}, {:s, call, context}}, else: {:s, call, context}
-    try do
-      mod.s_cast_unsafe(identifier, extended_call, context, options)
-    catch
-      :exit, e ->
-        case e do
-          {:timeout, c} ->
-            try do
-              if log_timeout do
-                worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
-              else
-                Logger.warn fn -> base.banner("#{mod}.s_cast! - timeout.\n call: #{inspect extended_call}") end
+    if mod.server_online?() do
+      try do
+        mod.s_cast_unsafe(identifier, extended_call, context, options)
+      catch
+        :exit, e ->
+          case e do
+            {:timeout, c} ->
+              try do
+                if log_timeout do
+                  worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+                else
+                  Logger.warn fn -> base.banner("#{mod}.s_cast! - timeout.\n call: #{inspect extended_call}") end
+                end
+                {:error, {:timeout, c}}
+              catch
+                :exit, e ->  {:error, {:exit, e}}
+              end # end inner try
+            o  ->
+              try do
+                if log_timeout do
+                  worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+                else
+                  Logger.warn fn -> base.banner("#{mod}.s_cast! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}") end
+                end
 
-              end
-              {:error, {:timeout, c}}
-            catch
-              :exit, e ->  {:error, {:exit, e}}
-            end # end inner try
-          o  ->
-            try do
-              if log_timeout do
-                worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
-              else
-                Logger.warn fn -> base.banner("#{mod}.s_cast! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}") end
-              end
-
-              {:error, {:exit, o}}
-            catch
-              :exit, e ->
-                {:error, {:exit, e}}
-            end # end inner try
-        end
-    end # end try
+                {:error, {:exit, o}}
+              catch
+                :exit, e ->
+                  {:error, {:exit, e}}
+              end # end inner try
+          end
+      end # end try
+    else
+      {:error, {:service, :offline}}
+    end
   end
 
   @doc """

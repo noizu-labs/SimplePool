@@ -51,7 +51,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
   #-----------------------------------
   #
   #-----------------------------------
-  def status_wait(target, %CallingContext{} = context, opts \\ %{}) do
+  def status_wait(_target, %CallingContext{} = _context, _opts \\ %{}) do
     # @TODO implement
     Logger.error("#{__MODULE__}.status_wait NYI")
     :online
@@ -78,7 +78,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
         server_monitor: Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
     require Logger
 
-    def initial_state(args, context) do
+    def initial_state(args, _context) do
       # @todo attempt to load configuration from persistence store
       configuration_id = args.definition || {:default, node()}
 
@@ -106,9 +106,9 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
       }
     end
 
-    def reconfigure(state, config, context, opts) do
+    def reconfigure(state, config, _context, _opts) do
       # TODO - compare new configuration to existing configuration, update agent and service entries as appropriate.
-      new_service_state = Enum.map(config.services, fn({k,v}) ->
+      new_service_state = Enum.map(config.services, fn({_k,v}) ->
         {v.pool, %Noizu.SimplePool.V2.MonitoringFramework.ServiceState{pool: v.pool}}
       end) |> Map.new()
       state = state
@@ -117,7 +117,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
       {:reply, state.entity, state}
     end
 
-    def bring_services_online(state, context, opts) do
+    def bring_services_online(state, context, _opts) do
       # @TODO async spawn, check existing state, setup service monitors that inform us if services fail.
       # @TODO start services from PoolSupervisor so that they are restarted automatically.
       # @TODO ability to specify sequence
@@ -170,7 +170,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
     #------------------------------------------------------------------------
     # call router
     #------------------------------------------------------------------------
-    def call_router_user(envelope, from, state) do
+    def call_router_user(envelope, _from, state) do
       case envelope do
         {:m, {:reconfigure, config, opts}, context} -> reconfigure(state, config, context, opts)
         {:m, {:bring_services_online, opts}, context} -> bring_services_online(state, context, opts)
@@ -191,19 +191,19 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
 
 
 
-    def select_host(ref, service, context, opts \\ %{}) do
+    def select_host(_ref, _service, _context, _opts \\ %{}) do
       # @TODO - To Optimize Host Selection,
       # 1. Load from FastGlobal instead of Amnesia.
       # 2. Instead of randomly selecting from hints use weight information and a dice roll to determine bucket.
       {:ack, node()}
     end
 
-    def supports_service?(service, context, options), do: :nyi
-    def health_check(context, opts), do: :nyi
-    def lock_server(context, opts), do: :nyi
-    def release_server(context, opts), do: :nyi
-    def lock_services(services, context, opts), do: :nyi
-    def release_services(services, context, opts), do: :nyi
+    def supports_service?(_service, _context, _options), do: :nyi
+    def health_check(_context, _opts), do: :nyi
+    def lock_server(_context, _opts), do: :nyi
+    def release_server(_context, _opts), do: :nyi
+    def lock_services(_services, _context, _opts), do: :nyi
+    def release_services(_services, _context, _opts), do: :nyi
 
     @temporary_core_events MapSet.new([:start, :shutdown])
     def core_events() do
@@ -211,11 +211,11 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
       @temporary_core_events
     end
 
-    def record_server_event!(event, details, context, opts) do
+    def record_server_event!(event, _details, _context, _opts) do
       if MapSet.member?(core_events(), event) do
-        Logger.info("TODO - write to ServerEventTable #{inspect event}")
+        Logger.info(fn -> "TODO - write to ServerEventTable #{inspect event}" end)
       else
-        Logger.info("TODO - write to DetailedServerEventTable #{inspect event}")
+        Logger.info(fn -> "TODO - write to DetailedServerEventTable #{inspect event}" end)
       end
     end
 

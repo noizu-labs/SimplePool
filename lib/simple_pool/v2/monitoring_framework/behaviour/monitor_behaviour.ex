@@ -61,12 +61,6 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.MonitorBehaviour do
   @callback record_server_event!(event :: atom, details :: any, CallingContext.t | nil, options :: Map.t) :: :ack | :nack | {:error, details :: any}
 
   @doc """
-    Record a server (elixir node) level event.
-  """
-  @callback record_service_event!(service :: atom, event :: atom, details :: any, CallingContext.t | nil, options :: Map.t) :: :ack | :nack | {:error, details :: any}
-
-
-  @doc """
    Obtain server health check.
   """
   @callback health_check(any, any) :: any
