@@ -7,11 +7,21 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
   alias Noizu.SimplePool.Worker.Link
   require Logger
 
+  defp get_semaphore(key, count \\ 1) do
+    try do
+      Semaphore.acquire(key, 5)
+      rescue _e -> false
+      catch _e -> false
+    end
+  end
+
   def enable_server!(mod, active_key, elixir_node \\ nil) do
     cond do
       elixir_node == nil || elixir_node == node() ->
-        if Semaphore.acquire({:fg_write_record, active_key}, 5) do
-          FastGlobal.put(active_key, true)
+        if get_semaphore({:fg_write_record, active_key} , 5) do
+          r = FastGlobal.put(active_key, true)
+          Semaphore.release({:fg_write_record, active_key})
+          r
         else
           {:error, :lock}
         end
@@ -24,8 +34,10 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
       elixir_node == nil || elixir_node == node() ->
         case FastGlobal.get(active_key, :no_match) do
           :no_match ->
-            if Semaphore.acquire({:fg_write_record, active_key}, 5) do
-              FastGlobal.put(active_key, false)
+            if get_semaphore({:fg_write_record, active_key} , 5) do
+              r = FastGlobal.put(active_key, false)
+              Semaphore.release({:fg_write_record, active_key})
+              r
             else
               false
             end
@@ -38,8 +50,10 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
   def disable_server!(mod, active_key, elixir_node \\ nil) do
     cond do
       elixir_node == nil || elixir_node == node() ->
-        if Semaphore.acquire({:fg_write_record, active_key}, 5) do
-          FastGlobal.put(active_key, false)
+        if get_semaphore({:fg_write_record, active_key} , 5) do
+          r = FastGlobal.put(active_key, false)
+          Semaphore.release({:fg_write_record, active_key})
+          r
         else
           {:error, :lock}
         end
