@@ -809,8 +809,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       # call each service node to get current health checks.
       # 1. Grab nodes
       servers_raw = Amnesia.Fragment.async(fn ->
-        Noizu.SimplePool.Database.MonitoringFramework.NodeTable.where(1 == 1)
-        |> Amnesia.Selection.values
+        Noizu.SimplePool.Database.MonitoringFramework.NodeTable.where(1 == 1)  |> Amnesia.Selection.values
       end)
 
       state = update_effective(state, context, options)
@@ -1269,12 +1268,16 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     def master_node(%State{} = state) do
       fg_get(@master_node_cache_key,
         fn() ->
-          default = cond do
-            state == nil -> {:fast_global, :no_cache, nil}
-            state.environment_details == nil -> {:fast_global, :no_cache, nil}
-            state.environment_details.effective == nil -> {:fast_global, :no_cache, nil}
-            v = state.environment_details.effective[:master_node] -> v
-            true -> {:fast_global, :no_cache, nil}
+          default = try do
+            cond do
+              state == nil -> {:fast_global, :no_cache, nil}
+              state.environment_details == nil -> {:fast_global, :no_cache, nil}
+              state.environment_details.effective == nil -> {:fast_global, :no_cache, nil}
+              v = state.environment_details.effective.master_node -> v
+              true -> {:fast_global, :no_cache, nil}
+            end
+            rescue _e -> {:fast_global, :no_cache, nil}
+            catch _e -> {:fast_global, :no_cache, nil}
           end
 
           if Noizu.SimplePool.Database.MonitoringFramework.SettingTable.wait(500) == :ok do
