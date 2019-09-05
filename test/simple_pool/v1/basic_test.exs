@@ -107,7 +107,11 @@ defmodule Noizu.SimplePool.V1.BasicTest do
   test "basic_functionality crash process" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref()
     {_rref, process, _server} = Noizu.SimplePool.Support.TestPool.Server.fetch(ref, :process, @context)
-    Noizu.SimplePool.Support.TestPool.Server.crash!(ref, @context)
+    try do
+      Noizu.SimplePool.Support.TestPool.Server.crash!(ref, @context)
+    rescue e -> :expected
+    catch e -> :expected
+    end
 
     # Test
     {rref2, process2, server2} = wait_for_restart(ref)
@@ -210,6 +214,15 @@ defmodule Noizu.SimplePool.V1.BasicTest do
         else
           r
         end
+
+      r = {:error, {:exit, _}} ->
+        if attempts > 0 do
+          Process.sleep(5)
+          wait_for_restart(ref, attempts - 1)
+        else
+          r
+        end
+
       r = {_r, _p, _s} -> r
     end
   end

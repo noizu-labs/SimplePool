@@ -64,14 +64,12 @@ defmodule Noizu.SimplePool.V1.EnvironmentManagerTest do
     assert hint_3_keys == [{:"first@127.0.0.1", Noizu.SimplePool.Support.TestThreePool}, {:"second@127.0.0.1", Noizu.SimplePool.Support.TestThreePool}]
   end
 
-
-
   @tag capture_log: true
   test "service health_check" do
     health_check = TestPool.Server.service_health_check!(@context)
     assert Enum.member?([:online, :degraded, :critical], health_check.status)
     assert health_check.health_index > 0
-    assert health_check.health_index < 4
+    assert health_check.health_index < 5
   end
 
     @tag capture_log: true

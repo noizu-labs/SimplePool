@@ -25,14 +25,110 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
   # @Server
   #=============================================================================
   defmodule Server do
+    @doc """
+      Responsible for system wide management of services, worker migration and other critical tasks.
+    """
     @vsn 1.0
+    #@monitor_ms 60 * 5 * 1000
+    @master_node_cache_key :"noizu:active_master_node"
 
-    # @TODO consider re-registration on terminate.
+    alias Noizu.SimplePool.Server.State
+    alias Noizu.SimplePool.Server.EnvironmentDetails
 
     use Noizu.SimplePool.ServerBehaviour,
         worker_state_entity: Noizu.MonitoringFramework.EnvironmentWorkerEntity,
         override: [:init]
 
+    @behaviour Noizu.SimplePool.MonitoringFramework.MonitorBehaviour
+
+
+    #================================================
+    # LifeCycle Methods
+    #================================================
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def init([_sup, definition, context] = _args) do
+      if verbose() do
+        Logger.info(fn -> {base().banner("INIT #{__MODULE__} (#{inspect Noizu.MonitoringFramework.EnvironmentPool.WorkerSupervisor}@#{inspect self()})"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
+      end
+
+      # @TODO load real effective PRI-1
+      effective = %{}
+
+      Logger.info "INIT #{inspect definition}"
+      state = %State{
+        worker_supervisor: Noizu.MonitoringFramework.EnvironmentPool.WorkerSupervisor, # @TODO should be worker_supervisor
+        service: Noizu.MonitoringFramework.EnvironmentPool.Server, # @TODO should be service
+        status_details: :pending,
+        extended: %{monitors: %{}, watchers: %{}},
+        options: option_settings(),
+        environment_details: %EnvironmentDetails{
+          server: node(),
+          definition: definition,
+          initial: definition.server_options.initial,
+          effective: effective,
+          default: nil,
+          status: :offline,
+          monitors: %{}
+        }
+      }
+
+      enable_server!()
+      {:ok, state}
+    end
+
+    #================================================
+    # Convenience Methods
+    #================================================
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def register(initial, context, options \\ %{}) do
+      GenServer.call(__MODULE__, {:m, {:register, initial, options}, context}, 60_000)
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def start_services(context, options \\ %{}) do
+      GenServer.cast(__MODULE__, {:m, {:start_services, options}, context})
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def update_hints!(context, options \\ %{}) do
+      internal_system_cast({:update_hints, options}, context)
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def internal_update_hints(components, context, options \\ %{})
+    def internal_update_hints(:all, context, options) do
+      internal_system_cast({:prep_hint_update, :all, options}, context, options)
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def internal_update_hints(%MapSet{} = components, context, options) do
+      internal_system_cast({:prep_hint_update, components, options}, context, options)
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def internal_update_hints(effective, context, options) do
+      remote_system_cast(master_node(effective), {:hint_update, effective, options}, context, options)
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
     def fetch_internal_state(server, context, options) do
       :rpc.call(server, __MODULE__, :fetch_internal_state, [context, options])
     end
@@ -41,6 +137,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       internal_system_call({:fetch_internal_state, options}, context, options)
     end
 
+    #--------------------------------------
+    #
+    #--------------------------------------
     def set_internal_state(server, state, context, options) do
       :rpc.call(server, __MODULE__, :set_internal_state, [state, context, options])
     end
@@ -49,220 +148,41 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       internal_system_call({:set_internal_state, state, options}, context, options)
     end
 
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def update_master_node(master_node, context, options) do
+      spawn fn ->
+        # Clear FastGlobal Cache
+        FastGlobal.put(@master_node_cache_key, master_node)
 
-    def handle_cast({:i, {:update_hints, options}, context}, state) do
-      internal_update_hints(state.environment_details.effective, context, options)
-      {:noreply, state}
-    end
+        # Update Database Entry
+        Noizu.SimplePool.Database.MonitoringFramework.SettingTable.delete!(:environment_master)
+        %Noizu.SimplePool.Database.MonitoringFramework.SettingTable{setting: :environment_master, value: master_node}
+        |>  Noizu.SimplePool.Database.MonitoringFramework.SettingTable.write!()
 
-    def handle_cast({:i, {:prep_hint_update, components, options}, context}, state) do
-      remote_system_cast(state.environment_details.effective.master_node, {:hint_update, components, options}, context)
-      {:noreply, state}
-    end
-
-    def handle_cast({:i, {:hint_update, components, options}, context}, state) do
-      perform_hint_update(state, components, context, options)
-    end
-
-    def handle_cast({:m, {:start_services, options}, context}, state) do
-      await_timeout = options[:wait] || 60_000
-      monitors = Enum.reduce(state.environment_details.effective.services, %{}, fn({k,v}, acc) ->
-        {:ok, sup_pid} = v.definition.supervisor.start_link(context, v.definition)
-        m = Process.monitor(sup_pid)
-        Map.put(acc, k, m)
-      end)
-
-      tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
-        acc ++ [Task.async( fn ->
-          h = v.definition.service.service_health_check!(options[:health_check_options] || %{}, context, options)
-          {k,h} end)]
-      end)
-
-      state = Enum.reduce(tasks, state, fn(t, acc) ->
-        {k, v} = Task.await(t, await_timeout)
-        Process.sleep(1_000)
-
-        IO.inspect v
-        case v do
-          %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{} ->
-            acc
-            |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], v)
-          e ->
-            Logger.error("#{node()} - Service Startup Error #{inspect k} - #{inspect e}")
-            acc
-            |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:services), k, Access.key(:status)], :error)
-        end
-
-      end)
-
-      state = state
-              |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
-              |> put_in([Access.key(:environment_details), Access.key(:status)], :online)
-              |> put_in([Access.key(:environment_details), Access.key(:monitors)], monitors)
-
-      %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
-        identifier: state.environment_details.effective.identifier,
-        status: state.environment_details.effective.status,
-        directive: state.environment_details.effective.directive,
-        health_index: state.environment_details.effective.health_index,
-        entity: state.environment_details.effective
-      } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
-
-      internal_update_hints(state.environment_details.effective, context, options)
-      {:noreply, state}
-    end
-
-    def handle_call({:i, {:fetch_internal_state, _options}, _context}, _from, state) do
-      {:reply, state, state, :hibernate}
-    end
-
-    def handle_call({:i, {:set_internal_state, update, _options}, _context}, _from, state) do
-      {:reply, %{old: state, new: update}, update, :hibernate}
-    end
-
-    def handle_call({:i, {:join, server, initial, options}, context}, from, state) do
-      perform_join(state, server, from, initial, context, options)
-    end
-
-    def handle_call({:m, {:register, initial, options}, context}, _from, state) do
-      initial = initial || state.environment_details.initial
-      master = case Noizu.SimplePool.Database.MonitoringFramework.SettingTable.read!(:environment_master) do
-        nil -> nil
-        [] -> nil
-        [%Noizu.SimplePool.Database.MonitoringFramework.SettingTable{value: v}] -> v
-        _ -> nil
+        Node.list()
+        |> Task.async_stream(&(:rpc.cast(&1, FastGlobal, :put, [@master_node_cache_key, master_node])))
       end
 
-      master = if master == nil do
-        if initial.master_node == :self || initial.master_node == node() do
-          %Noizu.SimplePool.Database.MonitoringFramework.SettingTable{setting: :environment_master, value: node()}
-          |>  Noizu.SimplePool.Database.MonitoringFramework.SettingTable.write!()
-          node()
-        else
-          nil
-        end
-      else
-        master
+      # Call servers to update state entities
+      call = {:update_master_node, master_node, options}
+      internal_system_cast(call, context, options)
+      spawn fn ->
+        Node.list()
+        |> Task.async_stream(&( :rpc.cast(&1, __MODULE__, :internal_system_cast, [call, context, options])))
       end
 
-      if master do
-        if master == node() do
-          effective = cond do
-            options[:update_node] -> initial
-            true ->
-              case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(node()) do
-                nil -> initial
-                v = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{} -> v.entity
-                _ -> initial
-              end
-          end
-          effective = put_in(effective, [Access.key(:master_node)], master)
-          %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
-            identifier: effective.identifier,
-            status: effective.status,
-            directive: effective.directive,
-            health_index: effective.health_index,
-            entity: effective
-          } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
-
-          state = state
-                  |> put_in([Access.key(:environment_details), Access.key(:effective)], effective)
-                  |> put_in([Access.key(:environment_details), Access.key(:default)], initial)
-                  |> put_in([Access.key(:environment_details), Access.key(:status)], :registered)
-          {:reply, {:ack, state.environment_details.effective}, state}
-        else
-          effective = remote_call(master, {:join, node(), initial, options}, context)
-          state = state
-                  |> put_in([Access.key(:environment_details), Access.key(:effective)], effective)
-                  |> put_in([Access.key(:environment_details), Access.key(:default)], initial)
-                  |> put_in([Access.key(:environment_details), Access.key(:status)], :registered)
-
-          {:reply, {:ack, state.environment_details.effective}, state}
-        end
-      else
-        {:reply, {:error, :master_node_required}, state}
-      end
+      master_node
     end
 
-    def handle_call({:i, {:node_health_check!, options}, context}, _from, state) do
-      state = update_effective(state, context, options)
-      {:reply, {:ack, state.environment_details.effective}, state}
-    end
+    #============================================================================
+    # Noizu.SimplePool.MonitoringFramework.MonitorBehaviour Implementation
+    #============================================================================
 
-    def handle_call({:i, {:lock_server, components, options}, context}, _from, state) do
-      await_timeout = options[:wait] || 60_000
-      c = components == :all && Map.keys(state.environment_details.effective.services) || MapSet.to_list(components)
-
-      tasks = Enum.reduce(c, [], fn(service, acc) ->
-        if state.environment_details.effective.services[service] do
-          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.service.lock!(context, options)} end)]
-        else
-          acc
-        end
-      end)
-
-      state = Enum.reduce(tasks, state, fn(task, acc) ->
-        case Task.await(task, await_timeout) do
-          {k, {:ack, s}} -> put_in(acc, [Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], s)
-          _ -> acc
-        end
-      end)
-
-      %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
-        identifier: state.environment_details.effective.identifier,
-        status: state.environment_details.effective.status,
-        directive: state.environment_details.effective.directive,
-        health_index: state.environment_details.effective.health_index,
-        entity: state.environment_details.effective
-      } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
-
-      if Map.get(options, :update_hints, true) do
-        internal_update_hints(state.environment_details.effective, context, options)
-      end
-      {:reply, :ack, state}
-    end
-
-
-
-    def handle_call({:i, {:release_server, components, options}, context}, _from, state) do
-      await_timeout = options[:wait] || 60_000
-      c = components == :all && Map.keys(state.environment_details.effective.services) || MapSet.to_list(components)
-
-      tasks = Enum.reduce(c, [], fn(service, acc) ->
-        if state.environment_details.effective.services[service] do
-          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.service.release!(context, options)} end)]
-        else
-          acc
-        end
-      end)
-
-      state = Enum.reduce(tasks, state, fn(task, acc) ->
-        case Task.await(task, await_timeout) do
-          {k, {:ack, s}} -> put_in(acc, [Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], s)
-          _ -> acc
-        end
-      end)
-
-      %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
-        identifier: state.environment_details.effective.identifier,
-        status: state.environment_details.effective.status,
-        directive: state.environment_details.effective.directive,
-        health_index: state.environment_details.effective.health_index,
-        entity: state.environment_details.effective
-      } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
-
-      if Map.get(options, :update_hints, true) do
-        internal_update_hints(state.environment_details.effective, context, options)
-      end
-      {:reply, :ack, state}
-    end
-
-
-    #----------------------------------------------------------------------------
-    # START| Noizu.SimplePool.MonitoringFramework.MonitorBehaviour
-    #----------------------------------------------------------------------------
-    @behaviour Noizu.SimplePool.MonitoringFramework.MonitorBehaviour
-
+    #--------------------------------------
+    #
+    #--------------------------------------
     def supports_service?(server, component, _context, options \\ %{}) do
       _effective = case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(server) do
         nil -> :nack
@@ -285,6 +205,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end
     end
 
+    #--------------------------------------
+    #
+    #--------------------------------------
     def optomized_rebalance(input_server_list, output_server_list, component_set, context, options \\ %{}) do
       pfs = profile_start(%{}, :optomized_rebalance)
       #--------------------
@@ -419,6 +342,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       {:ack, {r, pfs}}
     end
 
+    #--------------------------------------
+    #
+    #--------------------------------------
     def rebalance(input_server_list, output_server_list, component_set, context, options \\ %{}) do
       # 1. Data Setup
       await_timeout = options[:wait] || 60_000
@@ -479,44 +405,44 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
 
       if false do
-      IO.puts """
+        IO.puts """
 
-      cl = #{inspect cl, pretty: true, limit: :infinity}
-      -----------------
-      services = #{inspect service_list, pretty: true, limit: :infinity}
-      -----------------
-      server_health = #{inspect server_health, pretty: true, limit: 15}
-      -----------------
-      service_workers = #{inspect service_workers, pretty: true}
-      -------------
-      service_allocation =  #{inspect service_allocation, pretty: true, limit: :infinity}
-      --------------
-      per_server_targets =  #{inspect per_server_targets, pretty: true, limit: :infinity}
-      """
+        cl = #{inspect cl, pretty: true, limit: :infinity}
+        -----------------
+        services = #{inspect service_list, pretty: true, limit: :infinity}
+        -----------------
+        server_health = #{inspect server_health, pretty: true, limit: 15}
+        -----------------
+        service_workers = #{inspect service_workers, pretty: true}
+        -------------
+        service_allocation =  #{inspect service_allocation, pretty: true, limit: :infinity}
+        --------------
+        per_server_targets =  #{inspect per_server_targets, pretty: true, limit: :infinity}
+        """
       end
       # 5. Calculate target allocation
       {outcome, target_allocation} = optimize_balance(input_server_list, output_server_list, service_list, per_server_targets, service_allocation)
 
       if false do
-      IO.puts """
-      ---------------------
-      outcome = #{inspect outcome}
-      ---------------------------
-      target_allocation = #{inspect target_allocation}
+        IO.puts """
+        ---------------------
+        outcome = #{inspect outcome}
+        ---------------------------
+        target_allocation = #{inspect target_allocation}
 
 
 
 
-      """
+        """
       end
 
       # include all services for any servers not in target allocation
       unallocated = Enum.reduce(pool, %{}, fn(server, acc) ->
         Enum.reduce(service_list, acc, fn(service, acc) ->
-           cond do
-             target_allocation[server] == nil && service_workers[server][service] -> update_in(acc, [service], &((&1 || []) ++ service_workers[server][service]))
-             true -> acc
-           end
+          cond do
+            target_allocation[server] == nil && service_workers[server][service] -> update_in(acc, [service], &((&1 || []) ++ service_workers[server][service]))
+            true -> acc
+          end
         end)
       end)
 
@@ -544,8 +470,8 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
               {l, r} = Enum.split(workers, target)
               m_u2 = put_in(u2, [service], r)
               m_wa2 = wa2
-                |> update_in([server], &(&1 || %{}))
-                |> put_in([server, service], l)
+                      |> update_in([server], &(&1 || %{}))
+                      |> put_in([server, service], l)
               {m_u2, m_wa2}
           end
         end)
@@ -567,7 +493,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         acc ++ [Task.async(fn -> {server, :rpc.call(server, __MODULE__, :server_bulk_migrate!, [services, context, options], bulk_await_timeout)} end)]
       end)
 
-    {:ack, Enum.reduce(tasks, %{}, fn(task, acc) ->
+      {:ack, Enum.reduce(tasks, %{}, fn(task, acc) ->
         case Task.await(task, await_timeout) do
           {service, {:ack, outcome}} ->
 
@@ -605,6 +531,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     end
 
 
+    #--------------------------------------
+    #
+    #--------------------------------------
     def server_bulk_migrate!(services, context, options) do
       await_timeout = options[:wait] || 1_000_000
       tasks = Enum.reduce(services, [], fn({service, transfer_servers}, acc) ->
@@ -619,51 +548,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       {:ack, r}
     end
 
-    def total_unallocated(unallocated) do
-      Enum.reduce(unallocated, 0, fn({_service, u}, acc) -> acc + u end)
-    end
-
-    def fill_to({unallocated, service_allocation}, level, output_server_list, service_list, per_server_targets) do
-      {total_bandwidth, bandwidth} = Enum.reduce(output_server_list, {%{}, %{}}, fn(server, {tb, b}) ->
-        Enum.reduce(service_list, {tb, b}, fn(service, {tb2, b2}) ->
-          cond do
-            per_server_targets[server][service] ->
-              psa = (service_allocation[server][service] || 0)
-              pst = per_server_targets[server][service] || %{}
-              bandwidth = case level do
-                :target -> Map.get(pst, :target, 0) - psa
-                :soft_limit -> Map.get(pst, :soft, 0) - psa
-                :hard_limit -> Map.get(pst, :hard, 0) - psa
-                :overflow -> Map.get(pst, :hard, 0)
-              end |> max(0)
-              m_b2 = b2
-                     |> update_in([server], &(&1 || %{}))
-                     |> put_in([server, service], bandwidth)
-              m_tb2 = update_in(tb2, [service], &((&1 || 0) + bandwidth))
-              {m_tb2, m_b2}
-            true -> {tb2, b2}
-          end
-        end)
-      end)
-
-
-      # 3. Allocate out up to bandwidth to fill out to target levels
-      Enum.reduce(bandwidth, {unallocated, service_allocation}, fn ({server, v}, {u, sa}) ->
-        Enum.reduce(v, {u, sa}, fn({service, b}, {u2, sa2}) ->
-          cond do
-            b > 0 && u2[service] > 0 && total_bandwidth[service] > 0 ->
-              p = min(total_bandwidth[service], unallocated[service])
-              allocate = round((b/total_bandwidth[service]) * p)
-              m_u2 = update_in(u2, [service], &(max(0, &1 - allocate)))
-              m_sa2 = sa2 |> update_in([server], &(&1 || %{}))
-                      |> update_in([server, service], &((&1 || 0) + allocate))
-              {m_u2, m_sa2}
-            true -> {u2, sa2}
-          end
-        end)
-      end)
-    end
-
+    #--------------------------------------
+    #
+    #--------------------------------------
     def optimize_balance(input_server_list, output_server_list, service_list, per_server_targets, service_allocation) do
       input_server_set = MapSet.new(input_server_list)
       output_server_set = MapSet.new(output_server_list)
@@ -709,6 +596,10 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end
     end
 
+
+    #--------------------------------------
+    #
+    #--------------------------------------
     def lock_server(context), do: lock_servers([node()], :all, context, %{})
     def lock_server(context, options), do: lock_servers([node()], :all, context, options)
     def lock_server(components, context, options), do: lock_servers([node()], components, context, options)
@@ -723,6 +614,10 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       :ack
     end
 
+
+    #--------------------------------------
+    #
+    #--------------------------------------
     def release_server(context), do: release_servers([node()], :all, context, %{})
     def release_server(context, options), do: release_servers([node()], :all, context, options)
     def release_server(components, context, options), do: release_servers([node()], components, context, options)
@@ -737,6 +632,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       :ack
     end
 
+    #--------------------------------------
+    #
+    #--------------------------------------
     def select_host(_ref, component, _context, options \\ %{}) do
       case Noizu.SimplePool.Database.MonitoringFramework.Service.HintTable.read!(component) do
         nil -> {:nack, :hint_required}
@@ -768,29 +666,9 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end
     end
 
-
-    def profile_start(profiles \\ %{}, profile \\ :default) do
-      put_in(profiles, [profile], %{start: :os.system_time(:millisecond)})
-    end
-
-    def profile_end(profiles, profile \\ :default, options \\ %{info: 100, warn: 300, error: 700, log: true}) do
-      profiles = update_in(profiles, [profile], fn(p) -> put_in(p || %{}, [:end], :os.system_time(:millisecond)) end)
-      if options[:log] !== false do
-        cond do
-          profiles[profile][:start] == nil -> Logger.warn("#{__MODULE__} - profile_start not invoked for #{profile}")
-          options[:error] && (profiles[profile][:end] - profiles[profile][:start]) >= options[:error] ->
-            Logger.error("#{__MODULE__} #{profile} exceeded #{options[:error]} milliseconds @#{(profiles[profile][:end] - profiles[profile][:start])}")
-          options[:warn] && (profiles[profile][:end] - profiles[profile][:start]) >= options[:warn] ->
-            Logger.warn(fn -> "#{__MODULE__} #{profile} exceeded #{options[:warn]} milliseconds @#{(profiles[profile][:end] - profiles[profile][:start])}"  end)
-          options[:info] && (profiles[profile][:end] - profiles[profile][:start]) >= options[:info] ->
-            Logger.info(fn -> "#{__MODULE__} #{profile} exceeded #{options[:info]} milliseconds @#{(profiles[profile][:end] - profiles[profile][:start])}"  end)
-          true -> :ok
-        end
-      end
-      profiles
-    end
-
-
+    #--------------------------------------
+    #
+    #--------------------------------------
     def record_server_event!(server, event, details, _context, options \\ %{}) do
       time = options[:time] || DateTime.utc_now()
       entity = %Noizu.SimplePool.MonitoringFramework.LifeCycleEvent{
@@ -803,6 +681,10 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       :ack
     end
 
+
+    #--------------------------------------
+    #
+    #--------------------------------------
     def record_service_event!(server, service, event, details, _context, options \\ %{}) do
       time = options[:time] || DateTime.utc_now()
       entity = %Noizu.SimplePool.MonitoringFramework.LifeCycleEvent{
@@ -815,112 +697,10 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       :ack
     end
 
-    #----------------------------------------------------------------------------
-    # END| Noizu.SimplePool.MonitoringFramework.MonitorBehaviour
-    #----------------------------------------------------------------------------
 
-    def handle_info({:DOWN, ref, :process, _process, _msg} = event, state) do
-      Logger.info "LINK MONITOR: #{inspect event, pretty: true}"
-      monitors = Enum.reduce(state.environment_details.monitors, %{}, fn({k,v}, acc) ->
-        if ref == v do
-          Map.put(acc, k, nil)
-        else
-          Map.put(acc, k, v)
-        end
-      end)
-      state = put_in(state, [Access.key(:environment_details), Access.key(:monitors)], monitors)
-      {:noreply, state}
-    end
-
-    alias Noizu.SimplePool.Server.State
-    alias Noizu.SimplePool.Server.EnvironmentDetails
-
-    def init([_sup, definition, context] = _args) do
-      if verbose() do
-        Logger.info(fn -> {base().banner("INIT #{__MODULE__} (#{inspect Noizu.MonitoringFramework.EnvironmentPool.WorkerSupervisor}@#{inspect self()})"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-      end
-
-      # @TODO load real effective PRI-1
-      effective = %{}
-
-      Logger.info "INIT #{inspect definition}"
-      state = %State{
-        worker_supervisor: Noizu.MonitoringFramework.EnvironmentPool.WorkerSupervisor, # @TODO should be worker_supervisor
-        service: Noizu.MonitoringFramework.EnvironmentPool.Server, # @TODO should be service
-        status_details: :pending,
-        extended: %{monitors: %{}},
-        options: option_settings(),
-        environment_details: %EnvironmentDetails{
-          server: node(),
-          definition: definition,
-          initial: definition.server_options.initial,
-          effective: effective,
-          default: nil,
-          status: :offline,
-          monitors: %{}
-        }
-      }
-      {:ok, state}
-    end
-
-    #---------------------------------------------------------------------------
-    # Convenience Methods
-    #---------------------------------------------------------------------------
-    def register(initial, context, options \\ %{}) do
-      GenServer.call(__MODULE__, {:m, {:register, initial, options}, context}, 60_000)
-    end
-
-    def start_services(context, options \\ %{}) do
-      GenServer.cast(__MODULE__, {:m, {:start_services, options}, context})
-    end
-
-    def update_hints!(context, options \\ %{}) do
-      internal_system_cast({:update_hints, options}, context)
-    end
-
-
-    def internal_update_hints(components, context, options \\ %{})
-    def internal_update_hints(:all, context, options) do
-      internal_system_cast({:prep_hint_update, :all, options}, context, options)
-    end
-
-    def internal_update_hints(%MapSet{} = components, context, options) do
-      internal_system_cast({:prep_hint_update, components, options}, context, options)
-    end
-
-    def internal_update_hints(effective, context, options) do
-      remote_system_cast(effective.master_node, {:hint_update, effective, options}, context, options)
-    end
-
-
-
-    #---------------------------------------------------------------------------
-    # Handlers
-    #---------------------------------------------------------------------------
-    def perform_join(state, server, {pid, _ref}, initial, _context, options) do
-      effective = cond do
-        options[:update_node] -> initial
-        true ->
-          case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(server) do
-            nil -> initial
-            v = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{} -> v.entity
-          end
-      end
-      effective = put_in(effective, [Access.key(:master_node)], node())
-
-      _s = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
-            identifier: effective.identifier,
-            status: effective.status,
-            directive: effective.directive,
-            health_index: effective.health_index,
-            entity: effective
-          } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
-
-      monitor_ref = Process.monitor(pid)
-      put_in(state, [Access.key(:extended), Access.key(:monitors), server], monitor_ref)
-      {:reply, effective, state}
-    end
-
+    #--------------------------------------
+    #
+    #--------------------------------------
     def update_effective(state, context, options) do
       if state.environment_details.effective && state.environment_details.effective.services do
         await_timeout = options[:wait] || 60_000
@@ -945,19 +725,85 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end
     end
 
-
+    #--------------------------------------
+    #
+    #--------------------------------------
     def server_health_check!(server, context, options) do
       :rpc.call(server, __MODULE__, :server_health_check!, [context, options])
     end
 
+    #--------------------------------------
+    #
+    #--------------------------------------
     def server_health_check!(context, options) do
       internal_system_call({:node_health_check!, options[:node_health_check!] || %{}}, context, options)
     end
 
+    #--------------------------------------
+    #
+    #--------------------------------------
     def node_health_check!(context, options) do
       server_health_check!(context, options)
     end
 
+    #================================================
+    # Call Handlers
+    #================================================
+
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_cast({:i, {:update_hints, options}, context}, state) do
+      internal_update_hints(state.environment_details.effective, context, options)
+      {:noreply, state}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_cast({:i, {:prep_hint_update, components, options}, context}, state) do
+      remote_system_cast(master_node(state), {:hint_update, components, options}, context)
+      {:noreply, state}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_cast({:i, {:hint_update, components, options}, context}, state) do
+      perform_hint_update(state, components, context, options)
+    end
+
+    #--------------------------------------
+    #  perform_join | Noizu.SimplePool.MonitoringFramework.MonitorBehaviour Implementation
+    #--------------------------------------
+    def perform_join(state, server, {pid, _ref}, initial, _context, options) do
+      effective = cond do
+        options[:update_node] -> initial
+        true ->
+          case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(server) do
+            nil -> initial
+            v = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{} -> v.entity
+          end
+      end
+      effective = put_in(effective, [Access.key(:master_node)], node())
+
+      _s = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
+             identifier: effective.identifier,
+             status: effective.status,
+             directive: effective.directive,
+             health_index: effective.health_index,
+             entity: effective
+           } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
+
+      monitor_ref = Process.monitor(pid)
+      put_in(state, [Access.key(:extended), Access.key(:monitors), server], monitor_ref)
+      {:reply, effective, state}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
     def perform_hint_update(state, components, context, options) do
       await_timeout = options[:wait] || 60_000
       # call each service node to get current health checks.
@@ -1024,17 +870,50 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
           end
         end)
 
-
-
-        # 1. add a minimum of 3 nodes, plus any good nodes
+        # 1. add a minimum of 1/3rd of the nodes and all good nodes.
         candidate_pool_size = length(candidates)
-        min_bar = candidate_pool_size / 3
-        hint = Enum.reduce(candidates, [], fn(x,acc3) ->
+        min_bar = max(div(candidate_pool_size, 3), 1)
+
+        # first pass, grab best servers only.
+        hint = Enum.reduce(candidates, [], fn(x, acc3) ->
           cond do
-            length(acc3) == 0 -> acc3 ++ [x]
-            length(acc3) <= min_bar -> acc3 ++ [x]
             x.server_status == :online && x.service_status == :online ->  acc3 ++ [x]
             true -> acc3
+          end
+        end)
+
+        # second pass, include degraded
+        hint = Enum.reduce(candidates -- hint, hint, fn(x,acc3) ->
+          cond do
+            length(acc3) >= min_bar -> acc3
+            x.server_status == :online && Enum.member?([:online, :degraded], x.service_status)->  acc3 ++ [x]
+            true -> acc3
+          end
+        end)
+
+        # third pass, include critical
+        hint = Enum.reduce(candidates -- hint, hint, fn(x,acc3) ->
+          cond do
+            length(acc3) >= min_bar -> acc3
+            x.server_status == :online && Enum.member?([:online, :degraded, :critical], x.service_status)->  acc3 ++ [x]
+            true -> acc3
+          end
+        end)
+
+        # fourth pass, any online server
+        hint = Enum.reduce(candidates -- hint, hint, fn(x,acc3) ->
+          cond do
+            length(acc3) >= min_bar -> acc3
+            x.server_status == :online ->  acc3 ++ [x]
+            true -> acc3
+          end
+        end)
+
+        # final pass, insure minbar
+        hint = Enum.reduce(candidates -- hint, hint, fn(x,acc3) ->
+          cond do
+            length(acc3) >= min_bar -> acc3
+            true -> acc3 ++ [x]
           end
         end)
 
@@ -1057,8 +936,430 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       {:noreply, state}
     end
 
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_cast({:i, {:update_master_node, master_node, options}, context}, state) do
+      state = cond do
+        state == nil -> state
+        state.environment_details == nil -> state
+        state.environment_details.effective == nil -> state
+        true ->
+          put_in(state, [Access.key(:environment_details), Access.key(:effective), Access.key(:master_node)], master_node)
+      end
+      {:noreply, state}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_cast({:m, {:start_services, options}, context}, state) do
+      await_timeout = options[:wait] || 60_000
+      monitors = Enum.reduce(state.environment_details.effective.services, %{}, fn({k,v}, acc) ->
+        {:ok, sup_pid} = v.definition.supervisor.start_link(context, v.definition)
+        m = Process.monitor(sup_pid)
+        Map.put(acc, k, m)
+      end)
+
+      tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
+        acc ++ [Task.async( fn ->
+          h = v.definition.service.service_health_check!(options[:health_check_options] || %{}, context, options)
+          {k,h} end)]
+      end)
+
+      state = Enum.reduce(tasks, state, fn(t, acc) ->
+        {k, v} = Task.await(t, await_timeout)
+        Process.sleep(1_000)
+
+        case v do
+          %Noizu.SimplePool.MonitoringFramework.Service.HealthCheck{} ->
+            acc
+            |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], v)
+          e ->
+            Logger.error("#{node()} - Service Startup Error #{inspect k} - #{inspect e}")
+            acc
+            |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:services), k, Access.key(:status)], :error)
+        end
+
+      end)
+
+      state = state
+              |> put_in([Access.key(:environment_details), Access.key(:effective), Access.key(:status)], :online)
+              |> put_in([Access.key(:environment_details), Access.key(:status)], :online)
+              |> put_in([Access.key(:environment_details), Access.key(:monitors)], monitors)
+
+      %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
+        identifier: state.environment_details.effective.identifier,
+        status: state.environment_details.effective.status,
+        directive: state.environment_details.effective.directive,
+        health_index: state.environment_details.effective.health_index,
+        entity: state.environment_details.effective
+      } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
+
+      internal_update_hints(state.environment_details.effective, context, options)
+      {:noreply, state}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_call({:i, {:fetch_internal_state, _options}, _context}, _from, state) do
+      {:reply, state, state, :hibernate}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_call({:i, {:set_internal_state, update, _options}, _context}, _from, state) do
+      {:reply, %{old: state, new: update}, update, :hibernate}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_call({:i, {:join, server, initial, options}, context}, from, state) do
+      perform_join(state, server, from, initial, context, options)
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_call({:m, {:register, initial, options}, context}, _from, state) do
+      initial = initial || state.environment_details.initial
+      master = cond do
+        v = master_node(state) -> v
+        initial.master_node == :self || initial.master_node == node() -> update_master_node(node(), context, %{})
+        true -> nil
+      end
+
+      if master do
+        if master == node() do
+          effective = cond do
+            options[:update_node] -> initial
+            true ->
+              case Noizu.SimplePool.Database.MonitoringFramework.NodeTable.read!(node()) do
+                nil -> initial
+                v = %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{} -> v.entity
+                _ -> initial
+              end
+          end
+          effective = put_in(effective, [Access.key(:master_node)], master)
+          %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
+            identifier: effective.identifier,
+            status: effective.status,
+            directive: effective.directive,
+            health_index: effective.health_index,
+            entity: effective
+          } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
+
+          state = state
+                  |> put_in([Access.key(:environment_details), Access.key(:effective)], effective)
+                  |> put_in([Access.key(:environment_details), Access.key(:default)], initial)
+                  |> put_in([Access.key(:environment_details), Access.key(:status)], :registered)
+          {:reply, {:ack, state.environment_details.effective}, state}
+        else
+          effective = remote_call(master, {:join, node(), initial, options}, context)
+          state = state
+                  |> put_in([Access.key(:environment_details), Access.key(:effective)], effective)
+                  |> put_in([Access.key(:environment_details), Access.key(:default)], initial)
+                  |> put_in([Access.key(:environment_details), Access.key(:status)], :registered)
+          {:reply, {:ack, state.environment_details.effective}, state}
+        end
+      else
+        {:reply, {:error, :master_node_required}, state}
+      end
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_call({:i, {:node_health_check!, options}, context}, _from, state) do
+      state = update_effective(state, context, options)
+      {:reply, {:ack, state.environment_details.effective}, state}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_call({:i, {:lock_server, components, options}, context}, _from, state) do
+      await_timeout = options[:wait] || 60_000
+      c = components == :all && Map.keys(state.environment_details.effective.services) || MapSet.to_list(components)
+
+      tasks = Enum.reduce(c, [], fn(service, acc) ->
+        if state.environment_details.effective.services[service] do
+          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.service.lock!(context, options)} end)]
+        else
+          acc
+        end
+      end)
+
+      state = Enum.reduce(tasks, state, fn(task, acc) ->
+        case Task.await(task, await_timeout) do
+          {k, {:ack, s}} -> put_in(acc, [Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], s)
+          _ -> acc
+        end
+      end)
+
+      %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
+        identifier: state.environment_details.effective.identifier,
+        status: state.environment_details.effective.status,
+        directive: state.environment_details.effective.directive,
+        health_index: state.environment_details.effective.health_index,
+        entity: state.environment_details.effective
+      } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
+
+      if Map.get(options, :update_hints, true) do
+        internal_update_hints(state.environment_details.effective, context, options)
+      end
+      {:reply, :ack, state}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_call({:i, {:release_server, components, options}, context}, _from, state) do
+      await_timeout = options[:wait] || 60_000
+      c = components == :all && Map.keys(state.environment_details.effective.services) || MapSet.to_list(components)
+
+      tasks = Enum.reduce(c, [], fn(service, acc) ->
+        if state.environment_details.effective.services[service] do
+          acc ++ [Task.async(fn -> {service, state.environment_details.effective.services[service].definition.service.release!(context, options)} end)]
+        else
+          acc
+        end
+      end)
+
+      state = Enum.reduce(tasks, state, fn(task, acc) ->
+        case Task.await(task, await_timeout) do
+          {k, {:ack, s}} -> put_in(acc, [Access.key(:environment_details), Access.key(:effective), Access.key(:services), k], s)
+          _ -> acc
+        end
+      end)
+
+      %Noizu.SimplePool.Database.MonitoringFramework.NodeTable{
+        identifier: state.environment_details.effective.identifier,
+        status: state.environment_details.effective.status,
+        directive: state.environment_details.effective.directive,
+        health_index: state.environment_details.effective.health_index,
+        entity: state.environment_details.effective
+      } |> Noizu.SimplePool.Database.MonitoringFramework.NodeTable.write!()
+
+      if Map.get(options, :update_hints, true) do
+        internal_update_hints(state.environment_details.effective, context, options)
+      end
+      {:reply, :ack, state}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_info({:i, {:server_recover_check, server}, context}, state) do
+      # @TODO fully implement
+      {:noreply, state}
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def handle_info({:DOWN, ref, :process, _process, _msg} = event, state) do
+      state = cond do
+        dropped_server = Enum.find(state.environment_details.monitors, fn({k,v}) -> v == ref end) ->
+          {server, _ref} = dropped_server
+          Logger.error "LINK MONITOR: server down #{inspect server} - #{inspect event, pretty: true}"
+          # todo setup watchers[server] with a timer event that monitors for node recovery
+          #{:ok, t_ref} = :timer.send_after(@monitor_ms, self(), {:i, {:server_recover_check, server}, Noizu.ElixirCore.CallingContext.system()})
+          state
+          |> put_in([Access.key(:environment_details), Access.key(:monitors), server], nil)
+        #|> update_in([Access.key(:extended), :watchers], &(put_in(&1 || %{}, [server], t_ref)))
+        true ->
+          Logger.error "LINK MONITOR: #{inspect event, pretty: true}"
+          state
+      end
+      {:noreply, state}
+    end
 
 
+    #===========================================================================
+    # Helper Methods
+    #===========================================================================
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def total_unallocated(unallocated) do
+      Enum.reduce(unallocated, 0, fn({_service, u}, acc) -> acc + u end)
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def fill_to({unallocated, service_allocation}, level, output_server_list, service_list, per_server_targets) do
+      {total_bandwidth, bandwidth} = Enum.reduce(output_server_list, {%{}, %{}}, fn(server, {tb, b}) ->
+        Enum.reduce(service_list, {tb, b}, fn(service, {tb2, b2}) ->
+          cond do
+            per_server_targets[server][service] ->
+              psa = (service_allocation[server][service] || 0)
+              pst = per_server_targets[server][service] || %{}
+              bandwidth = case level do
+                            :target -> Map.get(pst, :target, 0) - psa
+                            :soft_limit -> Map.get(pst, :soft, 0) - psa
+                            :hard_limit -> Map.get(pst, :hard, 0) - psa
+                            :overflow -> Map.get(pst, :hard, 0)
+                          end |> max(0)
+              m_b2 = b2
+                     |> update_in([server], &(&1 || %{}))
+                     |> put_in([server, service], bandwidth)
+              m_tb2 = update_in(tb2, [service], &((&1 || 0) + bandwidth))
+              {m_tb2, m_b2}
+            true -> {tb2, b2}
+          end
+        end)
+      end)
+
+
+      # 3. Allocate out up to bandwidth to fill out to target levels
+      Enum.reduce(bandwidth, {unallocated, service_allocation}, fn ({server, v}, {u, sa}) ->
+        Enum.reduce(v, {u, sa}, fn({service, b}, {u2, sa2}) ->
+          cond do
+            b > 0 && u2[service] > 0 && total_bandwidth[service] > 0 ->
+              p = min(total_bandwidth[service], unallocated[service])
+              allocate = round((b/total_bandwidth[service]) * p)
+              m_u2 = update_in(u2, [service], &(max(0, &1 - allocate)))
+              m_sa2 = sa2 |> update_in([server], &(&1 || %{}))
+                      |> update_in([server, service], &((&1 || 0) + allocate))
+              {m_u2, m_sa2}
+            true -> {u2, sa2}
+          end
+        end)
+      end)
+    end
+
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def profile_start(profiles \\ %{}, profile \\ :default) do
+      put_in(profiles, [profile], %{start: :os.system_time(:millisecond)})
+    end
+
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def profile_end(profiles, profile \\ :default, options \\ %{info: 100, warn: 300, error: 700, log: true}) do
+      profiles = update_in(profiles, [profile], fn(p) -> put_in(p || %{}, [:end], :os.system_time(:millisecond)) end)
+      if options[:log] !== false do
+        cond do
+          profiles[profile][:start] == nil -> Logger.warn("#{__MODULE__} - profile_start not invoked for #{profile}")
+          options[:error] && (profiles[profile][:end] - profiles[profile][:start]) >= options[:error] ->
+            Logger.error("#{__MODULE__} #{profile} exceeded #{options[:error]} milliseconds @#{(profiles[profile][:end] - profiles[profile][:start])}")
+          options[:warn] && (profiles[profile][:end] - profiles[profile][:start]) >= options[:warn] ->
+            Logger.warn(fn -> "#{__MODULE__} #{profile} exceeded #{options[:warn]} milliseconds @#{(profiles[profile][:end] - profiles[profile][:start])}"  end)
+          options[:info] && (profiles[profile][:end] - profiles[profile][:start]) >= options[:info] ->
+            Logger.info(fn -> "#{__MODULE__} #{profile} exceeded #{options[:info]} milliseconds @#{(profiles[profile][:end] - profiles[profile][:start])}"  end)
+          true -> :ok
+        end
+      end
+      profiles
+    end
+
+    #--------------------------------------
+    #
+    #--------------------------------------
+    def master_node(%State{} = state) do
+      fg_get(@master_node_cache_key,
+        fn() ->
+          default = cond do
+            state == nil -> {:fast_global, :no_cache, nil}
+            state.environment_details == nil -> {:fast_global, :no_cache, nil}
+            state.environment_details.effective == nil -> {:fast_global, :no_cache, nil}
+            v = state.environment_details.effective[:master_node] -> v
+            true -> {:fast_global, :no_cache, nil}
+          end
+
+          if Noizu.SimplePool.Database.MonitoringFramework.SettingTable.wait(500) == :ok do
+            case Noizu.SimplePool.Database.MonitoringFramework.SettingTable.read!(:environment_master) do
+              [%Noizu.SimplePool.Database.MonitoringFramework.SettingTable{value: v}| _] -> v
+              %Noizu.SimplePool.Database.MonitoringFramework.SettingTable{value: v} -> v
+              nil -> default
+              _ -> default
+            end
+          else
+            default
+          end
+        end
+      )
+    end
+
+    def master_node(%{master_node: default} = state) do
+      fg_get(@master_node_cache_key,
+        fn() ->
+          default = {:fast_global, :no_cache, default}
+          if Noizu.SimplePool.Database.MonitoringFramework.SettingTable.wait(500) == :ok do
+            case Noizu.SimplePool.Database.MonitoringFramework.SettingTable.read!(:environment_master) do
+              [%Noizu.SimplePool.Database.MonitoringFramework.SettingTable{value: v}| _] -> v
+              %Noizu.SimplePool.Database.MonitoringFramework.SettingTable{value: v} -> v
+              nil -> default
+              _ -> default
+            end
+          else
+            default
+          end
+        end
+      )
+    end
+
+    def master_node(catch_all) do
+      fg_get(@master_node_cache_key,
+        fn() ->
+          default = {:fast_global, :no_cache, nil}
+          if Noizu.SimplePool.Database.MonitoringFramework.SettingTable.wait(500) == :ok do
+            case Noizu.SimplePool.Database.MonitoringFramework.SettingTable.read!(:environment_master) do
+              [%Noizu.SimplePool.Database.MonitoringFramework.SettingTable{value: v}| _] -> v
+              %Noizu.SimplePool.Database.MonitoringFramework.SettingTable{value: v} -> v
+              nil -> default
+              _ -> default
+            end
+          else
+            default
+          end
+        end
+      )
+    end
+
+
+    #--------------------
+    # todo move FastGlobal.Cluster into Noizu Core and remove duplicate code.
+    #--------------------
+
+    #-------------------
+    # fg_get
+    #-------------------
+    def fg_get(identifier), do: fg_get(identifier, nil, %{})
+    def fg_get(identifier, default), do: fg_get(identifier, default, %{})
+    def fg_get(identifier, default, options) do
+      case FastGlobal.get(identifier, :no_match) do
+        :no_match -> fg_sync_record(identifier, default, options)
+        v -> v
+      end
+    end
+
+
+    #-------------------
+    # sync_record
+    #-------------------
+    def fg_sync_record(identifier, default, options) do
+      value = if (is_function(default, 0)), do: default.(), else: default
+      case value do
+        {:fast_global, :no_cache, v} -> v
+        value ->
+          if Semaphore.acquire({:fg_write_record, identifier}, 1) do
+            FastGlobal.put(identifier, value)
+            Semaphore.release({:fg_write_record, identifier})
+          end
+          value
+      end
+    end
 
   end # end defmodule GoldenRatio.Components.Gateway.Server
 end # end defmodule GoldenRatio.Components.Gateway
