@@ -82,7 +82,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       l when is_list(l) ->
         Logger.error "
     ---------------------- Errors In Pool Settings  ----------------------------
-    #{inspect option_settings, pretty: true, limit: :infinity}
+    #{inspect option_settings.output.errors, pretty: true, limit: :infinity}
     ----------------------------------------------------------------------------
         "
     end

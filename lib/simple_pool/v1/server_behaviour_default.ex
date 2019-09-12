@@ -23,7 +23,18 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
           Semaphore.release({:fg_write_record, active_key})
           r
         else
-          {:error, :lock}
+          # Always write attempt retrieve lock merely to prevent an over write if possible.
+          r = FastGlobal.put(active_key, true)
+          spawn fn ->
+            Process.sleep(750)
+            if get_semaphore({:fg_write_record, active_key} , 5) do
+              FastGlobal.put(active_key, true)
+              Semaphore.release({:fg_write_record, active_key})
+            else
+              FastGlobal.put(active_key, true)
+            end
+          end
+          r
         end
       true -> :rpc.call(elixir_node, mod, :enable_server!, [])
     end
@@ -34,8 +45,13 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
       elixir_node == nil || elixir_node == node() ->
         case FastGlobal.get(active_key, :no_match) do
           :no_match ->
-            if get_semaphore({:fg_write_record, active_key} , 5) do
-              r = FastGlobal.put(active_key, false)
+            if get_semaphore({:fg_write_record, active_key} , 1) do
+              # Race condition check
+              r = case FastGlobal.get(active_key, :no_match) do
+                :no_match ->
+                  FastGlobal.put(active_key, false)
+                v -> v
+              end
               Semaphore.release({:fg_write_record, active_key})
               r
             else
@@ -55,12 +71,22 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
           Semaphore.release({:fg_write_record, active_key})
           r
         else
-          {:error, :lock}
+          # Always write attempt retrieve lock merely to prevent an over write if possible.
+          r = FastGlobal.put(active_key, true)
+          spawn fn ->
+            Process.sleep(750)
+            if get_semaphore({:fg_write_record, active_key} , 5) do
+              FastGlobal.put(active_key, true)
+              Semaphore.release({:fg_write_record, active_key})
+            else
+              FastGlobal.put(active_key, true)
+            end
+          end
+          r
         end
       true -> :rpc.call(elixir_node, mod, :disable_server!, [])
     end
   end
-
 
   def verbose(verbose, base) do
     if verbose == :auto do
