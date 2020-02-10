@@ -47,6 +47,22 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       {:reply, {:s_retry, call_server, module}, state}
     end
 
+
+    # Auto Load Check
+    def __handle_call(module, {:msg_envelope, {module, {:s_call!, _ref, _timeout}} = d, call = {_s, _call, context}}, from,  %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+      updated_state = module.delayed_init(state, context)
+      if (updated_state.initialized != :delayed_init) do
+        __handle_call(module, call, from, updated_state)
+      else
+        {:reply, {:error, :init}, updated_state}
+      end
+    end
+    def __handle_call(module, {:msg_envelope, {module, {:s_call!, _ref, _timeout}} = d, call = {_s, _call, context}}, from,  %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+      case module.pool_worker_state_entity().load(state.worker_ref, context, %{}) do
+        nil -> {:reply, :error, state}
+        inner_state -> __handle_call(module, call, from, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
+      end
+    end
     def __handle_call(module, {:msg_envelope, {module, _delivery_details}, call = {_s, _call, _context}}, from, state), do: __handle_call(module, call, from, state)
     def __handle_call(module, {:msg_envelope, {call_server, {_call_type, ref, _timeout}}, call = {_type, _payload, context}}, _from, state) do
       Logger.warn fn -> "Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n" end
@@ -60,14 +76,31 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       {:reply, {:s_retry, call_server, module}, state}
     end
 
+
     @doc """
     Catchall
     """
     def __handle_call(module, envelope, from, state), do: module.__call_handler(envelope, from, state)
 
+
     #-----------------------------------------------------
     # handle_cast
     #-----------------------------------------------------
+    # Auto Load Check
+    def __handle_cast(module, {:msg_envelope, {module, {:s_cast!, _ref, _timeout}}, call = {_s, _call, context}},  %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+      updated_state = module.delayed_init(state, context)
+      if (updated_state.initialized != :delayed_init) do
+        __handle_cast(module, call, updated_state)
+      else
+        {:noreply, updated_state}
+      end
+    end
+    def __handle_cast(module, {:msg_envelope, {module, {:s_cast!, _ref, _timeout}}, call = {_s, _call, context}},  %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+      case module.pool_worker_state_entity().load(state.worker_ref, context, %{}) do
+        nil -> {:reply, :error, state}
+        inner_state -> __handle_cast(module, call, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
+      end
+    end
     def __handle_cast(module, {:msg_redirect, {module, _delivery_details}, call = {_s, _call, _context}}, state), do: __handle_cast(module, call, state)
     def __handle_cast(_module, {:msg_redirect, {call_server, {call_type, ref, _timeout}}, call = {_type, payload, context}} = fc, state) do
       spawn fn ->
@@ -96,6 +129,21 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
       end
       {:noreply, state}
+    end
+
+    def __handle_cast(module, {:s_cast!, inner, context} = envelope, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+      updated_state = module.delayed_init(state, context)
+      if (updated_state.initialized != :delayed_init) do
+        __handle_cast(module, envelope, updated_state)
+      else
+        {:noreply, updated_state}
+      end
+    end
+    def __handle_call(module, {:s_cast!, inner, context} = envelope, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+      case module.pool_worker_state_entity().load(state.worker_ref, context, %{}) do
+        nil -> {:noreply, state}
+        inner_state -> __handle_cast(module, envelope, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
+      end
     end
 
     @doc """

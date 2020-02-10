@@ -346,8 +346,6 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       #-------------------
       #
       #-------------------
-
-
       def pass_through_supervise(a,b), do: supervise(a,b)
       def pass_through_supervisor(a,b,c), do: supervisor(a,b,c)
       def pass_through_worker(a,b,c), do: worker(a,b,c)

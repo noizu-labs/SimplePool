@@ -60,17 +60,33 @@ defmodule Noizu.SimplePool.Support.TestV2WorkerEntity do
   end
   def test_s_call(this, value, _context), do: {:reply, :s_call, put_in(this, [Access.key(:data), :s_call], value)}
   def test_s_cast!(this, value, _context), do: {:noreply,  put_in(this, [Access.key(:data), :s_cast!], value)}
-  def test_s_cast(this, value, _context), do: {:noreply,  put_in(this, [Access.key(:data), :s_cast], value)}
+  def test_s_cast(this, value, _context) do
+    updated_state = put_in(this, [Access.key(:data), :s_cast], value)
+    {:noreply,  updated_state}
+  end
 
   #-----------------------------------------------------------------------------
   # call_forwarding
   #-----------------------------------------------------------------------------
-  def call_forwarding({:test_s_call!, value}, context, _from, %__MODULE__{} = this), do: test_s_call!(this, value, context)
-  def call_forwarding({:test_s_call, value}, context, _from, %__MODULE__{} = this), do: test_s_call(this, value, context)
 
+  #------------------------------------------------------------------------
+  # call router
+  #------------------------------------------------------------------------
+  def call_router_user(envelope, from, state) do
+    case envelope do
+      {:s, {:test_s_call!, value}, context} -> test_s_call!(state, value, context)
+      {:s, {:test_s_call, value}, context} -> test_s_call(state, value, context)
+      _ -> nil
+    end
+  end
 
-  def call_forwarding({:test_s_cast!, value}, context, %__MODULE__{} = this), do: test_s_cast!(this, value, context)
-  def call_forwarding({:test_s_cast, value}, context, %__MODULE__{} = this), do: test_s_cast(this, value, context)
+  def cast_router_user(envelope, state) do
+    case envelope do
+      {:s, {:test_s_cast!, value}, context} -> test_s_cast!(state, value, context)
+      {:s, {:test_s_cast, value}, context} -> test_s_cast(state, value, context)
+      _ -> nil
+    end
+  end
 
   #-------------------
   # id/1

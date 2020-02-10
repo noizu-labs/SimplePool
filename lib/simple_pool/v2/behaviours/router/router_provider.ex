@@ -58,7 +58,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     Perform a bare s_call with out exception handling.
   """
   def s_call_unsafe(pool_server, ref, extended_call, context, options, timeout) do
-    timeout = options[:timeout] || timeout
+    timeout = options[:timeout] || timeout || pool_server.router().option(:defaul_timeout, @default_timeout)
     case pool_server.worker_management().process!(ref, context, options) do
       {:ack, pid} ->
         case GenServer.call(pid, extended_call, timeout) do
@@ -470,7 +470,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
   #----------------------------------------
   def get_direct_link!(pool_server, ref, context, options \\ %{}) do
     options = options || %{}
-    case pool_server.pool_worker_entity().__struct__.ref(ref) do
+    case pool_server.pool_worker_state_entity().ref(ref) do
       nil ->
         %Link{ref: ref, handler: pool_server, handle: nil, state: {:error, :no_ref}}
       {:error, details} ->

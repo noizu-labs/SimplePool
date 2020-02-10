@@ -285,7 +285,9 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       # fetch!/5
       #-----------------------------
       def fetch!(state, {:state}, _from, _context, _options), do: {:reply, state, state}
-      def fetch!(state, {:process}, _from, _context, _options), do: {:reply, {self(), node()}, state}
+      def fetch!(state, {:default}, _from, _context, _options), do: {:reply, state, state}
+      def fetch!(state, {:inner_state}, _from, _context, _options), do: {:reply, state.inner_state, state}
+      def fetch!(state, {:process}, _from, _context, _options), do: {:reply, {is_map(state.inner_state) && Noizu.ERP.ref(state.inner_state) || state.inner_state, self(), node()}, state}
 
       #-----------------------------
       # ping/5
@@ -346,7 +348,7 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       # kill!/5
       #-----------------------------
       def kill!(state, _args, _from, context, _opts \\ nil) do
-        {:stop, {:user_requested, context}, state}
+        {:stop, :shutdown, :user_shutdown, state}
       end
 
       #-----------------------------
@@ -428,16 +430,16 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       end
 
 
-  # Delegate uncaught calls into inner state.
-  def call_router_catchall(envelope, from, state) do
-    Noizu.SimplePool.V2.MessageProcessingBehaviour.Default.__delegate_call_handler(__MODULE__, envelope, from, state)
-  end
-  def cast_router_catchall(envelope, state) do
-    Noizu.SimplePool.V2.MessageProcessingBehaviour.Default.__delegate_cast_handler(__MODULE__, envelope, state)
-  end
-  def info_router_catchall(envelope, state) do
-    Noizu.SimplePool.V2.MessageProcessingBehaviour.Default.__delegate_info_handler(__MODULE__, envelope, state)
-  end
+      # Delegate uncaught calls into inner state.
+      def call_router_catchall(envelope, from, state) do
+        Noizu.SimplePool.V2.MessageProcessingBehaviour.Default.__delegate_call_handler(__MODULE__, envelope, from, state)
+      end
+      def cast_router_catchall(envelope, state) do
+        Noizu.SimplePool.V2.MessageProcessingBehaviour.Default.__delegate_cast_handler(__MODULE__, envelope, state)
+      end
+      def info_router_catchall(envelope, state) do
+        Noizu.SimplePool.V2.MessageProcessingBehaviour.Default.__delegate_info_handler(__MODULE__, envelope, state)
+      end
 
 
       #===============================================================================================================

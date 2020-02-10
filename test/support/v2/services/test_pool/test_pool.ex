@@ -28,26 +28,27 @@ defmodule Noizu.SimplePool.Support.TestV2Pool do
         worker_state_entity: Noizu.SimplePool.Support.TestV2WorkerEntity,
         server_monitor: Noizu.MonitoringFramework.EnvironmentPool.Server,
         worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
-
-    #---------------------------------------------------------------------------
-    # Convenience Methods
-    #---------------------------------------------------------------------------
-    def test_s_call!(identifier, value, context) do
-      __MODULE__.Router.s_call!(identifier, {:test_s_call!, value}, context)
-    end
-
-    def test_s_call(identifier, value, context) do
-      __MODULE__.Router.s_call(identifier, {:test_s_call, value}, context)
-    end
-
-    def test_s_cast!(identifier, value, context) do
-      __MODULE__.Router.s_cast!(identifier, {:test_s_cast!, value}, context)
-    end
-
-    def test_s_cast(identifier, value, context) do
-      __MODULE__.Router.s_cast(identifier, {:test_s_cast, value}, context)
-    end
-
   end # end defmodule GoldenRatio.Components.Gateway.Server
+
+
+  #---------------------------------------------------------------------------
+  # Convenience Methods
+  #---------------------------------------------------------------------------
+  def test_s_call!(identifier, value, context) do
+    __MODULE__.Server.Router.s_call!(identifier, {:test_s_call!, value}, context)
+  end
+
+  def test_s_call(identifier, value, context) do
+    __MODULE__.Server.Router.s_call(identifier, {:test_s_call, value}, context)
+  end
+
+  def test_s_cast!(identifier, value, context) do
+    __MODULE__.Server.Router.s_cast!(identifier, {:test_s_cast!, value}, context)
+  end
+
+  def test_s_cast(identifier, value, context) do
+    __MODULE__.Server.Router.s_cast(identifier, {:test_s_cast, value}, context)
+  end
+
 end # end defmodule GoldenRatio.Components.Gateway
 

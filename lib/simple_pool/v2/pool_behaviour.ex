@@ -122,7 +122,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
       defdelegate s_call!(identifier, call, context, options \\ nil, timeout \\ nil), to: __MODULE__.Server.Router
       defdelegate s_cast(identifier, call, context, options \\ nil), to: __MODULE__.Server.Router
       defdelegate s_cast!(identifier, call, context, options \\ nil), to: __MODULE__.Server.Router
-      defdelegate get_direct_link!(ref, context, options), to: __MODULE__.Server.Router
+      defdelegate get_direct_link!(ref, context, options \\ nil), to: __MODULE__.Server.Router
       defdelegate link_forward!(link, call, context, options \\ nil), to: __MODULE__.Server.Router
       defdelegate server_call(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :self_call
       defdelegate server_cast(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :self_cast
@@ -138,6 +138,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
       #==========================================================
       # Built in Worker Convenience Methods.
       #==========================================================
+      defdelegate wake!(ref, request \\ :state, context \\ nil, options \\ %{}), to: __MODULE__.Server
       defdelegate fetch!(ref, request \\ :state, context \\ nil, options \\ %{}), to: __MODULE__.Server
       defdelegate save!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server
       defdelegate save_async!(ref, args \\ {}, context \\ nil, options \\ %{}), to: __MODULE__.Server

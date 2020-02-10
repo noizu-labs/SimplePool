@@ -26,6 +26,7 @@ Application.ensure_all_started(:semaphore)
 Amnesia.start
 
 
+
 #-------------------------
 # V1 Core Tables
 #-------------------------
@@ -75,8 +76,30 @@ end
 :ok = Amnesia.Table.wait(Noizu.SimplePool.Database.tables(), 5_000)
 :ok = Amnesia.Table.wait(Noizu.SimplePool.TestDatabase.tables(), 5_000)
 
-true = Node.connect(:"second@127.0.0.1")
-:rpc.call(:"second@127.0.0.1", Amnesia, :start, [])
+# Wait for second node
+connected = Node.connect(:"second@127.0.0.1")
+if (!connected) do
+  IO.puts "Waiting five minutes for second test node (./test-node.sh)"
+  case Noizu.SimplePool.TestHelpers.wait_for_condition(fn() -> (Node.connect(:"second@127.0.0.1") == true) end, 60 * 5) do
+    :ok ->
+      IO.puts "Second Node Online"
+    {:error, :timeout} ->
+      IO.puts "Timeout Occurred waiting for Second Node"
+      exit(:shutdown)
+  end
+end
+
+# Wait for connectivity / compile
+Noizu.SimplePool.TestHelpers.wait_for_condition(
+  fn() ->
+    :rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :wait_for_init, []) == :ok
+  end,
+  60 * 5
+)
+
+
+
+
 
 spawn_second = if !Enum.member?(Amnesia.info(:db_nodes),:"second@127.0.0.1") do
     # conditional include to reduce the need to restart the remote server
@@ -87,6 +110,8 @@ spawn_second = if !Enum.member?(Amnesia.info(:db_nodes),:"second@127.0.0.1") do
     IO.puts "SPAWN SECOND == false"
     false
   end
+
+:ok = :rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :wait_for_db, [])
 
 #-----------------------------------------------
 # Registry and Environment Manager Setup - Local

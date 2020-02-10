@@ -757,7 +757,11 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.ping!) do
         def ping!(identifier, context \\ Noizu.ElixirCore.CallingContext.system(%{}), options \\ %{}) do
           timeout = options[:timeout] || @timeout
-          s_call(identifier, :ping!, context, options, timeout)
+          case s_call(identifier, :ping!, context, options, timeout) do
+            {:error, _} -> :pang
+            :error -> :pang
+            v -> v
+          end
         end
       end
 

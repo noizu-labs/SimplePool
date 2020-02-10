@@ -152,13 +152,13 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   @doc """
 
   """
-  def workers!(pool_server, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, node(), pool_server.pool_worker_entity().__struct__, context, %{})
+  def workers!(pool_server, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, node(), pool_server.pool_worker_state_entity(), context, %{})
 
-  def workers!(pool_server, %Noizu.ElixirCore.CallingContext{} = context, options), do: workers!(pool_server, node(), pool_server.pool_worker_entity().__struct__, context, options)
+  def workers!(pool_server, %Noizu.ElixirCore.CallingContext{} = context, options), do: workers!(pool_server, node(), pool_server.pool_worker_state_entity(), context, options)
 
-  def workers!(pool_server, host, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, host, pool_server.pool_worker_entity().__struct__, context, %{})
+  def workers!(pool_server, host, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, host, pool_server.pool_worker_state_entity(), context, %{})
 
-  def workers!(pool_server, host, %Noizu.ElixirCore.CallingContext{} = context, options), do: workers!(pool_server, host, pool_server.pool_worker_entity().__struct__, context, options)
+  def workers!(pool_server, host, %Noizu.ElixirCore.CallingContext{} = context, options), do: workers!(pool_server, host, pool_server.pool_worker_state_entity(), context, options)
 
   def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, host, service_entity, context, %{})
 
@@ -463,7 +463,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
     record = options[:dispatch_record] || dispatch_get!(ref, pool_server, context, options)
     case record do
       nil ->
-        case wm.host!(ref, server, context, options) do
+        case wm.host!(ref, context, options) do
           {:ack, host} ->
             if host == node() do
               case Registry.lookup(r, {:worker, ref}) do
@@ -520,7 +520,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
         cond do
           host == :pending ->
             if options[:spawn] do
-              host2 = wm.host!(ref, server, context, options)
+              host2 = wm.host!(ref, context, options)
               if host2 == node() do
                 options_b = %{lock: %{type: :init}, conditional_checkout: fn(x) ->
                   case x do

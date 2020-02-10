@@ -128,6 +128,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagementBehaviour do
         """
         def worker_load!(ref, context \\ nil, options \\ %{}), do: Provider.worker_load!(@pool_server, ref, context, options)
 
+
         @doc """
 
         """

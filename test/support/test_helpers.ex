@@ -16,6 +16,49 @@ defmodule Noizu.SimplePool.TestHelpers do
   require Logger
   @pool_options %{hard_limit: 250, soft_limit: 150, target: 100}
 
+
+  #-------------------------
+  # Helper Method
+  #-------------------------
+  def wait_for_db() do
+    wait_for_condition(
+      fn() ->
+        Enum.member?(Amnesia.info(:running_db_nodes), :"second@127.0.0.1") && Enum.member?(Amnesia.info(:running_db_nodes), :"first@127.0.0.1")
+      end,
+      60 * 5)
+  end
+
+  def wait_for_init() do
+    Amnesia.start
+    wait_for_condition(
+      fn() ->
+        Enum.member?(Amnesia.info(:running_db_nodes), :"second@127.0.0.1")
+      end,
+      60 * 5)
+  end
+
+  def wait_for_condition(condition, timeout \\ :infinity) do
+    cond do
+      !is_function(condition, 0) -> {:error, :condition_not_callable}
+      is_integer(timeout) -> wait_for_condition_inner(condition, :os.system_time(:seconds) + timeout)
+      timeout == :infinity -> wait_for_condition_inner(condition, timeout)
+      true ->  {:error, :invalid_timeout}
+    end
+  end
+
+  def wait_for_condition_inner(condition, timeout) do
+    check = condition.()
+    cond do
+      check == :ok || check == true -> :ok
+      is_integer(timeout) && timeout < :os.system_time(:seconds) -> {:error, :timeout}
+      true ->
+        Process.sleep(100)
+        wait_for_condition_inner(condition, timeout)
+    end
+  end
+
+
+
   def wait_hint_release(ref, service, context, timeout \\ 60_000) do
     t = :os.system_time(:millisecond)
     Process.sleep(100)
@@ -77,7 +120,15 @@ defmodule Noizu.SimplePool.TestHelpers do
     Noizu.MonitoringFramework.EnvironmentPool.Server.start_services(context)
     :online = Noizu.MonitoringFramework.EnvironmentPool.Server.status_wait([:online, :degraded], context)
 
-    # Start V2 Monitor
+    #-------------------------------
+    # Start V2 Cluster Monitor
+    #-------------------------------
+    cluster_monitor_settings = nil
+    Noizu.SimplePool.V2.MonitoringFramework.ClusterMonitor.start(cluster_monitor_settings, context)
+
+    #-------------------------------
+    # Start V2 Server Monitor
+    #-------------------------------
     monitor_name = {:default, node()}
     Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.start(monitor_name, context)
 
@@ -123,10 +174,6 @@ defmodule Noizu.SimplePool.TestHelpers do
     """
 
     p = spawn fn ->
-
-
-
-
       :ok = Amnesia.Table.wait(Noizu.SimplePool.Database.tables(), 5_000)
 
       context = Noizu.ElixirCore.CallingContext.system(%{})

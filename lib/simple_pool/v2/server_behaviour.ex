@@ -63,6 +63,92 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       OptionSettings.expand(settings, options)
     end
 
+
+
+    defp get_semaphore(key, count \\ 1) do
+      try do
+        Semaphore.acquire(key, count)
+      rescue _e -> false
+      catch _e -> false
+      end
+    end
+
+    def enable_server!(mod, active_key, elixir_node \\ nil) do
+      cond do
+        elixir_node == nil || elixir_node == node() ->
+          if get_semaphore({:fg_write_record, active_key} , 5) do
+            r = FastGlobal.put(active_key, true)
+            Semaphore.release({:fg_write_record, active_key})
+            r
+          else
+            # Always write attempt retrieve lock merely to prevent an over write if possible.
+            r = FastGlobal.put(active_key, true)
+            spawn fn ->
+              Process.sleep(750)
+              if get_semaphore({:fg_write_record, active_key} , 5) do
+                FastGlobal.put(active_key, true)
+                Semaphore.release({:fg_write_record, active_key})
+              else
+                FastGlobal.put(active_key, true)
+              end
+            end
+            r
+          end
+        true -> :rpc.call(elixir_node, mod, :enable_server!, [])
+      end
+    end
+
+    def server_online?(mod, active_key, elixir_node \\ nil) do
+      cond do
+        elixir_node == nil || elixir_node == node() ->
+          case FastGlobal.get(active_key, :no_match) do
+            :no_match ->
+              if get_semaphore({:fg_write_record, active_key} , 1) do
+                # Race condition check
+                r = case FastGlobal.get(active_key, :no_match) do
+                  :no_match ->
+                    FastGlobal.put(active_key, false)
+                  v -> v
+                end
+                Semaphore.release({:fg_write_record, active_key})
+                r
+              else
+                false
+              end
+            v -> v
+          end
+        true -> :rpc.call(elixir_node, mod, :server_online?, [])
+      end
+    end
+
+    def disable_server!(mod, active_key, elixir_node \\ nil) do
+      cond do
+        elixir_node == nil || elixir_node == node() ->
+          if get_semaphore({:fg_write_record, active_key} , 5) do
+            r = FastGlobal.put(active_key, false)
+            Semaphore.release({:fg_write_record, active_key})
+            r
+          else
+            # Always write attempt retrieve lock merely to prevent an over write if possible.
+            r = FastGlobal.put(active_key, true)
+            spawn fn ->
+              Process.sleep(750)
+              if get_semaphore({:fg_write_record, active_key} , 5) do
+                FastGlobal.put(active_key, true)
+                Semaphore.release({:fg_write_record, active_key})
+              else
+                FastGlobal.put(active_key, true)
+              end
+            end
+            r
+          end
+        true -> :rpc.call(elixir_node, mod, :disable_server!, [])
+      end
+    end
+
+
+
+
     def meta_init(module) do
       options = module.options()
       %{
@@ -177,6 +263,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       use Noizu.SimplePool.V2.SettingsBehaviour.Inherited, unquote([option_settings: option_settings])
       use unquote(message_processing_provider), unquote(option_settings)
 
+      @active_key Module.concat(Enabled, __MODULE__)
 
       #----------------------------------------------------------
       # @todo We should be passing in information (pool module, instead of making this a sub module.)
@@ -243,14 +330,14 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       def init(%{context: context, definition: definition} = args) do
         verbose() && Logger.info(fn -> {banner("INIT #{__MODULE__} (#{inspect pool_server()}@#{inspect self()})\n args: #{inspect args, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
 
-        # @TODO we can avoid this jump by directly delegating to server_provider() and updating server_prover to fetch option_settings on its own.
+        # @TODO we can avoid this jump by directly delegating to server_provider() and updating server_provider to fetch option_settings on its own.
         #server.enable_server!(node())
         #module.server_provider().init(module, :deprecated, definition, context, module.option_settings())
 
         state = initial_state(args, context)
 
         __MODULE__.ServiceManagement.record_service_event!(:start, %{definition: definition, options: @option_settings}, context, %{})
-
+        __MODULE__.enable_server!()
         {:ok, state}
       end
 
@@ -298,6 +385,17 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       Request information about a worker.
       """
       def fetch!(ref, request \\ :state, context \\ nil, options \\ %{}) do
+        context = context || Noizu.ElixirCore.CallingContext.system()
+        case __MODULE__.Router.s_call(ref, {:fetch!, {request}, options}, context, options) do
+          {:nack, :no_registered_host} -> nil
+          v -> v
+        end
+      end
+
+      @doc """
+      Bring worker online
+      """
+      def wake!(ref, request \\ :state, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
         __MODULE__.Router.s_call!(ref, {:fetch!, {request}, options}, context, options)
       end
@@ -364,7 +462,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       """
       def kill!(ref, args \\ {}, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_cast!(ref, {:kill!, args, options}, context, options)
+        __MODULE__.Router.s_cast(ref, {:kill!, args, options}, context, options)
       end
 
       @doc """
@@ -372,7 +470,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       """
       def crash!(ref, args \\ {}, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_cast!(ref, {:crash!, args, options}, context, options)
+        __MODULE__.Router.s_cast(ref, {:crash!, args, options}, context, options)
       end
 
       @doc """
@@ -539,6 +637,21 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       end
 
 
+      def count_supervisor_children(), do: worker_management().count_supervisor_children()
+
+      def enable_server!(elixir_node \\ nil) do
+        Noizu.SimplePool.V2.ServerBehaviour.Default.enable_server!(__MODULE__, @active_key, elixir_node)
+      end
+
+      def server_online?(elixir_node \\ nil) do
+        Noizu.SimplePool.V2.ServerBehaviour.Default.server_online?(__MODULE__, @active_key, elixir_node)
+      end
+
+      def disable_server!(elixir_node \\ nil) do
+        Noizu.SimplePool.V2.ServerBehaviour.Default.disable_server!(__MODULE__, @active_key, elixir_node)
+      end
+
+
       defoverridable [
         start_link: 2,
         init: 1,
@@ -570,6 +683,10 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         kill!: 4,
         crash!: 4,
         health_check!: 4,
+
+        enable_server!: 1,
+        server_online?: 1,
+        disable_server!: 1
       ]
 
     end # end quote

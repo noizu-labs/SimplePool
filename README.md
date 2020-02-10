@@ -77,6 +77,11 @@ See test/support/v2/services/test_pool for an example of a simple server/worker 
  # Code Snippets Pending
 ```
 
+Running Test Suite
+----------------------------
+Because SimplePool coordinates activites between multiple nodes the test suite requires some additional steps to run. 
+To run the suite first launch the second node using `./test-node.sh` then in a second console window launch the actual suite with `./run-test.sh`.
+
 
 Related Technology
 ---------------------------

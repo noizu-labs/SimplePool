@@ -28,7 +28,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
   @behaviour Noizu.SimplePool.V2.MonitoringFramework.MonitorBehaviour
   alias Noizu.ElixirCore.CallingContext
   alias Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration
-
+  require Logger
   use Noizu.SimplePool.V2.StandAloneServiceBehaviour,
       default_modules: [:pool_supervisor, :monitor],
       worker_state_entity: nil,
@@ -79,7 +79,7 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
     require Logger
 
     def initial_state(args, _context) do
-      # @todo attempt to load configuration from persistence store
+      Logger.error("@todo attempt to load configuration from persistence store - use indicator to detect version changes")
       configuration_id = args.definition || {:default, node()}
 
       monitor_configuration = %Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration{

@@ -43,7 +43,7 @@ defmodule Noizu.SimplePool.V2.StandAloneServiceBehaviour do
       #--------------------------
       # Methods
       #--------------------------
-      def start(context \\ nil, definition \\ :auto), do: __MODULE__.PoolSupervisor.start_link(context, definition)
+      defdelegate start(definition \\ :default, context \\ nil), to: __MODULE__.PoolSupervisor, as: :start_link
       def stand_alone(), do: true
 
 
@@ -56,7 +56,7 @@ defmodule Noizu.SimplePool.V2.StandAloneServiceBehaviour do
       defdelegate s_call!(identifier, call, context, options \\ nil, timeout \\ nil), to: __MODULE__.Server.Router
       defdelegate s_cast(identifier, call, context, options \\ nil), to: __MODULE__.Server.Router
       defdelegate s_cast!(identifier, call, context, options \\ nil), to: __MODULE__.Server.Router
-      defdelegate get_direct_link!(ref, context, options), to: __MODULE__.Server.Router
+      defdelegate get_direct_link!(ref, context, options \\ nil), to: __MODULE__.Server.Router
       defdelegate link_forward!(link, call, context, options \\ nil), to: __MODULE__.Server.Router
       defdelegate server_call(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :self_call
       defdelegate server_cast(call, context \\ nil, options \\ nil), to: __MODULE__.Server.Router, as: :self_cast
