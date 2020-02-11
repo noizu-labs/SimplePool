@@ -288,6 +288,10 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       def fetch!(state, {:default}, _from, _context, _options), do: {:reply, state, state}
       def fetch!(state, {:inner_state}, _from, _context, _options), do: {:reply, state.inner_state, state}
       def fetch!(state, {:process}, _from, _context, _options), do: {:reply, {is_map(state.inner_state) && Noizu.ERP.ref(state.inner_state) || state.inner_state, self(), node()}, state}
+      def fetch!(_state, command, _context, _options) do
+        IO.puts "[[[UNHANDLED FETCH COMMAND: #{inspect command}]]]"
+        nil  # all inner_state implementations
+      end
 
       #-----------------------------
       # ping/5
@@ -367,10 +371,13 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
         {:noreply, state}
       end
 
+
       #------------------------------------------------------------------------
       # Infrastructure provided call router
       #------------------------------------------------------------------------
-      def call_router_internal(envelope, from, state) do
+      def call_router_internal__default({:passive, envelope}, from, state), do: call_router_internal__default(envelope, from, state)
+      def call_router_internal__default({:spawn, envelope}, from, state), do: call_router_internal__default(envelope, from, state)
+      def call_router_internal__default(envelope, from, state) do
         case envelope do
           # fetch
           {:s, {:fetch!, args}, context} -> fetch!(state, args, from, context)
@@ -415,20 +422,31 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
           _ -> nil
         end
       end
+      def call_router_internal(envelope, from, state), do: call_router_internal__default(envelope, from, state)
 
-      def cast_router_internal(envelope, state) do
+
+      #----------------------------
+      #
+      #----------------------------
+      def cast_router_internal__default(envelope, state) do
         r = call_router_internal(envelope, :cast, state)
         r && as_cast(r)
       end
+      def cast_router_internal(envelope, state), do: cast_router_internal__default(envelope, state)
 
-      def info_router_internal(envelope, state) do
+      #----------------------------
+      #
+      #----------------------------
+      def info_router_internal__default({:passive, envelope}, state), do: info_router_internal__default(envelope, state)
+      def info_router_internal__default({:spawn, envelope}, state), do: info_router_internal__default(envelope, state)
+      def info_router_internal__default(envelope, state) do
         case envelope do
           {:i, {:inactivity_check, args}, context} -> inactivity_check(state, args, :info, context) |> as_cast()
           {:i, {:inactivity_check, args, opts}, context} -> inactivity_check(state, args, :info, context, opts) |> as_cast()
           _ -> nil
         end
       end
-
+      def info_router_internal(envelope, state), do: info_router_internal__default(envelope, state)
 
       # Delegate uncaught calls into inner state.
       def call_router_catchall(envelope, from, state) do

@@ -97,10 +97,6 @@ Noizu.SimplePool.TestHelpers.wait_for_condition(
   60 * 5
 )
 
-
-
-
-
 spawn_second = if !Enum.member?(Amnesia.info(:db_nodes),:"second@127.0.0.1") do
     # conditional include to reduce the need to restart the remote server
     IO.puts "SPAWN SECOND == true"
@@ -127,10 +123,38 @@ if spawn_second do
 else
   IO.puts "Checking second node state"
   case :rpc.call(:"second@127.0.0.1", Noizu.MonitoringFramework.EnvironmentPool.Server, :node_health_check!, [context, %{}]) do
-    {:badrpc, _} -> {:pid, _second_pid} = :rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :setup_second, [])
+    {:badrpc, _} ->
+      {:pid, _second_pid} = :rpc.call(:"second@127.0.0.1", Noizu.SimplePool.TestHelpers, :setup_second, [])
     v -> IO.puts "Checking second node state #{inspect v}"
   end
 end
 
 :ok = Noizu.SimplePool.TestHelpers.unique_ref(:two)
       |> Noizu.SimplePool.TestHelpers.wait_hint_release(TestTwoPool.Server, context)
+
+
+
+if (node() == :"first@127.0.0.1") do
+  IO.puts "//////////////////////////////////////////////////////"
+  IO.puts "waiting for TestV2Two to come online"
+  IO.puts "//////////////////////////////////////////////////////"
+  # Wait for connectivity / compile
+  Noizu.SimplePool.TestHelpers.wait_for_condition(
+    fn() ->
+      :rpc.call(:"second@127.0.0.1", Noizu.SimplePool.Support.TestV2TwoPool.Server, :server_online?, []) == true
+    end,
+    60 * 5
+  )
+
+  IO.puts "//////////////////////////////////////////////////////"
+  IO.puts "waiting for remote registry"
+  IO.puts "//////////////////////////////////////////////////////"
+
+  Noizu.SimplePool.TestHelpers.wait_for_condition(
+    fn() ->
+      :rpc.call(:"second@127.0.0.1", Registry, :lookup, [Noizu.SimplePool.Support.TestV2TwoPool.Registry, {:worker, :aple}]) == []
+    end,
+    60 * 5
+  )
+  :rpc.call(:"second@127.0.0.1", Registry, :lookup, [Noizu.SimplePool.Support.TestV2TwoPool.Registry, {:worker, :aple}])
+end

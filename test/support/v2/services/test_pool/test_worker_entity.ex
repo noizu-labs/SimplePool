@@ -72,6 +72,8 @@ defmodule Noizu.SimplePool.Support.TestV2WorkerEntity do
   #------------------------------------------------------------------------
   # call router
   #------------------------------------------------------------------------
+  def call_router_user({:spawn, envelope}, from, state), do: call_router_user(envelope, from, state)
+  def call_router_user({:passive, envelope}, from, state), do: call_router_user(envelope, from, state)
   def call_router_user(envelope, from, state) do
     case envelope do
       {:s, {:test_s_call!, value}, context} -> test_s_call!(state, value, context)
@@ -80,6 +82,8 @@ defmodule Noizu.SimplePool.Support.TestV2WorkerEntity do
     end
   end
 
+  def cast_router_user({:spawn, envelope}, state), do: cast_router_user(envelope, state)
+  def cast_router_user({:passive, envelope}, state), do: cast_router_user(envelope, state)
   def cast_router_user(envelope, state) do
     case envelope do
       {:s, {:test_s_cast!, value}, context} -> test_s_cast!(state, value, context)

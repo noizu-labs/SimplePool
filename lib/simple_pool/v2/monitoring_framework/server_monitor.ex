@@ -170,6 +170,8 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
     #------------------------------------------------------------------------
     # call router
     #------------------------------------------------------------------------
+    def call_router_user({:spawn, envelope}, from, state), do: call_router_user(envelope, from, state)
+    def call_router_user({:passive, envelope}, from, state), do: call_router_user(envelope, from, state)
     def call_router_user(envelope, _from, state) do
       case envelope do
         {:m, {:reconfigure, config, opts}, context} -> reconfigure(state, config, context, opts)
@@ -188,14 +190,25 @@ defmodule Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor do
       end
     end
 
-
-
-
-    def select_host(_ref, _service, _context, _opts \\ %{}) do
+    def select_host(ref, _service, _context, _opts \\ %{}) do
       # @TODO - To Optimize Host Selection,
       # 1. Load from FastGlobal instead of Amnesia.
       # 2. Instead of randomly selecting from hints use weight information and a dice roll to determine bucket.
-      {:ack, node()}
+
+
+      # {:ack, node()}
+      # Temporary Check
+      case ref do
+        {:ref, Noizu.SimplePool.Support.TestV2TwoWorkerEntity, _} -> {:ack, :"second@127.0.0.1"}
+        _ -> {:ack, node()}
+      end
+
+
+
+
+
+
+
     end
 
     def supports_service?(_service, _context, _options), do: :nyi

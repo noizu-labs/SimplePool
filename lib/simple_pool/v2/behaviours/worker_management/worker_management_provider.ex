@@ -461,6 +461,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
     r = pool_server.pool_registry()
 
     record = options[:dispatch_record] || dispatch_get!(ref, pool_server, context, options)
+
     case record do
       nil ->
         case wm.host!(ref, context, options) do

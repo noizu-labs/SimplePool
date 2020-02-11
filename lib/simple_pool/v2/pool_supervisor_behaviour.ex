@@ -119,6 +119,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       if module.verbose(), do: start_children_banner(module, sup, definition, context)
 
       # Start Children
+
       {worker_supervisor_process, registry_process} =
         if (module.pool().stand_alone()) do
           {{:ok, :offline}, {:ok, :offline}}
@@ -204,7 +205,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
           :error
       end
 
-      IO.puts """
+      Logger.info """
 
       +++++++++++++++++++++++++ Registry V2 ++++++++++++++++++++++++++
       #{module.pool_registry()} -> #{inspect registry_options} - #{inspect r}}

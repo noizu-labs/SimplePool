@@ -30,7 +30,7 @@ defmodule Noizu.SimplePool.TestHelpers do
 
   def wait_for_init() do
     Amnesia.start
-    wait_for_condition(
+    r = wait_for_condition(
       fn() ->
         Enum.member?(Amnesia.info(:running_db_nodes), :"second@127.0.0.1")
       end,
@@ -235,6 +235,7 @@ defmodule Noizu.SimplePool.TestHelpers do
           ================================================================
           """)
       end
+
 
       receive do
         :halt -> IO.puts "halting process"

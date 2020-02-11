@@ -285,54 +285,33 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
   #----------------------------------------
   # extended calls
   #----------------------------------------
-  def extended_call_with_redirect_support(pool_server, s_type, ref, call, context, _options, timeout \\ nil) do
-    msg_prefix = case s_type do
-      # Standard Message
-      :s_call! -> :s
-      :s_call -> :s
-      :s_cast! -> :s
-      :s_cast -> :s
-
-      # System Message
-      :m_call! -> :m
-      :m_call -> :m
-      :m_cast! -> :m
-      :m_cast -> :m
-
-      # Internal Message (Self Messaging)
-      :i_call! -> :i
-      :i_call -> :i
-      :i_cast! -> :i
-      :i_cast -> :i
-
-      _ -> throw "Unsupported message type: #{inspect s_type}"
-    end
-    {:msg_envelope, {pool_server.pool_worker(), {s_type, ref, timeout}}, {msg_prefix, call, context}}
+  def extended_call_with_redirect_support(pool_server, s_type, ref, call, context, options, timeout \\ nil) do
+    call = extended_call_without_redirect_support(pool_server, s_type, ref, call, context, options, timeout)
+    {:msg_envelope, {pool_server.pool_worker(), {s_type, ref, timeout}}, call}
   end
 
   def extended_call_without_redirect_support(_pool_server, s_type, _ref, call, context, _options, _timeout \\ nil) do
-    msg_prefix = case s_type do
+    {msg_prefix, spawn_type} = case s_type do
       # Standard Message
-      :s_call! -> :s
-      :s_call -> :s
-      :s_cast! -> :s
-      :s_cast -> :s
+      :s_call! -> {:s, :spawn}
+      :s_call -> {:s, :passive}
+      :s_cast! -> {:s, :spawn}
+      :s_cast -> {:s, :passive}
 
       # System Message
-      :m_call! -> :m
-      :m_call -> :m
-      :m_cast! -> :m
-      :m_cast -> :m
+      :m_call! -> {:m, :spawn}
+      :m_call -> {:m, :passive}
+      :m_cast! -> {:m, :spawn}
+      :m_cast -> {:m, :passive}
 
       # Internal Message (Self Messaging)
-      :i_call! -> :i
-      :i_call -> :i
-      :i_cast! -> :i
-      :i_cast -> :i
-
+      :i_call! -> {:i, :spawn}
+      :i_call -> {:i, :passive}
+      :i_cast! -> {:i, :spawn}
+      :i_cast -> {:i, :passive}
       _ -> throw "Unsupported message type: #{inspect s_type}"
     end
-    {msg_prefix, call, context}
+    {spawn_type, {msg_prefix, call, context}}
   end
 
 

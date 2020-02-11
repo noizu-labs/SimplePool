@@ -131,12 +131,15 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
   test "basic_functionality kill process" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:one)
     Noizu.SimplePool.Support.TestV2Pool.Server.wake!(ref, :state, @context)
-    {_rref, process, _server} = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :process, @context)
+    {rref, process, _server} = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :process, @context)
     Noizu.SimplePool.Support.TestV2Pool.kill!(ref, @context)
 
     # Test
     Process.sleep(3000)
-    {rref2, process2, server2} = wait_for_restart(ref)
+    wait_for_restart(ref)
+    Noizu.SimplePool.Support.TestV2Pool.wake!(ref, :state, @context)
+    {rref2, process2, server2} = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :process, @context)
+    assert rref == ref
     assert rref2 == ref
     assert server2 == node()
     assert process != process2
@@ -156,7 +159,9 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
 
     # Test
     Process.sleep(3000)
-    {rref2, process2, server2} = wait_for_restart(ref)
+    wait_for_restart(ref)
+    Noizu.SimplePool.Support.TestV2Pool.wake!(ref, :state, @context)
+    {rref2, process2, server2} = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :process, @context)
     assert rref2 == ref
     assert server2 == node()
     assert process != process2
@@ -208,13 +213,11 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
   test "basic_functionality - link_forward!" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:one)
     link = Noizu.SimplePool.Support.TestV2Pool.get_direct_link!(ref,  @context)
-    {:ok, updated_link} = Noizu.SimplePool.Support.TestV2Pool.link_forward!(link, {:test_s_cast, 1234},  @context, %{spawn: true})
-
     Noizu.SimplePool.Support.TestV2Pool.Server.wake!(ref, :state, @context)
+    {:ok, updated_link} = Noizu.SimplePool.Support.TestV2Pool.link_forward!(link, {:test_s_cast, 1234},  @context, %{spawn: true})
     sut = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :inner_state, @context)
     {_rref, process, _server} = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :process, @context)
-
-    assert sut.data.s_cast == 1234
+    assert sut.data[:s_cast] == 1234
     assert updated_link.handle == process
     assert updated_link.state == :valid
   end
@@ -241,7 +244,7 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
   # helpers
   #--------------------------
   def wait_for_restart(ref, attempts \\ 10) do
-    case Noizu.SimplePool.Support.TestV2Pool.wake!(ref, :process, @context) do
+    case Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :process, @context) do
       r = {:error, {:exit, {{%RuntimeError{}, _stack}, _call}}} ->
         if attempts > 0 do
           Process.sleep(5)

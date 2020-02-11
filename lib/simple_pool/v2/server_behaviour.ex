@@ -386,7 +386,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       """
       def fetch!(ref, request \\ :state, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        case __MODULE__.Router.s_call(ref, {:fetch!, {request}, options}, context, options) do
+        case __MODULE__.Router.s_call!(ref, {:fetch!, {request}, options}, context, options) do
           {:nack, :no_registered_host} -> nil
           v -> v
         end
@@ -397,7 +397,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       """
       def wake!(ref, request \\ :state, context \\ nil, options \\ %{}) do
         context = context || Noizu.ElixirCore.CallingContext.system()
-        __MODULE__.Router.s_call!(ref, {:fetch!, {request}, options}, context, options)
+        __MODULE__.Router.s_call!(ref, {:wake!, {request}, options}, context, options)
       end
 
       @doc """
@@ -455,6 +455,15 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         timeout = options[:timeout] || @timeout
         context = context || Noizu.ElixirCore.CallingContext.system()
         __MODULE__.Router.s_call(ref, {:ping, args, options}, context, options, timeout)
+      end
+
+      @doc """
+      Ping worker.
+      """
+      def ping!(ref, args \\ {}, context \\ nil, options \\ %{}) do
+        timeout = options[:timeout] || @timeout
+        context = context || Noizu.ElixirCore.CallingContext.system()
+        __MODULE__.Router.s_call!(ref, {:ping, args, options}, context, options, timeout)
       end
 
       @doc """
@@ -603,7 +612,9 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
       #------------------------------------------------------------------------
       # Infrastructure provided call router
       #------------------------------------------------------------------------
-      def call_router_internal(envelope, from, state) do
+      def call_router_internal__default({:passive, envelope}, from, state), do: call_router_internal__default(envelope, from, state)
+      def call_router_internal__default({:spawn, envelope}, from, state), do: call_router_internal__default(envelope, from, state)
+      def call_router_internal__default(envelope, from, state) do
         case envelope do
           {:i, {:status, args}, context} -> handle_status(state, args, from, context)
           {:i, {:status, args, options}, context} -> handle_status(state, args, from, context, options)
@@ -622,21 +633,30 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
           _ -> nil
         end
       end
+      def call_router_internal(envelope, from, state), do: call_router_internal__default(envelope, from, state)
 
-      def cast_router_internal(envelope, state) do
-        case envelope do
-          {:i, {:server_kill!, args}, context} -> handle_server_kill!(state, args, :cast, context) |> as_cast()
-          {:i, {:server_kill!, args, options}, context} -> handle_server_kill!(state, args, :cast, context, options) |> as_cast()
 
-          {:m, {:load_complete, args}, context} -> handle_load_complete(state, args, :cast, context) |> as_cast()
-          {:m, {:load_complete, args, opts}, context} -> handle_load_complete(state, args, :cast, context, opts) |> as_cast()
+      #----------------------------
+      #
+      #----------------------------
+      def cast_router_internal__default({:passive, envelope}, state), do: cast_router_internal__default(envelope, state)
+      def cast_router_internal__default({:spawn, envelope}, state), do: cast_router_internal__default(envelope, state)
+      def cast_router_internal__default(envelope, state) do
+        r = case envelope do
+          {:i, {:server_kill!, args}, context} -> handle_server_kill!(state, args, :cast, context)
+          {:i, {:server_kill!, args, options}, context} -> handle_server_kill!(state, args, :cast, context, options)
+          {:m, {:load_complete, args}, context} -> handle_load_complete(state, args, :cast, context)
+          {:m, {:load_complete, args, opts}, context} -> handle_load_complete(state, args, :cast, context, opts)
           _ ->
-            r = call_router_internal(envelope, :cast, state)
-            r && as_cast(r)
+            call_router_internal(envelope, :cast, state)
         end
+        r && as_cast(r)
       end
+      def cast_router_internal(envelope, state), do: cast_router_internal__default(envelope, state)
 
-
+      #----------------------------
+      #
+      #----------------------------
       def count_supervisor_children(), do: worker_management().count_supervisor_children()
 
       def enable_server!(elixir_node \\ nil) do
@@ -673,6 +693,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         cast_router_internal: 2,
 
         fetch!: 4,
+        wake!: 4,
         save!: 4,
         save_async!: 4,
         reload!: 4,
@@ -680,6 +701,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         load!: 4,
         load_async!: 4,
         ping: 4,
+        ping!: 4,
         kill!: 4,
         crash!: 4,
         health_check!: 4,

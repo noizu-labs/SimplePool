@@ -71,17 +71,12 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
     :ok
   end
 
-  def as_cast({:reply, _reply, state}), do: {:noreply, state}
-  def as_cast({:noreply, state}), do: {:noreply, state}
-  def as_cast({:stop, reason, _reply, state}), do: {:stop, reason, state}
-  def as_cast({:stop, reason, state}), do: {:stop, reason, state}
-
   defmacro __using__(options) do
     option_settings = prepare_options(options)
     options = option_settings.effective_options
     required = options.required
     pool = options.pool
-
+    message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
     quote do
       import unquote(__MODULE__)
       @behaviour Noizu.SimplePool.V2.InnerStateBehaviour
@@ -92,8 +87,7 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
       @pool_supervisor (Module.concat([@base, "PoolSupervisor"]))
       @simple_pool_group ({@base, @worker, @worker_supervisor, @server, @pool_supervisor})
 
-
-      use Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
+      use unquote(message_processing_provider), unquote(option_settings)
 
       alias Noizu.SimplePool.Worker.Link
 
@@ -104,49 +98,83 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
           end
         end
 
-
         def get_direct_link!(ref, context), do: @server.router().get_direct_link!(ref, context)
 
-        def fetch(%__MODULE__{} = this, _fetch_options, _context), do: {:reply, this, this}
 
-        def ping!(%__MODULE__{} = this, context), do: {:reply, :pong, this}
-
-        def reload!(%Noizu.SimplePool.Worker.State{} = state, context, options) do
-          case load(state.worker_ref, context, options) do
-            nil -> {:reply, :error, state}
-            inner_state ->
-              {:reply, :ok, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
-          end
+      #-------------------------------------------------------------------------------
+      # Outer Context - Exceptions
+      #-------------------------------------------------------------------------------
+      def reload!(%Noizu.SimplePool.Worker.State{} = state, context, options) do
+        case load(state.worker_ref, context, options) do
+          nil -> {:reply, :error, state}
+          inner_state ->
+            {:reply, :ok, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
         end
+      end
 
-        def kill!(%__MODULE__{} = this, context), do: {:stop, {:user_requested, context}, this}
+      def save!(outer_state, _context, _options) do
+        Logger.warn("#{__MODULE__}.save method not implemented.")
+        {:reply, {:error, :implementation_required}, outer_state}
+      end
 
-        def crash!(%__MODULE__{} = this, context, options) do
-           throw "#{__MODULE__} - Crash Forced: #{inspect context}, #{inspect options}"
+      #-------------------------------------------------------------------------------
+      # Message Handlers
+      #-------------------------------------------------------------------------------
+
+      #-----------------------------
+      # fetch!/4
+      #-----------------------------
+      def fetch!(state, args, from, context), do: fetch!(state, args, from, context, nil)
+      def fetch!(state, _args, _from, _context, _options), do: {:reply, state, state}
+
+      def wake!(%__MODULE__{} = this, command, from, context), do: wake!(this, command, from, context, nil)
+      def wake!(%__MODULE__{} = this, _command, _from, _context, _options), do: {:reply, this, this}
+
+      #----------------------------------
+      # routing
+      #----------------------------------
+
+      #------------------------------------------------------------------------
+      # Infrastructure provided call router
+      #------------------------------------------------------------------------
+      def call_router_internal__default({:passive, envelope}, from, state), do: call_router_internal__default(envelope, from, state)
+      def call_router_internal__default({:spawn, envelope}, from, state), do: call_router_internal__default(envelope, from, state)
+      def call_router_internal__default(envelope, from, state) do
+        case envelope do
+          # fetch!
+          {:s, {:fetch!, args}, context} -> fetch!(state, args, from, context)
+          {:s, {:fetch!, args, opts}, context} -> fetch!(state, args, from, context, opts)
+
+          # wake!
+          {:s, {:wake!, args}, context} -> wake!(state, args, from, context)
+          {:s, {:wake!, args, opts}, context} -> wake!(state, args, from, context, opts)
+
+          _ -> nil
         end
+      end
+      def call_router_internal(envelope, from, state), do: call_router_internal__default(envelope, from, state)
 
-        def save!(outer_state, _context, _options) do
-          Logger.warn("#{__MODULE__}.save method not implemented.")
-          {:reply, {:error, :implementation_required}, outer_state}
-        end
 
-        def health_check!(%__MODULE__{} = this, context, options) do
-          #TODO accept a health check strategy option
-          ref = Noizu.ERP.ref(this)
-          events = @server.worker_management().events!(ref, context, options) || []
-          cut_off = :os.system_time(:seconds) - (60*60*15)
-          accum = events
-                  |> Enum.filter(fn(x) -> x.time > cut_off end)
-                  |> Enum.reduce(%{}, fn(x, acc) -> update_in(acc, [x.event], &( (&1 || 0) + 1)) end)
-          weights = %{exit: 0.5,  start: 0.75,  terminate: 1.00,  timeout: 0.25}
-          check = Enum.reduce(weights, 0, fn({k,w}, acc) -> acc + ((accum[k] || 0) * w) end)
-          status = cond do
-            check < 5 -> :online
-            check < 8 -> :degraded
-            true -> :critical
-          end
-          {:reply, %Noizu.SimplePool.Worker.HealthCheck{identifier: ref, status: status, event_frequency: accum, check: check, events: events}, this}
-        end
+      #----------------------------
+      #
+      #----------------------------
+      def cast_router_internal__default(envelope, state) do
+        r = call_router_internal(envelope, :cast, state)
+        r && as_cast(r)
+      end
+      def cast_router_internal(envelope, state), do: cast_router_internal__default(envelope, state)
+
+      #----------------------------
+      #
+      #----------------------------
+      def info_router_internal__default(envelope, state) do
+        nil
+      end
+      def info_router_internal(envelope, state), do: info_router_internal__default(envelope, state)
+
+      #----------------------------------
+      #
+      #----------------------------------
 
         def shutdown(%Noizu.SimplePool.Worker.State{} = state, _context \\ nil, options \\ nil, _from \\ nil), do: {:ok, state}
         def migrate_shutdown(%Noizu.SimplePool.Worker.State{} = state, _context \\ nil), do: {:ok, state}
@@ -159,19 +187,26 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
       defoverridable [
         supervisor_hint: 1,
         get_direct_link!: 2,
-        fetch: 3,
-        ping!: 2,
+        fetch!: 4,
+        fetch!: 5,
+        wake!: 4,
+        wake!: 5,
+
+
         reload!: 3,
-        kill!: 2,
-        crash!: 3,
         save!: 3,
-        health_check!: 3,
+        #health_check!: 3,
         shutdown: 4,
         migrate_shutdown: 2,
         on_migrate: 4,
         terminate_hook: 2,
         worker_refs: 3,
-        transfer: 3
+        transfer: 3,
+
+        # Routing for Infrastructure Provided Worker Methods
+        call_router_internal: 3,
+        info_router_internal: 2,
+        cast_router_internal: 2,
       ]
 
     end # end quote

@@ -34,8 +34,8 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
     @doc """
     Message Redirect Support (V2) not compatible with V1
     """
-    def __handle_call(module, {:msg_redirect, {module, _delivery_details}, call = {_s, _call, _context}}, from, state), do: __handle_call(module, call, from, state)
-    def __handle_call(module, {:msg_redirect, {call_server, {_call_type, ref, _timeout}}, call = {_type, _payload, context}} = fc, _from, state) do
+    def __handle_call(module, {:msg_redirect, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, from, state), do: __handle_call(module, call, from, state)
+    def __handle_call(module, {:msg_redirect, {call_server, {_call_type, ref, _timeout}}, call = {_spawn, {_msg_type, _call, context}}} = fc, _from, state) do
       Logger.warn fn -> "Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n" end
       try do
         Logger.error fn -> {"Redirect Failed! #{inspect call_server}-#{inspect fc, pretty: true}", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -46,25 +46,8 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       end
       {:reply, {:s_retry, call_server, module}, state}
     end
-
-
-    # Auto Load Check
-    def __handle_call(module, {:msg_envelope, {module, {:s_call!, _ref, _timeout}} = d, call = {_s, _call, context}}, from,  %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
-      updated_state = module.delayed_init(state, context)
-      if (updated_state.initialized != :delayed_init) do
-        __handle_call(module, call, from, updated_state)
-      else
-        {:reply, {:error, :init}, updated_state}
-      end
-    end
-    def __handle_call(module, {:msg_envelope, {module, {:s_call!, _ref, _timeout}} = d, call = {_s, _call, context}}, from,  %Noizu.SimplePool.Worker.State{initialized: false} = state) do
-      case module.pool_worker_state_entity().load(state.worker_ref, context, %{}) do
-        nil -> {:reply, :error, state}
-        inner_state -> __handle_call(module, call, from, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
-      end
-    end
-    def __handle_call(module, {:msg_envelope, {module, _delivery_details}, call = {_s, _call, _context}}, from, state), do: __handle_call(module, call, from, state)
-    def __handle_call(module, {:msg_envelope, {call_server, {_call_type, ref, _timeout}}, call = {_type, _payload, context}}, _from, state) do
+    def __handle_call(module, {:msg_envelope, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, from, state), do: __handle_call(module, call, from, state)
+    def __handle_call(module, {:msg_envelope, {call_server, {_call_type, ref, _timeout}}, call = {_spawn, {_msg_type, _call, context}}}, _from, state) do
       Logger.warn fn -> "Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n" end
       try do
         Logger.warn fn -> {"Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -82,27 +65,12 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
     """
     def __handle_call(module, envelope, from, state), do: module.__call_handler(envelope, from, state)
 
-
     #-----------------------------------------------------
     # handle_cast
     #-----------------------------------------------------
     # Auto Load Check
-    def __handle_cast(module, {:msg_envelope, {module, {:s_cast!, _ref, _timeout}}, call = {_s, _call, context}},  %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
-      updated_state = module.delayed_init(state, context)
-      if (updated_state.initialized != :delayed_init) do
-        __handle_cast(module, call, updated_state)
-      else
-        {:noreply, updated_state}
-      end
-    end
-    def __handle_cast(module, {:msg_envelope, {module, {:s_cast!, _ref, _timeout}}, call = {_s, _call, context}},  %Noizu.SimplePool.Worker.State{initialized: false} = state) do
-      case module.pool_worker_state_entity().load(state.worker_ref, context, %{}) do
-        nil -> {:reply, :error, state}
-        inner_state -> __handle_cast(module, call, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
-      end
-    end
-    def __handle_cast(module, {:msg_redirect, {module, _delivery_details}, call = {_s, _call, _context}}, state), do: __handle_cast(module, call, state)
-    def __handle_cast(_module, {:msg_redirect, {call_server, {call_type, ref, _timeout}}, call = {_type, payload, context}} = fc, state) do
+    def __handle_cast(module, {:msg_redirect, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, state), do: __handle_cast(module, call, state)
+    def __handle_cast(_module, {:msg_redirect, {call_server, {call_type, ref, _timeout}}, call = {_spawn, {_msg_type, payload, context}}} = fc, state) do
       spawn fn ->
         try do
           Logger.warn fn -> {"Redirect Failed #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -115,9 +83,8 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       end
       {:noreply, state}
     end
-
-    def __handle_cast(module, {:msg_envelope, {module, _delivery_details}, call = {_s, _call, _context}}, state), do: __handle_cast(module, call, state)
-    def __handle_cast(_module, {:msg_envelope, {call_server, {call_type, ref, _timeout}}, call = {_type, payload, context}}, state) do
+    def __handle_cast(module, {:msg_envelope, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, state), do: __handle_cast(module, call, state)
+    def __handle_cast(_module, {:msg_envelope, {call_server, {call_type, ref, _timeout}}, call = {_spawn, {_msg_type, payload, context}}}, state) do
       spawn fn ->
         try do
           Logger.warn fn -> {"Redirecting Cast #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -131,21 +98,6 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       {:noreply, state}
     end
 
-    def __handle_cast(module, {:s_cast!, inner, context} = envelope, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
-      updated_state = module.delayed_init(state, context)
-      if (updated_state.initialized != :delayed_init) do
-        __handle_cast(module, envelope, updated_state)
-      else
-        {:noreply, updated_state}
-      end
-    end
-    def __handle_call(module, {:s_cast!, inner, context} = envelope, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
-      case module.pool_worker_state_entity().load(state.worker_ref, context, %{}) do
-        nil -> {:noreply, state}
-        inner_state -> __handle_cast(module, envelope, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
-      end
-    end
-
     @doc """
     Catchall
     """
@@ -154,8 +106,8 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
     #-----------------------------------------------------
     # handle_info
     #-----------------------------------------------------
-    def __handle_info(module, {:msg_redirect, {module, _delivery_details}, call = {_s, _call, _context}}, state), do: __handle_info(module, call, state)
-    def __handle_info(_module, {:msg_redirect, {call_server, {call_type, ref, _timeout}}, call = {_type, payload, context}} = fc, state) do
+    def __handle_info(module, {:msg_redirect, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, state), do: __handle_info(module, call, state)
+    def __handle_info(_module, {:msg_redirect, {call_server, {call_type, ref, _timeout}}, call = {_spawn, {_msg_type, payload, context}}} = fc, state) do
       spawn fn ->
         try do
           Logger.warn fn -> {"Redirect Failed #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -169,8 +121,8 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       {:noreply, state}
     end
 
-    def __handle_info(module, {:msg_envelope, {module, _delivery_details}, call = {_s, _call, _context}}, state), do: __handle_info(module, call, state)
-    def __handle_info(_module, {:msg_envelope, {call_server, {call_type, ref, _timeout}}, call = {_type, payload, context}}, state) do
+    def __handle_info(module, {:msg_envelope, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, state), do: __handle_info(module, call, state)
+    def __handle_info(_module, {:msg_envelope, {call_server, {call_type, ref, _timeout}}, call = {_spawn, {_msg_type, payload, context}}}, state) do
       spawn fn ->
         try do
           Logger.warn fn -> {"Redirecting Cast #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -206,21 +158,23 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
     end
 
 
-
-
-    def __delegate_call_handler(m, envelope = {_, _call, context}, from, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
-      __delegate_call_handler(m, envelope, from, m.delayed_init(state, context))
+    #----------------------------------------------
+    # __delegate_call_handler/4 - pass message from worker/standalone server module to inner_state handler.
+    #----------------------------------------------
+    def __delegate_call_handler(m, _envelope = {:spawn, call = {_msg_type, _call, context}}, from, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+      m.__delegate_call_handler({:passive, call}, from, m.delayed_init(state, context))
     end
-    def __delegate_call_handler(m, envelope = {_, _call, context}, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+    def __delegate_call_handler(m, _envelope = {:spawn, call = {_, _call, context}}, from, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
       case m.pool_worker_state_entity().load(state.worker_ref, context, %{}) do
         nil -> {:reply, :error, state}
-        inner_state -> __delegate_call_handler(m, envelope, from, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
+        inner_state -> m.__delegate_call_handler(m, {:passive, call}, from, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
       end
     end
-    def __delegate_call_handler(m, envelope, from, state) do
+
+    def __delegate_call_handler(m, call, from, state = %{inner_state: %{__struct__: inner_module}}) do
       if m.meta()[:inactivity_check] do
         l = :os.system_time(:seconds)
-        case state.inner_state.__struct__.__call_handler(envelope, from, state.inner_state) do
+        case inner_module.__call_handler(call, from, state.inner_state) do
           {:reply, response, inner_state} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
           {:reply, response, inner_state, hibernate} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
@@ -229,7 +183,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           {:noreply, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
         end
       else
-        case state.inner_state.__struct__.__call_handler(envelope, from, state.inner_state) do
+        case inner_module.__call_handler(call, from, state.inner_state) do
           {:reply, response, inner_state} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
           {:reply, response, inner_state, hibernate} -> {:reply, response, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
@@ -239,20 +193,27 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
       end
     end
-
-    def __delegate_cast_handler(m, envelope = {_, _call, context}, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
-      __delegate_cast_handler(m, envelope, m.delayed_init(state, context))
+    def __delegate_call_handler(m, call, from, state) do
+      {:reply, {:uncaught, call}, state}
     end
-    def __delegate_cast_handler(m, envelope = {_, _call, context}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+
+
+    #----------------------------------------------
+    # __delegate_cast_handler/3 - pass message from worker/standalone server module to inner_state handler.
+    #----------------------------------------------
+    def __delegate_cast_handler(m, _envelope = {:spawn, call = {_msg_type, _call, context}}, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+      m.__delegate_cast_handler({:passive, call}, m.delayed_init(state, context))
+    end
+    def __delegate_cast_handler(m, _envelope = {:spawn, call = {_, _call, context}}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
       case m.pool_worker_state_entity().load(state.worker_ref, context, %{}) do
-        nil -> {:noreply, state}
-        inner_state -> __delegate_cast_handler(m, envelope, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
+        nil -> {:reply, :error, state}
+        inner_state -> m.__delegate_cast_handler(m, {:passive, call}, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
       end
     end
-    def __delegate_cast_handler(m, envelope, state) do
+    def __delegate_cast_handler(m, call, state = %{inner_state: %{__struct__: inner_module}}) do
       if m.meta()[:inactivity_check] do
         l = :os.system_time(:seconds)
-        case state.inner_state.__struct__.__cast_handler(envelope, state.inner_state) do
+        case inner_module.__cast_handler(call, state.inner_state) do
           {:reply, _response, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
           {:reply, _response, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
@@ -261,7 +222,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           {:noreply, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
         end
       else
-        case state.inner_state.__struct__.__cast_handler(envelope, state.inner_state) do
+        case inner_module.__cast_handler(call, state.inner_state) do
           {:reply, _response, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
           {:reply, _response, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
@@ -271,20 +232,26 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
       end
     end
-
-    def __delegate_info_handler(m, envelope = {_, _call, context}, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
-      __delegate_info_handler(m, envelope, m.delayed_init(state, context))
+    def __delegate_cast_handler(m, _call, state) do
+      {:noreply, state}
     end
-    def __delegate_info_handler(m, envelope = {_, _call, context}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
+
+    #----------------------------------------------
+    # __delegate_info_handler/3 - pass message from worker/standalone server module to inner_state handler.
+    #----------------------------------------------
+    def __delegate_info_handler(m, _envelope = {:spawn, call = {_msg_type, _call, context}}, %Noizu.SimplePool.Worker.State{initialized: :delayed_init} = state) do
+      m.__delegate_info_handler({:passive, call}, m.delayed_init(state, context))
+    end
+    def __delegate_info_handler(m, _envelope = {:spawn, call = {_, _call, context}}, %Noizu.SimplePool.Worker.State{initialized: false} = state) do
       case m.pool_worker_state_entity().load(state.worker_ref, context, %{}) do
-        nil -> {:noreply, state}
-        inner_state -> __delegate_info_handler(m, envelope, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
+        nil -> {:reply, :error, state}
+        inner_state -> m.__delegate_info_handler(m, {:passive, call}, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state})
       end
     end
-    def __delegate_info_handler(m, envelope, state) do
+    def __delegate_info_handler(m, call, state = %{inner_state: %{__struct__: inner_module}}) do
       if m.meta()[:inactivity_check] do
         l = :os.system_time(:seconds)
-        case state.inner_state.__struct__.__info_handler(envelope, state.inner_state) do
+        case inner_module.__info_handler(call, state.inner_state) do
           {:reply, _response, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
           {:reply, _response, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}}
@@ -293,7 +260,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           {:noreply, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, last_activity: l}, hibernate}
         end
       else
-        case state.inner_state.__struct__.__info_handler(envelope, state.inner_state) do
+        case inner_module.__info_handler(call, state.inner_state) do
           {:reply, _response, inner_state} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
           {:reply, _response, inner_state, hibernate} -> {:noreply, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}, hibernate}
           {:stop, reason, inner_state} -> {:stop, reason, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state}}
@@ -303,7 +270,15 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
       end
     end
+    def __delegate_info_handler(m, _call, state) do
+      {:noreply, state}
+    end
 
+
+
+    #----------------------------------------------
+    # as_cast
+    #----------------------------------------------
     def as_cast(response) do
       case response do
         {:reply, _response, state} -> {:noreply, state}
@@ -314,6 +289,8 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         {:noreply, state, hibernate} -> {:noreply, state, hibernate}
       end
     end
+
+    def as_info(response), do: as_cast(response)
 
   end
 
@@ -329,6 +306,13 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         #===============================================================================================================
         # Call routing
         #===============================================================================================================
+
+        #---------------
+        #  delegated handlers - pass calls onto to inner state.
+        #---------------
+        def __delegate_call_handler(call, from, state), do: Default.__delegate_call_handler(__MODULE__, call, from, state)
+        def __delegate_cast_handler(call, state), do: Default.__delegate_cast_handler(__MODULE__, call, state)
+        def __delegate_info_handler(call, state), do: Default.__delegate_info_handler(__MODULE__, call, state)
 
         #----------------
         # call routing
@@ -370,6 +354,11 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         # Overridable
         #===============================================================================================================
         defoverridable [
+          # inner routing
+          __delegate_call_handler: 3,
+          __delegate_cast_handler: 2,
+          __delegate_info_handler: 2,
+
           # call routing
           call_router_user: 3,
           call_router_internal: 3,
