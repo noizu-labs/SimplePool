@@ -334,14 +334,14 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
         #server.enable_server!(node())
         #module.server_provider().init(module, :deprecated, definition, context, module.option_settings())
 
-        state = initial_state(args, context)
+        state = initial_state(definition, context)
 
         __MODULE__.ServiceManagement.record_service_event!(:start, %{definition: definition, options: @option_settings}, context, %{})
         __MODULE__.enable_server!()
         {:ok, state}
       end
 
-      def initial_state(args, context) do
+      def initial_state(definition, context) do
         #options = module.option_settings()
         # @TODO load real effective
         # @TODO V2 health check and monitors are different these structures need to be updated.

@@ -49,6 +49,9 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
           default_modules: %OptionList{option: :default_modules, default: Application.get_env(:noizu_simple_pool, :default_modules, @default_modules), valid_members: @modules, membership_set: true},
           verbose: %OptionValue{option: :verbose, default: Application.get_env(:noizu_simple_pool, :verbose, false)},
 
+          service_manager: %OptionValue{option: :service_manager, default: Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager},
+          node_manager: %OptionValue{option: :node_manager, default: Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager},
+
           dispatch_table: %OptionValue{option: :dispatch_table, default: :auto},
           #dispatch_monitor_table: %OptionValue{option: :dispatch_monitor_table, default: :auto},
           registry_options: %OptionValue{option: :registry_options, default: Application.get_env(:noizu_simple_pool, :default_registry_options, @default_registry_options)},
@@ -85,6 +88,7 @@ defmodule Noizu.SimplePool.V2.PoolBehaviour do
     options = option_settings.effective_options
     default_modules = options.default_modules
     max_supervisors = options.max_supervisors
+
     message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
 
     quote do

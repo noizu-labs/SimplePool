@@ -7,6 +7,89 @@ use Amnesia
 
 defdatabase Noizu.SimplePool.V2.Database do
 
+  #=======================================================
+  # Cluster Management Tables
+  #=======================================================
+  deftable Cluster.SettingTable, [:setting, :value], type: :bag, index: [] do
+    @type t :: %Cluster.SettingTable{setting: atom, value: any}
+  end
+
+
+  #-----------------------------
+  # Cluster Manager
+  #-----------------------------
+  deftable Cluster.StateTable, [:identifier, :entity], type: :set, index: [] do
+    @moduledoc """
+      Cluster Wide Configuration
+    """
+    @type t :: %Cluster.StateTable{identifier: any, entity: any}
+  end
+
+  deftable Cluster.TaskTable, [:identifier, :entity], type: :set, index: [] do
+    @moduledoc """
+      Pending Tasks Scheduled or Pending Approval (Rebalance Cluster, Shutdown Node, Select new Service Manager etc.)
+    """
+    @type t :: %Cluster.TaskTable{identifier: any, entity: any}
+  end
+
+
+  #-----------------------------
+  # Service Manager
+  #-----------------------------
+  deftable Cluster.Service.StateTable, [:identifier, :entity], type: :set, index: [] do
+    @moduledoc """
+      Service State Snapshot, Active Manger Node, etc.
+    """
+    @type t :: %Cluster.Service.StateTable{identifier: any, entity: any}
+  end
+
+  deftable Cluster.Service.WorkerTable, [:identifier, :entity], type: :set, index: [] do
+    @moduledoc """
+      Service State Snapshot, Active Manger Node, etc.
+    """
+    @type t :: %Cluster.Service.WorkerTable{identifier: any, entity: any}
+  end
+
+  deftable Cluster.Service.TaskTable, [:identifier, :entity], type: :set, index: [] do
+    @moduledoc """
+      Pending Tasks Scheduled or Pending Approval.
+    """
+    @type t :: %Cluster.Service.TaskTable{identifier: any, entity: any}
+  end
+
+  deftable Cluster.Service.Instance.StateTable, [:identifier, :entity], type: :set, index: [] do
+    @moduledoc """
+      Per-Node Service State Snapshot
+    """
+    @type t :: %Cluster.Service.Instance.StateTable{identifier: any, entity: any}
+  end
+
+  #-----------------------------
+  # Node Manager
+  #-----------------------------
+  deftable Cluster.Node.StateTable, [:identifier, :entity], type: :set, index: [] do
+    @type t :: %Cluster.Node.StateTable{identifier: any, entity: any}
+  end
+
+  deftable Cluster.Node.WorkerTable, [:identifier, :entity], type: :set, index: [] do
+    @type t :: %Cluster.Node.WorkerTable{identifier: any, entity: any}
+  end
+
+  deftable Cluster.Node.TaskTable, [:identifier, :entity], type: :set, index: [] do
+    @type t :: %Cluster.Node.TaskTable{identifier: any, entity: any}
+  end
+
+
+
+
+
+
+
+  #====================================================================
+  # Deprecated
+  #====================================================================
+
+
   #--------------------------------------
   # Monitoring Framework
   #--------------------------------------
@@ -45,7 +128,5 @@ defdatabase Noizu.SimplePool.V2.Database do
   deftable MonitoringFramework.ClusterEventTable, [:identifier, :event, :time_stamp, :entity], type: :bag, index: [] do
     @type t :: %MonitoringFramework.ClusterEventTable{identifier: atom, event: atom, time_stamp: integer, entity: any}
   end
-
-
 
 end

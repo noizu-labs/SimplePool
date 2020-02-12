@@ -21,6 +21,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     If already on the host apply will be used, otherwise an :rpc.call will be made to execute the method remotely.
   """
   def run_on_host(pool_server, ref, {m, f, a}, context, options \\ nil, timeout \\ 30_000) do
+    timeout = timeout || options[:timeout] || 30_000
     case pool_server.worker_management().host!(ref, context, options) do
       {:ack, host} ->
         if host == node() do
@@ -94,18 +95,22 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
   """
   def s_call_crash_protection!(pool_server, identifier, call, context, options \\ nil, timeout \\ nil) do
     timeout = timeout || 30_000 #@TODO final logic
-    case pool_server.worker_management().worker_ref!(identifier, context) do
-      e = {:error, _details} -> e
-      ref ->
-        try do
-          options_b = put_in(options || %{}, [:spawn], true)
-          m = pool_server.router()
-          f = :rs_call!
-          a = [ref, call, context, options_b, timeout]
-          pool_server.router().run_on_host(ref, {m, f, a}, context, options_b, timeout)
-        catch
-          :exit, e -> {:error, {:exit, e}}
-        end
+    if pool_server.pool().stand_alone() do
+      {:error, {pool_server, :stand_alone_server}}
+    else
+      case pool_server.worker_management().worker_ref!(identifier, context) do
+        e = {:error, _details} -> e
+        ref ->
+          try do
+            options_b = put_in(options || %{}, [:spawn], true)
+            m = pool_server.router()
+            f = :rs_call!
+            a = [ref, call, context, options_b, timeout]
+            pool_server.router().run_on_host(ref, {m, f, a}, context, options_b, timeout)
+          catch
+            :exit, e -> {:error, {:exit, e}}
+          end
+      end
     end
   end
 

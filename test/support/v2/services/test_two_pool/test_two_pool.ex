@@ -30,7 +30,6 @@ defmodule Noizu.SimplePool.Support.TestV2TwoPool do
     @vsn 1.0
     use Noizu.SimplePool.V2.ServerBehaviour,
         worker_state_entity: Noizu.SimplePool.Support.TestV2TwoWorkerEntity,
-        server_monitor: Noizu.MonitoringFramework.EnvironmentPool.Server,
         worker_lookup_handler: Noizu.SimplePool.WorkerLookupBehaviour.Dynamic
     #alias Noizu.SimplePool.Support.TestTwoWorkerEntity
   end # end defmodule

@@ -291,7 +291,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def host!(pool_server, ref, context, options \\ %{spawn: true}) do
     # @TODO load from meta or pool.options
-    sm = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
+    sm = pool_server.service_manager()
 
     case dispatch_get!(ref, pool_server, context, options) do
       nil ->
@@ -301,7 +301,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
                    |> put_in([Access.key(:lock)], dispatch_prepare_lock(pool_server, options_b, true))
                    |> dispatch_create!(pool_server,context, options_b)
 
-          case sm.select_host(ref, pool_server.pool(), context, options_b) do
+          case sm.select_host(pool_server.pool(), ref, context, options_b) do
             {:ack, host} ->
               entity = entity
                        |> put_in([Access.key(:server)], host)
@@ -325,7 +325,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
         if entity.server == :pending do
           options_b = update_in(options, [:lock], &(Map.merge(&1 || %{}, %{server: :pending, type: :spawn})))
           if options[:dirty] do
-            case sm.select_host(ref, pool_server.pool(), context, options_b) do
+            case sm.select_host(pool_server.pool(), ref, context, options_b) do
               {:ack, host} ->
                 entity = entity
                          |> put_in([Access.key(:server)], host)
@@ -338,7 +338,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
           else
             case dispatch_obtain_lock!(ref, pool_server, context, options_b) do
               {:ack, _lock} ->
-                case sm.select_host(ref, pool_server.pool(), context, options_b) do
+                case sm.select_host(pool_server.pool(), ref, context, options_b) do
                   {:ack, host} ->
                     entity = entity
                              |> put_in([Access.key(:server)], host)
@@ -378,7 +378,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   """
   def set_node!(pool_server, ref, context, options \\ %{}) do
     #Logger.warn("[V2] New set_node!() Implementation Needed")
-    sm = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
     wm = pool_server.worker_management()
 
     Task.async(fn ->
@@ -454,7 +453,6 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
     #Logger.warn("[V2] New process!() Implementation Needed")
 
     # @TODO load from meta or pool.options
-    sm = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor
     server = pool_server
     base = pool_server.pool()
     wm = pool_server.worker_management()

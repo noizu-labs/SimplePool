@@ -40,6 +40,31 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
   defmodule Default do
     require Logger
 
+    def wait_for_condition(condition, timeout) do
+      cond do
+        timeout == :infinity -> wait_for_condition_inner(condition, timeout)
+        is_integer(timeout) ->  wait_for_condition_inner(condition, :os.system_time(:millisecond) + timeout)
+      end
+    end
+
+    def wait_for_condition_inner(condition, timeout) do
+      case condition.() do
+        true -> :ok
+        :ok -> :ok
+        {:ok, details} -> {:ok, details}
+        e ->
+          t =:os.system_time(:millisecond)
+         if (t < timeout) do
+           Process.sleep( min(max(50, div((timeout - t), 60)), 500))
+           wait_for_condition_inner(condition, timeout)
+         else
+           {:timeout, e}
+         end
+      end
+    end
+
+
+
     @doc """
     Return a banner string.
     ------------- Example -----------
@@ -221,6 +246,12 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
       #dispatch_monitor_table = options.dispatch_monitor_table
       registry_options = options.registry_options
 
+
+      service_manager = options.service_manager
+      node_manager = options.node_manager
+
+
+
       quote do
         @behaviour Noizu.SimplePool.V2.SettingsBehaviour
         @module __MODULE__
@@ -237,6 +268,9 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         @pool_monitor Module.concat([@pool, "Monitor"])
         @pool_registry Module.concat([@pool, "Registry"])
 
+        @node_manager unquote(node_manager)
+        @service_manager unquote(service_manager)
+
         @pool_dispatch_table Noizu.SimplePool.V2.SettingsBehaviour.Default.expand_table(@pool, unquote(options.dispatch_table), DispatchTable)
 
         @options unquote(Macro.escape(options))
@@ -247,6 +281,7 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         @short_name Module.split(__MODULE__) |> Enum.slice(-1..-1) |> Module.concat()
 
 
+        defdelegate wait_for_condition(condition, timeout \\ :infinity), to: Noizu.SimplePool.V2.SettingsBehaviour.Default
 
         def short_name(), do: @short_name
 
@@ -270,6 +305,9 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         def pool_worker_state_entity, do: @pool_worker_state_entity
         def pool_dispatch_table(), do: @pool_dispatch_table
         def pool_registry(), do: @pool_registry
+
+        def node_manager(), do: @node_manager
+        def service_manager(), do: @service_manager
 
         def banner(msg), do: banner(@module, msg)
         defdelegate banner(header, msg), to: Noizu.SimplePool.V2.SettingsBehaviour.Default
@@ -312,6 +350,7 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
 
 
         defoverridable [
+          wait_for_condition: 2,
           base: 0,
           pool: 0,
           pool_worker_supervisor: 0,
@@ -371,6 +410,8 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
           Noizu.SimplePool.V2.SettingsBehaviour.Default.profile_end(state, profile, short_name(), opts)
         end
 
+        defdelegate wait_for_condition(condition, timeout \\ :infinity), to: Noizu.SimplePool.V2.SettingsBehaviour.Default
+
         # @deprecated
         defdelegate base(), to: @parent
 
@@ -385,6 +426,10 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
 
         defdelegate pool_dispatch_table(), to: @pool
         defdelegate pool_registry(), to: @pool
+
+
+        defdelegate node_manager(), to: @pool
+        defdelegate service_manager(), to: @pool
 
 
         def banner(msg), do: banner(@module, msg)
@@ -427,6 +472,7 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         def option_settings(), do: @option_settings
 
         defoverridable [
+          wait_for_condition: 2,
           base: 0,
           pool: 0,
           pool_worker_supervisor: 0,

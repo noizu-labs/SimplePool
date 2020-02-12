@@ -59,6 +59,26 @@ if !Amnesia.Table.exists?(Noizu.SimplePool.V2.Database.MonitoringFramework.Setti
   :ok = Noizu.SimplePool.V2.Database.MonitoringFramework.ClusterEventTable.create()
 end
 
+#-------------------------
+# V2.B Core Tables
+#-------------------------
+if !Amnesia.Table.exists?(Noizu.SimplePool.V2.Database.Cluster.Service.Instance.StateTable) do
+  IO.puts "SETUP V2.B Tables"
+  :ok = Noizu.SimplePool.V2.Database.Cluster.SettingTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.StateTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.TaskTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.StateTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.WorkerTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.TaskTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.Instance.StateTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.StateTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.WorkerTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.TaskTable.create()
+end
+
+
+
+
 #---------------------
 # Test Pool: Dispatch Tables
 #---------------------
@@ -129,10 +149,11 @@ else
   end
 end
 
+IO.puts "Wait For Hint Release"
 :ok = Noizu.SimplePool.TestHelpers.unique_ref(:two)
       |> Noizu.SimplePool.TestHelpers.wait_hint_release(TestTwoPool.Server, context)
 
-
+IO.puts "Wait For Hint Release . . . [PROCEED]"
 
 if (node() == :"first@127.0.0.1") do
   IO.puts "//////////////////////////////////////////////////////"
@@ -150,11 +171,18 @@ if (node() == :"first@127.0.0.1") do
   IO.puts "waiting for remote registry"
   IO.puts "//////////////////////////////////////////////////////"
 
-  Noizu.SimplePool.TestHelpers.wait_for_condition(
+  :ok == Noizu.SimplePool.TestHelpers.wait_for_condition(
     fn() ->
       :rpc.call(:"second@127.0.0.1", Registry, :lookup, [Noizu.SimplePool.Support.TestV2TwoPool.Registry, {:worker, :aple}]) == []
     end,
     60 * 5
   )
-  :rpc.call(:"second@127.0.0.1", Registry, :lookup, [Noizu.SimplePool.Support.TestV2TwoPool.Registry, {:worker, :aple}])
+  [] = :rpc.call(:"second@127.0.0.1", Registry, :lookup, [Noizu.SimplePool.Support.TestV2TwoPool.Registry, {:worker, :aple}])
+
+
+
+  IO.puts "//////////////////////////////////////////////////////"
+  IO.puts "Proceed"
+  IO.puts "//////////////////////////////////////////////////////"
+
 end

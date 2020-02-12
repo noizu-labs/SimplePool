@@ -92,6 +92,279 @@ defmodule Noizu.SimplePool.TestHelpers do
     end
   end
 
+
+
+
+
+  def configure_test_cluster_old(context, telemetry_handler, event_handler) do
+
+    telemetry_handler = nil
+    event_handler = nil
+
+
+    #----------------------------------------------------------------
+    # Populate Service and Instance Configuration
+    #----------------------------------------------------------------
+
+    #-------------------------------------
+    # test_service_one
+    #-------------------------------------
+    service = Noizu.SimplePool.Support.TestV2Pool
+    test_service_one = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Definition.new(service, %{min: 1, max: 3, target: 2}, %{min: 1, max: 3, target: 2})
+    test_service_one_status = %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Status{
+      service: service,
+      instances: %{
+        :"first@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Status.new(service, :"first@127.0.0.1", nil, nil),
+        :"second@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Status.new(service, :"second@127.0.0.1", nil, nil),
+      },
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+    }
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity{
+      identifier: service,
+      service_definition: test_service_one,
+      status_details: test_service_one_status,
+      instance_definitions: %{
+        :"first@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Definition.new(service, :"first@127.0.0.1", %{min: 1, max: 3, target: 2}, 1.0),
+        :"second@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Definition.new(service, :"second@127.0.0.1", %{min: 1, max: 3, target: 2}, 0.5)
+      },
+      instance_statuses: %{}, # pending
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+      telemetry_handler: telemetry_handler,
+      event_handler: event_handler,
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.create!(context)
+
+    #-------------------------------------
+    # test_service_two
+    #-------------------------------------
+    service = Noizu.SimplePool.Support.TestV2TwoPool
+    test_service_two = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Definition.new(service, %{min: 1, max: 3, target: 2}, %{min: 1, max: 3, target: 2})
+    test_service_two_status = %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Status{
+      service: service,
+      instances: %{
+        :"second@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Status.new(service, :"second@127.0.0.1", nil, nil),
+      },
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+    }
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity{
+      identifier: service,
+      service_definition: test_service_one,
+      status_details: test_service_one_status,
+      instance_definitions: %{
+        :"second@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Definition.new(service, :"second@127.0.0.1", %{min: 1, max: 3, target: 2}, 0.5)
+      },
+      instance_statuses: %{}, # pending
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+      telemetry_handler: telemetry_handler,
+      event_handler: event_handler,
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.create!(context)
+
+    #-------------------------------------
+    # test_service_three
+    #-------------------------------------
+    service = Noizu.SimplePool.Support.TestV2ThreePool
+    test_service_three = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Definition.new(service, %{min: 1, max: 3, target: 2}, %{min: 1, max: 3, target: 2})
+    test_service_three_status = %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Status{
+      service: service,
+      instances: %{
+        :"first@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Status.new(service, :"first@127.0.0.1", nil, nil),
+      },
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+    }
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity{
+      identifier: service,
+      service_definition: test_service_three,
+      status_details: test_service_three_status,
+      instance_definitions: %{
+        :"first@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Definition.new(service, :"first@127.0.0.1", %{min: 1, max: 3, target: 2}, 1.0),
+      },
+      instance_statuses: %{}, # pending
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+      telemetry_handler: telemetry_handler,
+      event_handler: event_handler,
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.create!(context)
+
+    #----------------------------------------------------------------
+    # Node Manager Definitions
+    #----------------------------------------------------------------
+    cluster_node = :"first@127.0.0.1"
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity{
+      identifier: cluster_node,
+      node_definition: Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.Definition.new(cluster_node, %{low: 0, high: 1000, target: 500}, %{low: 0.0, high: 85.0, target: 70.0}, %{low: 0.0, high: 85.0, target: 70.0}, %{low: 0.0, high: 85.0, target: :none}, 1.0),
+      status_details: Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.Status.new(cluster_node ),
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity, cluster_node }),
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.create!(context)
+
+    cluster_node = :"second@127.0.0.1"
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity{
+      identifier: cluster_node,
+      node_definition: Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.Definition.new(cluster_node, %{low: 0, high: 1000, target: 500}, %{low: 0.0, high: 85.0, target: 70.0}, %{low: 0.0, high: 85.0, target: 70.0}, %{low: 0.0, high: 85.0, target: :none}, 1.0),
+      status_details: Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.Status.new(cluster_node ),
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity, cluster_node }),
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.create!(context)
+
+    #----------------------------------------------------------------
+    # Populate Cluster Configuration
+    #----------------------------------------------------------------
+    service_definitions = %{
+      Noizu.SimplePool.Support.TestV2Pool => test_service_one,
+      Noizu.SimplePool.Support.TestV2TwoPool => test_service_two,
+      Noizu.SimplePool.Support.TestV2ThreePool => test_service_three,
+    }
+    service_statuses = %{
+      Noizu.SimplePool.Support.TestV2Pool => test_service_one_status,
+      Noizu.SimplePool.Support.TestV2TwoPool => test_service_two_status,
+      Noizu.SimplePool.Support.TestV2ThreePool => test_service_three_status,
+    }
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity{
+      identifier: :default_cluster,
+      cluster_definition: Noizu.SimplePool.V2.ClusterManagement.Cluster.Definition.new(:default_cluster),
+      service_definitions: service_definitions,
+      service_statuses: service_statuses,
+      status_details: Noizu.SimplePool.V2.ClusterManagement.Cluster.Status.new(:default_cluster),
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity, :default_cluster}),
+      telemetry_handler: telemetry_handler,
+      event_handler: event_handler,
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateRepo.create!(context)
+
+    :ok
+  end
+
+  def configure_test_cluster(context, telemetry_handler, event_handler) do
+
+    telemetry_handler = nil
+    event_handler = nil
+
+
+    #----------------------------------------------------------------
+    # Populate Service and Instance Configuration
+    #----------------------------------------------------------------
+
+    #-------------------------------------
+    # test_service_one
+    #-------------------------------------
+    service = Noizu.SimplePool.Support.TestV2Pool
+    test_service_one = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Definition.new(service, %{min: 1, max: 3, target: 2}, %{min: 1, max: 3, target: 2})
+    test_service_one_status = %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Status{
+      service: service,
+      instances: %{
+        :"first@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Status.new(service, :"first@127.0.0.1", nil, nil),
+        :"second@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Status.new(service, :"second@127.0.0.1", nil, nil),
+      },
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+    }
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity{
+      identifier: service,
+      service_definition: test_service_one,
+      status_details: test_service_one_status,
+      instance_definitions: %{
+        :"first@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Definition.new(service, :"first@127.0.0.1", %{min: 1, max: 3, target: 2}, 1.0),
+        :"second@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Definition.new(service, :"second@127.0.0.1", %{min: 1, max: 3, target: 2}, 0.5)
+      },
+      instance_statuses: %{}, # pending
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+      telemetry_handler: telemetry_handler,
+      event_handler: event_handler,
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.create!(context)
+
+    #-------------------------------------
+    # test_service_two
+    #-------------------------------------
+    service = Noizu.SimplePool.Support.TestV2TwoPool
+    test_service_two = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Definition.new(service, %{min: 1, max: 3, target: 2}, %{min: 1, max: 3, target: 2})
+    test_service_two_status = %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Status{
+      service: service,
+      instances: %{
+        :"second@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Status.new(service, :"second@127.0.0.1", nil, nil),
+      },
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+    }
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity{
+      identifier: service,
+      service_definition: test_service_one,
+      status_details: test_service_one_status,
+      instance_definitions: %{
+        :"second@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Definition.new(service, :"second@127.0.0.1", %{min: 1, max: 3, target: 2}, 0.5)
+      },
+      instance_statuses: %{}, # pending
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+      telemetry_handler: telemetry_handler,
+      event_handler: event_handler,
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.create!(context)
+
+    #-------------------------------------
+    # test_service_three
+    #-------------------------------------
+    service = Noizu.SimplePool.Support.TestV2ThreePool
+    test_service_three = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Definition.new(service, %{min: 1, max: 3, target: 2}, %{min: 1, max: 3, target: 2})
+    test_service_three_status = %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Status{
+      service: service,
+      instances: %{
+        :"first@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Status.new(service, :"first@127.0.0.1", nil, nil),
+      },
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+    }
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity{
+      identifier: service,
+      service_definition: test_service_three,
+      status_details: test_service_three_status,
+      instance_definitions: %{
+        :"first@127.0.0.1" => Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.Instance.Definition.new(service, :"first@127.0.0.1", %{min: 1, max: 3, target: 2}, 1.0),
+      },
+      instance_statuses: %{}, # pending
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity, service}),
+      telemetry_handler: telemetry_handler,
+      event_handler: event_handler,
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.create!(context)
+
+    #----------------------------------------------------------------
+    # Node Manager Definitions
+    #----------------------------------------------------------------
+    cluster_node = :"first@127.0.0.1"
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity{
+      identifier: cluster_node,
+      node_definition: Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.Definition.new(cluster_node, %{low: 0, high: 1000, target: 500}, %{low: 0.0, high: 85.0, target: 70.0}, %{low: 0.0, high: 85.0, target: 70.0}, %{low: 0.0, high: 85.0, target: :none}, 1.0),
+      status_details: Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.Status.new(cluster_node ),
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity, cluster_node }),
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.create!(context)
+
+    cluster_node = :"second@127.0.0.1"
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity{
+      identifier: cluster_node,
+      node_definition: Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.Definition.new(cluster_node, %{low: 0, high: 1000, target: 500}, %{low: 0.0, high: 85.0, target: 70.0}, %{low: 0.0, high: 85.0, target: 70.0}, %{low: 0.0, high: 85.0, target: :none}, 1.0),
+      status_details: Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.Status.new(cluster_node ),
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity, cluster_node }),
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.create!(context)
+
+    #----------------------------------------------------------------
+    # Populate Cluster Configuration
+    #----------------------------------------------------------------
+    service_definitions = %{
+      Noizu.SimplePool.Support.TestV2Pool => test_service_one,
+      Noizu.SimplePool.Support.TestV2TwoPool => test_service_two,
+      Noizu.SimplePool.Support.TestV2ThreePool => test_service_three,
+    }
+    service_statuses = %{
+      Noizu.SimplePool.Support.TestV2Pool => test_service_one_status,
+      Noizu.SimplePool.Support.TestV2TwoPool => test_service_two_status,
+      Noizu.SimplePool.Support.TestV2ThreePool => test_service_three_status,
+    }
+    %Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity{
+      identifier: :default_cluster,
+      cluster_definition: Noizu.SimplePool.V2.ClusterManagement.Cluster.Definition.new(:default_cluster),
+      service_definitions: service_definitions,
+      service_statuses: service_statuses,
+      status_details: Noizu.SimplePool.V2.ClusterManagement.Cluster.Status.new(:default_cluster),
+      health_report: Noizu.SimplePool.V2.ClusterManagement.HealthReport.new({:ref, Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity, :default_cluster}),
+      telemetry_handler: telemetry_handler,
+      event_handler: event_handler,
+    } |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateRepo.create!(context)
+
+    :ok
+  end
+
+
+
+
   def setup_first() do
     context = Noizu.ElixirCore.CallingContext.system(%{})
 
@@ -120,46 +393,50 @@ defmodule Noizu.SimplePool.TestHelpers do
     Noizu.MonitoringFramework.EnvironmentPool.Server.start_services(context)
     :online = Noizu.MonitoringFramework.EnvironmentPool.Server.status_wait([:online, :degraded], context)
 
-    #-------------------------------
-    # Start V2 Cluster Monitor
-    #-------------------------------
-    cluster_monitor_settings = nil
-    Noizu.SimplePool.V2.MonitoringFramework.ClusterMonitor.start(cluster_monitor_settings, context)
 
-    #-------------------------------
-    # Start V2 Server Monitor
-    #-------------------------------
-    monitor_name = {:default, node()}
-    Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.start(monitor_name, context)
 
-    # - Set Temporary Pool Configuration
-    test_v2_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2Pool)
-    test_v2_three_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2ThreePool)
-    v2_config = Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.new(monitor_name)
-                |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_pool)
-                |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_three_pool)
+    #=================================================================
+    # Cluster Manager
+    #=================================================================
+    telemetry_handler = nil
+    event_handler = nil
 
-    Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.reconfigure(v2_config, context, %{persist: false})
-    Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.bring_services_online(context)
-    status = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.status_wait([:online, :degraded], context)
-    case status do
-      e = {:error, details} ->
 
+    # Setup Cluster Configuration
+    configure_test_cluster(context, telemetry_handler, event_handler)
+
+    # Bring Cluster Online
+    #Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager.start(%{}, context)
+    #Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager.bring_cluster_online(%{}, context)
+
+
+    # Bring Node (And Appropriate Services) Online - this will spawn actual Service Instances, ClusterManager will bring on service managers if not already online.
+    Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.start({:"first@127.0.0.1", %{}}, context)
+    Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.bring_node_online(:"first@127.0.0.1", %{}, context)
+
+    # Wait for node to register online
+    Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.block_for_state(:"first@127.0.0.1", :online, context, 30_000)
+    #Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.block_for_state(:"second@127.0.0.1", :online, context, 30_000)
+    case Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.block_for_status(:"first@127.0.0.1", [:green, :degraded], context, 30_000) do
+      {:ok, s} ->
+        Logger.info("""
+        ================================================================
+        !!! Test Cluster Services: :"first@126.0.0.1"  # {inspect s} !!!
+        ================================================================
+        """)
+
+      e ->
       Logger.error("""
-
       ================================================================
-      !!! Unable to bring system fully online:  #{inspect details} !!!
+      !!! Unable to bring system fully online: :"first@126.0.0.1" # {inspect e} !!!
       ================================================================
       """)
       e
-      _ ->
-        Logger.info("""
-
-        ================================================================
-        !!! Test Cluster Services:  #{inspect status} !!!
-        ================================================================
-        """)
     end
+
+
+:ok
+
   end
 
   def setup_second() do
@@ -201,39 +478,24 @@ defmodule Noizu.SimplePool.TestHelpers do
       :online = Noizu.MonitoringFramework.EnvironmentPool.Server.status_wait([:online, :degraded], context)
 
 
-
-
-      # Start V2 Monitor
-      monitor_name = {:default, node()}
-      Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.start(monitor_name, context)
-
-      # - Set Temporary Pool Configuration
-      test_v2_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2Pool)
-      test_v2_two_pool = Noizu.SimplePool.V2.MonitoringFramework.ServiceMonitorConfiguration.new(Noizu.SimplePool.Support.TestV2TwoPool)
-      v2_config = Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.new(monitor_name)
-                  |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_pool)
-                  |> Noizu.SimplePool.V2.MonitoringFramework.MonitorConfiguration.add_service(test_v2_two_pool)
-
-      Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.reconfigure(v2_config, context, %{persist: false})
-      Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.bring_services_online(context)
-      status = Noizu.SimplePool.V2.MonitoringFramework.ServerMonitor.status_wait([:online, :degraded], context)
-      case status do
-        e = {:error, details} ->
-
-          Logger.error("""
-
+      # Bring Node (And Appropriate Services) Online - this will spawn actual Service Instances, ClusterManager will bring on service managers if not already online.
+      Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.start({:"second@127.0.0.1", %{}}, context)
+      Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.bring_node_online(:"second@127.0.0.1", %{}, context)
+      case Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.block_for_status(:"second@127.0.0.1", [:green, :degraded], context, 30_000) do
+        {:ok, s} ->
+          Logger.info("""
           ================================================================
-          !!! Unable to bring system fully online:  #{inspect details} !!!
+          !!! Test Cluster Services:  # {inspect s} !!!
+          ================================================================
+          """)
+
+        e ->
+          Logger.error("""
+          ================================================================
+          !!! Unable to bring system fully online:  # {inspect e} !!!
           ================================================================
           """)
           e
-        _ ->
-          Logger.info("""
-
-          ================================================================
-          !!! Test Cluster Services:  #{inspect status} !!!
-          ================================================================
-          """)
       end
 
 

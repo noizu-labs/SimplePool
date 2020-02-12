@@ -19,16 +19,19 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
   end
 
   @tag :v2
-  @tag capture_log: true
+  #@tag capture_log: true
   test "basic_functionality - fetch" do
-    ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:one)
-    f = Noizu.SimplePool.Support.TestV2Pool.Server.fetch!(ref, :state)
+    ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:three)
+    f = Noizu.SimplePool.Support.TestV2ThreePool.Server.fetch!(ref, :state)
     assert f.worker_ref == ref
 
-    {_ref, pid, host} = Noizu.SimplePool.Support.TestV2Pool.Server.fetch!(ref, :process)
-    assert host == :"first@127.0.0.1"
+    {_ref, pid, host} = Noizu.SimplePool.Support.TestV2ThreePool.Server.fetch!(ref, :process)
+    assert pid != nil
+    assert Enum.member?([:"first@127.0.0.1"], host)  == true
+    assert is_pid(pid)
     p_info = Process.info(pid)
-    assert p_info[:dictionary][:"$initial_call"] == {Noizu.SimplePool.Support.TestV2Pool.Worker, :init, 1}
+    IO.inspect p_info
+    assert p_info[:dictionary][:"$initial_call"] == {Noizu.SimplePool.Support.TestV2ThreePool.Worker, :init, 1}
   end
 
   @tag :v2
@@ -55,7 +58,6 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
     Noizu.SimplePool.Support.TestV2Pool.test_s_cast!(ref, :apple2, @context)
     Process.sleep(1000)
     temp = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :state, @context)
-    IO.puts "TEMP STATE = : #{inspect temp, pretty: true, limit: :infinity}"
     sut = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :inner_state, @context)
     assert sut.data[:s_cast!] == :apple2
   end
@@ -75,6 +77,7 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
   end
 
   @tag :v2
+  @tag capture_log: true
   test "basic_functionality - s_cast" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:one)
     Noizu.SimplePool.Support.TestV2Pool.test_s_cast(ref, :bannana, @context)
@@ -100,7 +103,7 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
     Noizu.SimplePool.Support.TestV2Pool.Server.wake!(ref, :state, @context)
     {rref, _process, server} = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :process, @context)
     assert rref == ref
-    assert server == node()
+    assert Enum.member?([:"first@127.0.0.1", :"second@127.0.0.1"], server)  == true
   end
 
   @tag :v2
@@ -127,7 +130,7 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
   end
 
   @tag :v2
-  #@tag capture_log: true
+  @tag capture_log: true
   test "basic_functionality kill process" do
     ref = Noizu.SimplePool.TestHelpers.unique_ref_v2(:one)
     Noizu.SimplePool.Support.TestV2Pool.Server.wake!(ref, :state, @context)
@@ -141,7 +144,7 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
     {rref2, process2, server2} = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :process, @context)
     assert rref == ref
     assert rref2 == ref
-    assert server2 == node()
+    assert Enum.member?([:"first@127.0.0.1", :"second@127.0.0.1"], server2)  == true
     assert process != process2
   end
 
@@ -163,7 +166,7 @@ defmodule Noizu.SimplePool.V2.AcceptanceTest do
     Noizu.SimplePool.Support.TestV2Pool.wake!(ref, :state, @context)
     {rref2, process2, server2} = Noizu.SimplePool.Support.TestV2Pool.fetch!(ref, :process, @context)
     assert rref2 == ref
-    assert server2 == node()
+    assert Enum.member?([:"first@127.0.0.1", :"second@127.0.0.1"], server2)  == true
     assert process != process2
   end
 
