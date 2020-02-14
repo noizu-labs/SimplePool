@@ -406,8 +406,8 @@ defmodule Noizu.SimplePool.TestHelpers do
     configure_test_cluster(context, telemetry_handler, event_handler)
 
     # Bring Cluster Online
-    #Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager.start(%{}, context)
-    #Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager.bring_cluster_online(%{}, context)
+    Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager.start(%{}, context)
+    Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager.bring_cluster_online(%{}, context)
 
 
     # Bring Node (And Appropriate Services) Online - this will spawn actual Service Instances, ClusterManager will bring on service managers if not already online.

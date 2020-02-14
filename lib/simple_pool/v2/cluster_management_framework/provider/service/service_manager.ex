@@ -228,9 +228,14 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager 
     #-----------------------------
     def initial_state([service, configuration], context) do
       # @TODO exception handling
-      service_state = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity.entity!(service)
-                      |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity.reset(context, configuration)
-                      |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateRepo.update!(context)
+
+      service_state = case Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity.entity!(service) do
+        v =  %Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity{} ->
+          v
+          |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity.reset(context, configuration)
+          |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateRepo.update!(context)
+        _ -> Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity.ref(service)
+      end
 
       # @TODO setup heart beat for background processing.
       %State{

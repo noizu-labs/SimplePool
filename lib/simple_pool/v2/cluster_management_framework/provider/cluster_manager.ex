@@ -281,11 +281,13 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager do
     # initial_state/2
     #-----------------------------
     def initial_state(configuration, context) do
-      # @TODO exception handling
-      cluster_state = Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity.entity!(@cluster)
-                      |> IO.inspect(pretty: true, limit: :infinity)
-                      |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity.reset(context)
-                      |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateRepo.update!(context)
+      cluster_state = case  Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity.entity!(@cluster) do
+        v =  %Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity{} ->
+          v
+          |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity.reset(context)
+          |> Noizu.SimplePool.V2.ClusterManagement.Cluster.StateRepo.update!(context)
+        _ -> nil
+      end
 
       {:ok, h_ref} = :timer.send_after(5_000, self(), {:passive, {:i, {:cluster_heart_beat}, context}})
 

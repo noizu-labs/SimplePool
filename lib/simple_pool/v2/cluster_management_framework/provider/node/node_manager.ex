@@ -205,11 +205,14 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
     #-----------------------------
     def initial_state({node_name, configuration}, context) do
       # @TODO exception handling
-      node_state = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity.entity!(node_name)
-                      |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity.reset(context, configuration)
-                      |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.update!(context)
 
-
+      node_state = case Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity.entity!(node_name) do
+        v =  % Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity{} ->
+          v
+          |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity.reset(context, configuration)
+          |> Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.update!(context)
+        _ -> Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateEntity.ref(node_name)
+      end
       # @TODO setup heart beat for background processing.
 
       %State{
