@@ -259,8 +259,9 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
         migrate_shutdown: 1,
         migrate_shutdown: 2,
 
-        on_migrate: 1,
         on_migrate: 2,
+        on_migrate: 3,
+        on_migrate: 4,
 
         terminate_hook: 2,
         worker_refs: 3,
