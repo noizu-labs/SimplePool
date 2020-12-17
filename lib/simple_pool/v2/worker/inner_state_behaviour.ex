@@ -91,14 +91,20 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
 
       alias Noizu.SimplePool.Worker.Link
 
-        def supervisor_hint(ref) do
-          case id(ref) do
-            v when is_integer(v) -> v
-            {a, v} when is_atom(a) and is_integer(v) -> v # To allow for a common id pattern in a number of noizu related projects.
-          end
+      #---------------------------------
+      #
+      #---------------------------------
+      def supervisor_hint(ref) do
+        case id(ref) do
+          v when is_integer(v) -> v
+          {a, v} when is_atom(a) and is_integer(v) -> v # To allow for a common id pattern in a number of noizu related projects.
         end
+      end
 
-        def get_direct_link!(ref, context), do: @server.router().get_direct_link!(ref, context)
+      #---------------------------------
+      #
+      #---------------------------------
+      def get_direct_link!(ref, context), do: @server.router().get_direct_link!(ref, context)
 
 
       #-------------------------------------------------------------------------------
@@ -112,6 +118,9 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
         end
       end
 
+      #---------------------------------
+      #
+      #---------------------------------
       def save!(outer_state, _context, _options) do
         Logger.warn("#{__MODULE__}.save method not implemented.")
         {:reply, {:error, :implementation_required}, outer_state}
@@ -122,11 +131,14 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
       #-------------------------------------------------------------------------------
 
       #-----------------------------
-      # fetch!/4
+      # fetch!/4,5
       #-----------------------------
       def fetch!(state, args, from, context), do: fetch!(state, args, from, context, nil)
       def fetch!(state, _args, _from, _context, _options), do: {:reply, state, state}
 
+      #---------------------------------
+      #
+      #---------------------------------
       def wake!(%__MODULE__{} = this, command, from, context), do: wake!(this, command, from, context, nil)
       def wake!(%__MODULE__{} = this, _command, _from, _context, _options), do: {:reply, this, this}
 
@@ -137,6 +149,10 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
       #------------------------------------------------------------------------
       # Infrastructure provided call router
       #------------------------------------------------------------------------
+
+      #---------------------------------
+      #
+      #---------------------------------
       def call_router_internal__default({:passive, envelope}, from, state), do: call_router_internal__default(envelope, from, state)
       def call_router_internal__default({:spawn, envelope}, from, state), do: call_router_internal__default(envelope, from, state)
       def call_router_internal__default(envelope, from, state) do
@@ -152,6 +168,10 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
           _ -> nil
         end
       end
+
+      #---------------------------------
+      #
+      #---------------------------------
       def call_router_internal(envelope, from, state), do: call_router_internal__default(envelope, from, state)
 
 
@@ -162,6 +182,10 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
         r = call_router_internal(envelope, :cast, state)
         r && as_cast(r)
       end
+
+      #----------------------------
+      #
+      #----------------------------
       def cast_router_internal(envelope, state), do: cast_router_internal__default(envelope, state)
 
       #----------------------------
@@ -170,43 +194,78 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
       def info_router_internal__default(envelope, state) do
         nil
       end
+      #----------------------------
+      #
+      #----------------------------
       def info_router_internal(envelope, state), do: info_router_internal__default(envelope, state)
 
       #----------------------------------
       #
       #----------------------------------
+      def shutdown(%Noizu.SimplePool.Worker.State{} = state, _context \\ nil, options \\ nil, _from \\ nil), do: {:ok, state}
 
-        def shutdown(%Noizu.SimplePool.Worker.State{} = state, _context \\ nil, options \\ nil, _from \\ nil), do: {:ok, state}
-        def migrate_shutdown(%Noizu.SimplePool.Worker.State{} = state, _context \\ nil), do: {:ok, state}
-        def on_migrate(_rebase, %Noizu.SimplePool.Worker.State{} = state, _context \\ nil, _options \\ nil), do: {:ok, state}
-        def terminate_hook(reason, state), do: default_terminate_hook(@server, reason, state)
-        def worker_refs(_context, _options, _state), do: nil
-        def transfer(ref, transfer_state, _context \\ nil), do: {true, transfer_state}
+      #---------------------------------
+      #
+      #---------------------------------
+      def migrate_shutdown(%Noizu.SimplePool.Worker.State{} = state, _context \\ nil), do: {:ok, state}
+
+      #---------------------------------
+      #
+      #---------------------------------
+      def on_migrate(_rebase, %Noizu.SimplePool.Worker.State{} = state, _context \\ nil, _options \\ nil), do: {:ok, state}
+
+      #---------------------------------
+      #
+      #---------------------------------
+      def terminate_hook(reason, state), do: default_terminate_hook(@server, reason, state)
+
+      #---------------------------------
+      #
+      #---------------------------------
+      def worker_refs(_context, _options, _state), do: nil
+
+      #---------------------------------
+      #
+      #---------------------------------
+      def transfer(ref, transfer_state, _context \\ nil), do: {true, transfer_state}
+
+
+
+
 
 
       defoverridable [
         supervisor_hint: 1,
         get_direct_link!: 2,
+        reload!: 3,
+        save!: 3,
         fetch!: 4,
         fetch!: 5,
         wake!: 4,
         wake!: 5,
 
+        call_router_internal__default: 3,
+        call_router_internal: 3,
+        cast_router_internal__default: 2,
+        cast_router_internal: 2,
+        info_router_internal__default: 2,
+        info_router_internal: 2,
 
-        reload!: 3,
-        save!: 3,
-        #health_check!: 3,
+        shutdown: 1,
+        shutdown: 2,
+        shutdown: 3,
         shutdown: 4,
+
+        migrate_shutdown: 1,
         migrate_shutdown: 2,
-        on_migrate: 4,
+
+        on_migrate: 1,
+        on_migrate: 2,
+
         terminate_hook: 2,
         worker_refs: 3,
+        transfer: 2,
         transfer: 3,
-
-        # Routing for Infrastructure Provided Worker Methods
-        call_router_internal: 3,
-        info_router_internal: 2,
-        cast_router_internal: 2,
       ]
 
     end # end quote
