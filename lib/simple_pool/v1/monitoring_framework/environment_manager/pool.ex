@@ -702,26 +702,27 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     #
     #--------------------------------------
     def update_effective(state, context, options) do
-      if state.environment_details.effective && state.environment_details.effective[:services] do
-        await_timeout = options[:wait] || 60_000
-        tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
-          acc ++ [Task.async( fn ->
-            h = v.definition.service.service_health_check!(options[:health_check_options] || %{}, context, options)
-            {k,h} end)]
-        end)
+      case state.environment_details && state.environment_details.effective do
+        %Noizu.SimplePool.MonitoringFramework.Server.HealthCheck{} ->
+          await_timeout = options[:wait] || 60_000
+          tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
+            acc ++ [Task.async( fn ->
+              h = v.definition.service.service_health_check!(options[:health_check_options] || %{}, context, options)
+              {k,h} end)]
+          end)
 
-        effective = Enum.reduce(tasks, state.environment_details.effective, fn(t, acc) ->
-          {k, v} = Task.await(t, await_timeout)
-          put_in(acc, [Access.key(:services), k], v)
-        end)
+          effective = Enum.reduce(tasks, state.environment_details.effective, fn(t, acc) ->
+            {k, v} = Task.await(t, await_timeout)
+            put_in(acc, [Access.key(:services), k], v)
+          end)
 
-        state = put_in(state, [Access.key(:environment_details), Access.key(:effective)], effective)
-        state
-      else
-        Logger.error """
-        #{__MODULE__}.update_effective Malformed State: #{inspect state, pretty: true, limit: :infinity}
-        """
-        state
+          state = put_in(state, [Access.key(:environment_details), Access.key(:effective)], effective)
+          state
+          _ ->
+            Logger.error """
+            #{__MODULE__}.update_effective Malformed State: #{inspect state, pretty: true, limit: :infinity}
+            """
+            state
       end
     end
 
