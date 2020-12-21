@@ -55,7 +55,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       end
 
       # @TODO load real effective PRI-1
-      effective = %{}
+      effective = nil
 
       Logger.info "INIT #{inspect definition}"
       state = %State{
@@ -67,8 +67,8 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         environment_details: %EnvironmentDetails{
           server: node(),
           definition: definition,
-          initial: definition.server_options.initial,
-          effective: effective,
+          initial: definition && definition.server_options && definition.server_options.initial || %{},
+          effective: effective || definition && definition.server_options && definition.server_options.initial || %{},
           default: nil,
           status: :offline,
           monitors: %{}
@@ -702,7 +702,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     #
     #--------------------------------------
     def update_effective(state, context, options) do
-      if state.environment_details.effective && state.environment_details.effective.services do
+      if state.environment_details.effective && state.environment_details.effective[:services] do
         await_timeout = options[:wait] || 60_000
         tasks = Enum.reduce(state.environment_details.effective.services, [], fn({k,v}, acc) ->
           acc ++ [Task.async( fn ->
@@ -812,7 +812,10 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
         Noizu.SimplePool.Database.MonitoringFramework.NodeTable.where(1 == 1)  |> Amnesia.Selection.values
       end)
 
-      state = update_effective(state, context, options)
+      state = try do
+        update_effective(state, context, options)
+        rescue e -> state
+      end
 
       # 2. Grab Server Status
       tasks = Enum.reduce(servers_raw, [], fn(x, acc) ->
