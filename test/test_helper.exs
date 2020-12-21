@@ -64,16 +64,16 @@ end
 #-------------------------
 if !Amnesia.Table.exists?(Noizu.SimplePool.V2.Database.Cluster.Service.Instance.StateTable) do
   IO.puts "SETUP V2.B Tables"
-  :ok = Noizu.SimplePool.V2.Database.Cluster.SettingTable.create()
-  :ok = Noizu.SimplePool.V2.Database.Cluster.StateTable.create()
-  :ok = Noizu.SimplePool.V2.Database.Cluster.TaskTable.create()
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.StateTable.create()
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.WorkerTable.create()
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.TaskTable.create()
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.Instance.StateTable.create()
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.StateTable.create()
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.WorkerTable.create()
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.TaskTable.create()
+  :ok = Noizu.SimplePool.V2.Database.Cluster.SettingTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.StateTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.TaskTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.StateTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.WorkerTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.TaskTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.Instance.StateTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.StateTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.WorkerTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.TaskTable.create(disk: [:"db-one@10.240.0.5", node()])
 end
 
 
