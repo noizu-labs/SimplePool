@@ -137,7 +137,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       #------------------
       if server_process != :error && module.auto_load() do
         spawn fn ->
-          server = module.pool_server().load_pool(context)
+          _server = module.pool_server().load_pool(context)
         end
       end
 
@@ -164,7 +164,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       {outcome, children_processes}
     end # end start_children
 
-    def init(module, [definition, context] = arg) do
+    def init(module, [_definition, context] = arg) do
       if module.verbose() || true do
         Logger.warn(fn -> {module.banner("#{module} INIT", "args: #{inspect arg}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
       end
@@ -181,8 +181,8 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
                          |> update_in([:partitions], &(&1 || 256)) # @TODO - processor count * 4
 
 
-      max_seconds = module.meta()[:max_seconds]
-      max_restarts = module.meta()[:max_restarts]
+      #max_seconds = module.meta()[:max_seconds]
+      #max_restarts = module.meta()[:max_restarts]
       #Registry.start_link(keys: :unique, name: GoldenRatio.Dispatch.AlertRegistry,  partitions: 256)
       # module.pass_through_worker(Registry, registry_options,  [restart: :permanent, max_restarts: max_restarts, max_seconds: max_seconds])
       r = case Supervisor.start_child(sup,  Registry.child_spec(registry_options)) do
@@ -282,7 +282,7 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       end
     end
 
-    defp start_children_banner(module, sup, definition, context) do
+    defp start_children_banner(module, _sup, definition, context) do
       Logger.info(fn -> {
                           module.banner("#{module}.start_children",
                             """
@@ -303,8 +303,8 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
   defmacro __using__(options) do
     implementation = Keyword.get(options || [], :implementation, Noizu.SimplePool.V2.PoolSupervisorBehaviour.Default)
     option_settings = implementation.prepare_options(options)
-    options = option_settings.effective_options
-    features = MapSet.new(options.features)
+    #options = option_settings.effective_options
+    #features = MapSet.new(options.features)
     message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
 
     quote do
@@ -347,9 +347,9 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       #-------------------
       #
       #-------------------
-      def pass_through_supervise(a,b), do: supervise(a,b)
-      def pass_through_supervisor(a,b,c), do: supervisor(a,b,c)
-      def pass_through_worker(a,b,c), do: worker(a,b,c)
+      def pass_through_supervise(children,opts), do: Supervisor.init(children, opts)
+      def pass_through_supervisor(definition, arguments, options), do: supervisor(definition, arguments, options)
+      def pass_through_worker(definition, arguments, options), do: worker(definition, arguments, options)
 
       defoverridable [
         start_link: 2,

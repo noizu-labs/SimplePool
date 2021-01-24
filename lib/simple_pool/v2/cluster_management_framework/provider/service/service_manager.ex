@@ -18,7 +18,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager 
   #--------------------------
   # service_health_report/3
   #--------------------------
-  def service_health_report(service, context, options \\ %{}) do
+  def service_health_report(service, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.get!(service, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.cached(service, context)
     c && c.health_report
   end
@@ -26,7 +26,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager 
   #--------------------------
   # service_status/3
   #--------------------------
-  def service_status(service, context, options \\ %{}) do
+  def service_status(service, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.get!(service, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.cached(service, context)
     c && c.status
   end
@@ -34,7 +34,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager 
   #--------------------------
   # service_state/3
   #--------------------------
-  def service_state(service, context, options \\ %{}) do
+  def service_state(service, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.get!(service, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.cached(service, context)
     c && c.state
   end
@@ -42,7 +42,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager 
   #--------------------------
   # pending_state/3
   #--------------------------
-  def service_pending_state(service, context, options \\ %{}) do
+  def service_pending_state(service, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.get!(service, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.cached(service, context)
     c && c.pending_state
   end
@@ -55,7 +55,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager 
   #--------------------------
   # service_status_details/3
   #--------------------------
-  def service_status_details(service, context, options) do
+  def service_status_details(service, context, _options) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.get!(service, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.cached(service, context)
     c && c.status_details
   end
@@ -201,7 +201,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager 
   #--------------------------
   # select_host/4
   #--------------------------
-  def select_host(service, ref, context, opts \\ %{}) do
+  def select_host(service, _ref, context, _opts \\ %{}) do
     # Temporary rough logic, needs to check for service instance/node status, lock status, weight, health, etc.
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.get!(service, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateRepo.cached(service, context)
     instances = (c && c.instance_definitions || %{}) |> Enum.map(fn({k, _v}) -> k end)
@@ -251,7 +251,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager 
     #-----------------------------
     # cluster_heart_beat/2
     #-----------------------------
-    def cluster_heart_beat(state, context) do
+    def cluster_heart_beat(state, _context) do
       # @todo update reports, send alert messages, etc.
       {:noreply, state}
     end
@@ -259,16 +259,16 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.ServiceManager 
     #-----------------------------
     # call handlers
     #-----------------------------
-    def call__lock_service(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__release_service(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__register_service(state,  service, service_definition, instructions, context), do: {:reply, :feature_pending, state}
-    def call__bring_service_online(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__take_service_offline(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__rebalance_service(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__lock_service_instance(state,  instance, instructions, context), do: {:reply, :feature_pending, state}
-    def call__release_service_instance(state,  instance, instructions, context), do: {:reply, :feature_pending, state}
-    def call__bring_service_instance_online(state,  instance, instructions, context), do: {:reply, :feature_pending, state}
-    def call__take_service_instance_offline(state,  instance, instructions, context), do: {:reply, :feature_pending, state}
+    def call__lock_service(state,  _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__release_service(state,  _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__register_service(state,  _service, _service_definition, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__bring_service_online(state, _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__take_service_offline(state, _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__rebalance_service(state, _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__lock_service_instance(state,  _instance, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__release_service_instance(state, _instance, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__bring_service_instance_online(state, _instance, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__take_service_instance_offline(state, _instance, _instructions, _context), do: {:reply, :feature_pending, state}
 
     #-----------------------------
     # info handlers

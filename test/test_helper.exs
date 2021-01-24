@@ -171,7 +171,7 @@ if (node() == :"first@127.0.0.1") do
   IO.puts "waiting for remote registry"
   IO.puts "//////////////////////////////////////////////////////"
 
-  :ok == Noizu.SimplePool.TestHelpers.wait_for_condition(
+  :ok = Noizu.SimplePool.TestHelpers.wait_for_condition(
     fn() ->
       :rpc.call(:"second@127.0.0.1", Registry, :lookup, [Noizu.SimplePool.Support.TestV2TwoPool.Registry, {:worker, :aple}]) == []
     end,

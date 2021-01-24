@@ -203,18 +203,18 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         state.meta.profiler[profile][:start] == nil -> Logger.warn(fn -> "[#{prefix} prof] profile_start not invoked for #{profile}" end)
         options[:error] && interval >= options[:error] ->
           options[:log] && Logger.error(fn -> "[#{prefix} prof] #{profile} exceeded #{options[:error]} milliseconds @#{interval}" end)
-          state = state
+          _state = state
                   |> put_in([Access.key(:meta), :profiler, profile, :flag], :error)
         options[:warn] && interval >= options[:warn] ->
           options[:log] && Logger.warn(fn -> "[#{prefix} prof] #{profile} exceeded #{options[:warn]} milliseconds @#{interval}" end)
-          state = state
+          _state = state
                   |> put_in([Access.key(:meta), :profiler, profile, :flag], :warn)
         options[:info] && interval >= options[:info] ->
           options[:log] && Logger.info(fn -> "[#{prefix} prof] #{profile} exceeded #{options[:info]} milliseconds @#{interval}" end)
-          state = state
+          _state = state
                   |> put_in([Access.key(:meta), :profiler, profile, :flag], :info)
-        true ->
-          state = state
+        :else ->
+          _state = state
                   |> put_in([Access.key(:meta), :profiler, profile, :flag], :green)
       end
     end
@@ -242,9 +242,9 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
       pool_worker_state_entity = Map.get(options, :worker_state_entity, :auto)
       stand_alone = opts[:stand_alone] || false
 
-      dispatch_table = options.dispatch_table
+      #dispatch_table = options.dispatch_table
       #dispatch_monitor_table = options.dispatch_monitor_table
-      registry_options = options.registry_options
+      #registry_options = options.registry_options
 
 
       service_manager = options.service_manager

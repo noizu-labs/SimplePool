@@ -43,7 +43,7 @@ defmodule  Noizu.SimplePool.V2.ClusterManagement.Cluster.Service.StateEntity do
     vsn: @vsn
   ]
 
-  def reset(%__MODULE__{} = this, context, options \\ %{}) do
+  def reset(%__MODULE__{} = this, _context, options \\ %{}) do
     current_time = options[:current_time] || DateTime.utc_now()
     # @TODO flag service status entries as unknown/pending to force status updates.
     %__MODULE__{this|

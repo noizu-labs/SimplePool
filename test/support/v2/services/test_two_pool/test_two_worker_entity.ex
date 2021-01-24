@@ -72,7 +72,7 @@ defmodule Noizu.SimplePool.Support.TestV2TwoWorkerEntity do
   #------------------------------------------------------------------------
   def call_router_user({:spawn, envelope}, from, state), do: call_router_user(envelope, from, state)
   def call_router_user({:passive, envelope}, from, state), do: call_router_user(envelope, from, state)
-  def call_router_user(envelope, from, state) do
+  def call_router_user(envelope, _from, state) do
     case envelope do
       {:s, {:test_s_call!, value}, context} -> test_s_call!(state, value, context)
       {:s, {:test_s_call, value}, context} -> test_s_call(state, value, context)

@@ -193,7 +193,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
           if verbose() || true do
             Logger.warn(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect arg}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
-          supervise([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}, {:restart, :permanent}])
+          Supervisor.init([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}, {:restart, :permanent}])
         end
       end # end init
 

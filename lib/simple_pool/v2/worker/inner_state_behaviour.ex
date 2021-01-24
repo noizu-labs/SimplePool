@@ -12,7 +12,9 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
   """
   require Logger
   #@callback call_forwarding(call :: any, context :: any, from :: any,  state :: any, outer_state :: any) :: {atom, reply :: any, state :: any}
-  @callback fetch(this :: any, options :: any, context :: any) :: {:reply, this :: any, this :: any}
+  @callback fetch!(state :: any, args :: any, from :: any, context :: any, options :: any) :: {:reply, this :: any, this :: any}
+  @callback fetch!(state :: any, args :: any, from :: any, context :: any) :: {:reply, this :: any, this :: any}
+
 
   @callback load(ref :: any) ::  any
   @callback load(ref :: any, context :: any) :: any
@@ -74,7 +76,7 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
   defmacro __using__(options) do
     option_settings = prepare_options(options)
     options = option_settings.effective_options
-    required = options.required
+    #required = options.required
     pool = options.pool
     message_processing_provider = Noizu.SimplePool.V2.MessageProcessingBehaviour.DefaultProvider
     quote do

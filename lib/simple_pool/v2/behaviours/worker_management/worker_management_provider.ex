@@ -162,7 +162,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
 
   def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = context), do: workers!(pool_server, host, service_entity, context, %{})
 
-  def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = context, options) do
+  def workers!(pool_server, host, service_entity, %Noizu.ElixirCore.CallingContext{} = _context, _options) do
     if dispatch_schema_online?(pool_server) do
       v = pool_server.pool_dispatch_table().match!([identifier: {:ref, service_entity, :_}, server: host])
           |> Amnesia.Selection.values
@@ -172,12 +172,12 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
     end
   end
 
-  def dispatch_get!(ref, pool_server, context, options) do
+  def dispatch_get!(ref, pool_server, _context, _options) do
     record = pool_server.pool_dispatch_table().read!(ref)
     record && record.entity
   end
 
-  def dispatch_new(ref, pool_server, context, options) do
+  def dispatch_new(ref, pool_server, _context, options) do
     state = options[:state] || :new
     server = options[:server] || :pending
     lock = dispatch_prepare_lock(pool_server, options)
@@ -186,13 +186,13 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
     %Noizu.SimplePool.V2.DispatchEntity{identifier: ref, server: server, state: state, lock: lock}
   end
 
-  def dispatch_create!(dispatch, pool_server, context, options) do
+  def dispatch_create!(dispatch, pool_server, _context, _options) do
     record = %{__struct__: pool_server.pool_dispatch_table(), entity: dispatch, server: dispatch.server, identifier: dispatch.identifier}
     r = pool_server.pool_dispatch_table().write!(record)
     r.entity
   end
 
-  def dispatch_update!(dispatch, pool_server, context, options) do
+  def dispatch_update!(dispatch, pool_server, _context, _options) do
     record = %{__struct__: pool_server.pool_dispatch_table(), entity: dispatch, server: dispatch.server, identifier: dispatch.identifier}
     r = pool_server.pool_dispatch_table().write!(record)
     r.entity
@@ -360,7 +360,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   @doc """
 
   """
-  def record_event!(pool_server, ref, event, details, context, options \\ %{}) do
+  def record_event!(_pool_server, _ref, _event, _details, _context, _options \\ %{}) do
     Logger.warn("[V2] New record_event!() Implementation Needed")
     :wip
   end
@@ -368,7 +368,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   @doc """
 
   """
-  def events!(pool_server, ref, context, options \\ %{}) do
+  def events!(_pool_server, _ref, _context, _options \\ %{}) do
     Logger.warn("[V2] New events!() Implementation Needed")
     []
   end
@@ -414,7 +414,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   @doc """
 
   """
-  def register!(pool_server, ref, context, options \\ %{}) do
+  def register!(pool_server, ref, _context, _options \\ %{}) do
     #Logger.warn("[V2] New register!() Implementation Needed")
     Registry.register(pool_server.pool_registry(), {:worker, ref}, :process)
   end
@@ -422,7 +422,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   @doc """
 
   """
-  def unregister!(pool_server, ref, context, options \\ %{}) do
+  def unregister!(pool_server, ref, _context, _options \\ %{}) do
     #Logger.warn("[V2] New unregister!() Implementation Needed")
 
     #Registry.unregister(pool_server.pool_registry(), ref)
@@ -454,7 +454,7 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
 
     # @TODO load from meta or pool.options
     server = pool_server
-    base = pool_server.pool()
+    #base = pool_server.pool()
     wm = pool_server.worker_management()
     r = pool_server.pool_registry()
 

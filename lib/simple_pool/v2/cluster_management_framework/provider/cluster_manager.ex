@@ -11,6 +11,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager do
       default_modules: [:pool_supervisor, :monitor],
       worker_state_entity: nil,
       verbose: false
+
   @cluster :default_cluster
 
 
@@ -54,7 +55,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager do
   #--------------------------
   # status_details/2
   #--------------------------
-  def status_details(context, options) do
+  def status_details(context, _options) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.StateRepo.get!(@cluster, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.StateRepo.cached(@cluster, context)
     c && c.status_details
   end
@@ -276,11 +277,11 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager do
     use Noizu.SimplePool.V2.ServerBehaviour,
         worker_state_entity: nil
     require Logger
-
+    @cluster :default_cluster
     #-----------------------------
     # initial_state/2
     #-----------------------------
-    def initial_state(configuration, context) do
+    def initial_state(_configuration, context) do
       cluster_state = case  Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity.entity!(@cluster) do
         v =  %Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity{} ->
           v
@@ -307,22 +308,22 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager do
     def info__cluster_heart_beat(state, context) do
       # @todo update reports, send alert messages, etc.
       Logger.info("Cluster Heart Beat")
-      {:ok, h_ref} = :timer.send_after(5_000, self(), {:passive, {:i, {:cluster_heart_beat}, context}})
+      {:ok, _h_ref} = :timer.send_after(5_000, self(), {:passive, {:i, {:cluster_heart_beat}, context}})
       {:noreply, state}
     end
 
     #-----------------------------
     # call handlers
     #-----------------------------
-    def call__lock_cluster(state,  instructions, context), do: {:reply, :feature_pending, state}
-    def call__release_cluster(state,  instructions, context), do: {:reply, :feature_pending, state}
-    def call__bring_cluster_online(state,  instructions, context), do: {:reply, :feature_pending, state}
-    def call__take_cluster_offline(state,  instructions, context), do: {:reply, :feature_pending, state}
-    def call__rebalance_cluster(state,  instructions, context), do: {:reply, :feature_pending, state}
-    def call__lock_service(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__release_service(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__register_service(state,  service, service_definition, instructions, context), do: {:reply, :feature_pending, state}
-    def call__bring_service_online(state,  service, instructions, context) do
+    def call__lock_cluster(state,  _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__release_cluster(state,  _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__bring_cluster_online(state,  _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__take_cluster_offline(state,  _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__rebalance_cluster(state,  _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__lock_service(state,  _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__release_service(state,  _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__register_service(state,  _service, _service_definition, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__bring_service_online(state,  _service, _instructions, context) do
       # Stub Logic
       state = state
               |> put_in([Access.key(:entity), Access.key(:status)], :green)
@@ -333,8 +334,8 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager do
 
       {:reply, :pending, state}
     end
-    def call__take_service_offline(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__rebalance_service(state,  service, instructions, context)do
+    def call__take_service_offline(state,  _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__rebalance_service(state,  _service, _instructions, context)do
       # Stub Logic
       state = state
               |> put_in([Access.key(:entity), Access.key(:status)], :offline)

@@ -7,7 +7,7 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
   alias Noizu.SimplePool.Worker.Link
   require Logger
 
-  defp get_semaphore(key, count \\ 1) do
+  defp get_semaphore(key, _count) do
     try do
       Semaphore.acquire(key, 5)
       rescue _e -> false
