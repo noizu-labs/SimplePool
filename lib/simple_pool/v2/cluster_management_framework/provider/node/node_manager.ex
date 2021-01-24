@@ -13,7 +13,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
   #--------------------------
   # health_report/3
   #--------------------------
-  def health_report(node, context, options \\ %{}) do
+  def health_report(node, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.get!(node, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.cached(node, context)
     c && c.health_report
   end
@@ -21,7 +21,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
   #--------------------------
   # status/3
   #--------------------------
-  def status(node, context, options \\ %{}) do
+  def status(node, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.get!(node, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.cached(node, context)
     c && c.status
   end
@@ -29,7 +29,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
   #--------------------------
   # state/3
   #--------------------------
-  def state(node, context, options \\ %{}) do
+  def state(node, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.get!(node, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.cached(node, context)
     c && c.state
   end
@@ -37,7 +37,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
   #--------------------------
   # pending_state/3
   #--------------------------
-  def pending_state(node, context, options \\ %{}) do
+  def pending_state(node, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.get!(node, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.cached(node, context)
     c && c.pending_state
   end
@@ -66,7 +66,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
   #--------------------------
   # service_instance_health_report/4
   #--------------------------
-  def service_instance_health_report(service, node, context, options \\ %{}) do
+  def service_instance_health_report(service, node, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.get!(node, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.cached(node, context)
     c && c.service_instances_health_report[service]
   end
@@ -74,7 +74,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
   #--------------------------
   # service_instance_status/4
   #--------------------------
-  def service_instance_status(service, node, context, options \\ %{}) do
+  def service_instance_status(service, node, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.get!(node, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.cached(node, context)
     i = c && c.service_instances[service]
     i && i.status
@@ -83,7 +83,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
   #--------------------------
   # service_instance_state/4
   #--------------------------
-  def service_instance_state(service, node, context, options \\ %{}) do
+  def service_instance_state(service, node, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.get!(node, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.cached(node, context)
     i = c && c.service_instances[service]
     i && i.state
@@ -92,7 +92,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
   #--------------------------
   # service_instance_pending_status/4
   #--------------------------
-  def service_instance_pending_state(service, node, context, options \\ %{}) do
+  def service_instance_pending_state(service, node, context, _options \\ %{}) do
     c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.get!(node, context) # c = Noizu.SimplePool.V2.ClusterManagement.Cluster.Node.StateRepo.cached(node, context)
     i = c && c.service_instances[service]
     i && i.pending_state
@@ -228,7 +228,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
     #-----------------------------
     # node_heart_beat/2
     #-----------------------------
-    def node_heart_beat(state, context) do
+    def node_heart_beat(state, _context) do
       # @todo update reports, send alert messages, etc.
       {:noreply, state}
     end
@@ -236,14 +236,14 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
     #-----------------------------
     # call handlers
     #-----------------------------
-    def call__lock_service_instance(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__release_service_instance(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__bring_service_instance_online(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__take_service_instance_offline(state,  service, instructions, context), do: {:reply, :feature_pending, state}
-    def call__lock_node(state,  instructions, context), do: {:reply, :feature_pending, state}
-    def call__release_node(state,  instructions, context), do: {:reply, :feature_pending, state}
+    def call__lock_service_instance(state,  _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__release_service_instance(state,  _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__bring_service_instance_online(state,  _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__take_service_instance_offline(state, _service, _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__lock_node(state,  _instructions, _context), do: {:reply, :feature_pending, state}
+    def call__release_node(state,  _instructions, _context), do: {:reply, :feature_pending, state}
 
-    def call__bring_node_online(state, instructions, context, options \\ %{}) do
+    def call__bring_node_online(state, _instructions, context, options \\ %{}) do
       # Simply walk through service definitions and find any keyed to this node.
       service_definitions = Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager.service_definitions(context) || %{}
       service_instances = Enum.map(service_definitions,
@@ -321,7 +321,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
       {:reply, :ok, state}
     end
 
-    def call__take_node_offline(state, instructions, context) do
+    def call__take_node_offline(state, _instructions, context) do
       # Stub Logic
       state = state
               |> put_in([Access.key(:entity), Access.key(:status)], :offline)

@@ -115,7 +115,7 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour do
       """
       def init([_definition, context]) do
         verbose() && Logger.info(fn -> {banner("#{__MODULE__} INIT", "args: #{inspect context}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-        supervise([], [{:strategy,  @options.strategy}, {:max_restarts, @options.max_restarts}, {:max_seconds, @options.max_seconds}])
+        Supervisor.init([], [{:strategy,  @options.strategy}, {:max_restarts, @options.max_restarts}, {:max_seconds, @options.max_seconds}])
       end
 
       defoverridable [

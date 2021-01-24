@@ -47,7 +47,7 @@ defmodule  Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity do
     vsn: @vsn
   ]
 
-  def reset(%__MODULE__{} = this, context, options \\ %{}) do
+  def reset(%__MODULE__{} = this, _context, options \\ %{}) do
     # Todo flag statuses as pending
     current_time = options[:current_time] || DateTime.utc_now()
     %__MODULE__{this|
@@ -58,8 +58,8 @@ defmodule  Noizu.SimplePool.V2.ClusterManagement.Cluster.StateEntity do
       pending_state: :online,
       state_changed_on: current_time,
       pending_state_changed_on: current_time,
-      state_changed_on: DateTime.utc_now(),
-      pending_state_changed_on: DateTime.utc_now()
+      #state_changed_on: DateTime.utc_now(),
+      #pending_state_changed_on: DateTime.utc_now()
     }
   end
 

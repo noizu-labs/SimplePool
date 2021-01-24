@@ -942,7 +942,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     #--------------------------------------
     #
     #--------------------------------------
-    def handle_cast({:i, {:update_master_node, master_node, options}, context}, state) do
+    def handle_cast({:i, {:update_master_node, master_node, _options}, _context}, state) do
       state = cond do
         state == nil -> state
         state.environment_details == nil -> state
@@ -1030,9 +1030,13 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     def handle_call({:m, {:register, initial, options}, context}, _from, state) do
       initial = initial || state.environment_details.initial
       master = cond do
-        v = master_node(state) -> v
+        v = master_node(state) ->
+           cond do
+            v == :self -> update_master_node(node(), context, %{}) # This may be problematic.
+            :else -> v
+           end
         initial.master_node == :self || initial.master_node == node() -> update_master_node(node(), context, %{})
-        true -> nil
+        :else -> nil
       end
 
       if master do
@@ -1156,7 +1160,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     #--------------------------------------
     #
     #--------------------------------------
-    def handle_info({:i, {:server_recover_check, server}, context}, state) do
+    def handle_info({:i, {:server_recover_check, _server}, _context}, state) do
       # @TODO fully implement
       {:noreply, state}
     end
@@ -1166,7 +1170,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     #--------------------------------------
     def handle_info({:DOWN, ref, :process, _process, _msg} = event, state) do
       state = cond do
-        dropped_server = Enum.find(state.environment_details.monitors, fn({k,v}) -> v == ref end) ->
+        dropped_server = Enum.find(state.environment_details.monitors, fn({_k,v}) -> v == ref end) ->
           {server, _ref} = dropped_server
           Logger.error "LINK MONITOR: server down #{inspect server} - #{inspect event, pretty: true}"
           # todo setup watchers[server] with a timer event that monitors for node recovery
@@ -1298,7 +1302,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       )
     end
 
-    def master_node(%{master_node: default} = state) do
+    def master_node(%{master_node: default} = _state) do
       fg_get(@master_node_cache_key,
         fn() ->
           default = {:fast_global, :no_cache, default}
@@ -1316,7 +1320,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       )
     end
 
-    def master_node(catch_all) do
+    def master_node(_catch_all) do
       fg_get(@master_node_cache_key,
         fn() ->
           default = {:fast_global, :no_cache, nil}
@@ -1355,7 +1359,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
     #-------------------
     # sync_record
     #-------------------
-    def fg_sync_record(identifier, default, options) do
+    def fg_sync_record(identifier, default, _options) do
       value = if (is_function(default, 0)), do: default.(), else: default
       case value do
         {:fast_global, :no_cache, v} -> v

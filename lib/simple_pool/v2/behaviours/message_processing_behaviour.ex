@@ -70,7 +70,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
     #-----------------------------------------------------
     # Auto Load Check
     def __handle_cast(module, {:msg_redirect, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, state), do: __handle_cast(module, call, state)
-    def __handle_cast(_module, {:msg_redirect, {call_server, {call_type, ref, _timeout}}, call = {_spawn, {_msg_type, payload, context}}} = fc, state) do
+    def __handle_cast(_module, {:msg_redirect, {call_server, {call_type, ref, _timeout}}, call = {_spawn, {_msg_type, payload, context}}} = _fc, state) do
       spawn fn ->
         try do
           Logger.warn fn -> {"Redirect Failed #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -107,7 +107,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
     # handle_info
     #-----------------------------------------------------
     def __handle_info(module, {:msg_redirect, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, state), do: __handle_info(module, call, state)
-    def __handle_info(_module, {:msg_redirect, {call_server, {call_type, ref, _timeout}}, call = {_spawn, {_msg_type, payload, context}}} = fc, state) do
+    def __handle_info(_module, {:msg_redirect, {call_server, {call_type, ref, _timeout}}, call = {_spawn, {_msg_type, payload, context}}} = _fc, state) do
       spawn fn ->
         try do
           Logger.warn fn -> {"Redirect Failed #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
@@ -193,7 +193,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
       end
     end
-    def __delegate_call_handler(m, call, from, state) do
+    def __delegate_call_handler(_m, call, _from, state) do
       {:reply, {:uncaught, call}, state}
     end
 
@@ -232,7 +232,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
       end
     end
-    def __delegate_cast_handler(m, _call, state) do
+    def __delegate_cast_handler(_m, _call, state) do
       {:noreply, state}
     end
 
@@ -270,7 +270,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
         end
       end
     end
-    def __delegate_info_handler(m, _call, state) do
+    def __delegate_info_handler(_m, _call, state) do
       {:noreply, state}
     end
 

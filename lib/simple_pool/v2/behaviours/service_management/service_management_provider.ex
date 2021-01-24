@@ -39,7 +39,7 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   @doc """
 
   """
-  def load_complete(pool_server, %ServerState{} = this, _process, _context) do
+  def load_complete(_pool_server, %ServerState{} = this, _process, _context) do
     this
     |> put_in([Access.key(:status), Access.key(:loading)], :complete)
     |> put_in([Access.key(:status), Access.key(:state)], :ready)
@@ -51,7 +51,7 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   @doc """
 
   """
-  def load_begin(pool_server, %ServerState{} = this, process, _context) do
+  def load_begin(_pool_server, %ServerState{} = this, process, _context) do
     this
     |> put_in([Access.key(:status), Access.key(:loading)], :started)
     |> put_in([Access.key(:status), Access.key(:state)], :loading)

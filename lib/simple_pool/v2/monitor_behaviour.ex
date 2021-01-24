@@ -40,12 +40,12 @@ defmodule Noizu.SimplePool.V2.MonitorBehaviour do
 
 
     @temporary_core_events MapSet.new([:start, :shutdown])
-    def core_events(pool) do
+    def core_events(_pool) do
       # TODO use fast global wrapper around SettingTable
       @temporary_core_events
     end
 
-    def record_service_event!(pool, event, details, context, opts) do
+    def record_service_event!(pool, event, _details, _context, _opts) do
       if MapSet.member?(core_events(pool), event) do
         Logger.info("TODO - write to ServiceEventTable #{inspect event}")
       else

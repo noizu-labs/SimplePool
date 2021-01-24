@@ -30,7 +30,7 @@ defmodule Noizu.SimplePool.TestHelpers do
 
   def wait_for_init() do
     Amnesia.start
-    r = wait_for_condition(
+    _r = wait_for_condition(
       fn() ->
         Enum.member?(Amnesia.info(:running_db_nodes), :"second@127.0.0.1")
       end,
@@ -96,7 +96,7 @@ defmodule Noizu.SimplePool.TestHelpers do
 
 
 
-  def configure_test_cluster_old(context, telemetry_handler, event_handler) do
+  def configure_test_cluster_old(context, _telemetry_handler, _event_handler) do
 
     telemetry_handler = nil
     event_handler = nil
@@ -229,7 +229,7 @@ defmodule Noizu.SimplePool.TestHelpers do
     :ok
   end
 
-  def configure_test_cluster(context, telemetry_handler, event_handler) do
+  def configure_test_cluster(context, _telemetry_handler, _event_handler) do
 
     telemetry_handler = nil
     event_handler = nil
@@ -418,7 +418,7 @@ defmodule Noizu.SimplePool.TestHelpers do
     Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.block_for_state(:"first@127.0.0.1", :online, context, 30_000)
     #Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.block_for_state(:"second@127.0.0.1", :online, context, 30_000)
     case Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.block_for_status(:"first@127.0.0.1", [:green, :degraded], context, 30_000) do
-      {:ok, s} ->
+      {:ok, _s} ->
         Logger.info("""
         ================================================================
         !!! Test Cluster Services: :"first@126.0.0.1"  # {inspect s} !!!
@@ -482,7 +482,7 @@ defmodule Noizu.SimplePool.TestHelpers do
       Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.start({:"second@127.0.0.1", %{}}, context)
       Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.bring_node_online(:"second@127.0.0.1", %{}, context)
       case Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager.block_for_status(:"second@127.0.0.1", [:green, :degraded], context, 30_000) do
-        {:ok, s} ->
+        {:ok, _s} ->
           Logger.info("""
           ================================================================
           !!! Test Cluster Services:  # {inspect s} !!!

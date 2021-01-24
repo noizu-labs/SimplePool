@@ -131,7 +131,7 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
         case outcome do
           {:ok, {s, sg}} ->
             total = Enum.reduce(sg, acc.total, fn({g, c}, a) ->  update_in(a, [g], &((&1 || 0) ++ c)) end)
-            acc = acc
+            _acc = acc
                   |> put_in([s], sg)
                   |> put_in([:total], total)
           _ -> acc
@@ -176,22 +176,14 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       end
     end
 
-    def current_supervisor_dynamic(module, ref) do
+    def current_supervisor_dynamic(module, _ref) do
       num_supervisors = module.active_supervisors()
       if num_supervisors == 1 do
         module.supervisor_by_index(1)
       else
-        hint = module.pool_worker_state_entity().supervisor_hint(ref)
+        # hint = module.pool_worker_state_entity().supervisor_hint(ref)
         # The logic is designed so that the selected supervisor only changes for a subset of items when adding new supervisors
         # So that, for example, when going from 5 to 6 supervisors only a 6th of entries will be re-assigned to the new bucket.
-        pick = Enum.reduce_while(num_supervisors .. 1, 1, fn(x, acc) ->
-          n = rem(hint, x) + 1
-          cond do
-            n == x -> {:halt, n}
-            true -> {:cont, acc}
-          end
-        end)
-
         pick = fn(hint, num_supervisors) ->
           Enum.reduce_while(num_supervisors .. 1, 1, fn(x, acc) ->
             n = rem(hint, x) + 1
@@ -213,7 +205,7 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       case Supervisor.start_child(worker_sup, childSpec) do
         {:ok, pid} -> {:ack, pid}
         {:error, {:already_started, pid}} ->
-          timeout = 60_000 #@timeout
+          #timeout = 60_000 #@timeout
           call = {:transfer_state, {:state, transfer_state, time: :os.system_time(:second)}}
           extended_call = module.pool_server().router().extended_call(:s_call!, ref, call, context, %{}, nil)
           #if @s_redirect_feature, do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
@@ -296,7 +288,7 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
         verbose() && Logger.info(fn -> {banner("#{__MODULE__} INIT", "args: #{inspect args}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
         available_supervisors()
         |> Enum.map(&(supervisor(&1, [definition, context], [restart: @options.layer2_restart_type, max_restarts: @options.layer2_max_restarts, max_seconds: @options.layer2_max_seconds] )))
-        |> supervise([{:strategy,  @options.strategy}, {:max_restarts, @options.max_restarts}, {:max_seconds, @options.max_seconds}])
+        |> Supervisor.init([{:strategy,  @options.strategy}, {:max_restarts, @options.max_restarts}, {:max_seconds, @options.max_seconds}])
       end
 
 

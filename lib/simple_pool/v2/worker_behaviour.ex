@@ -288,7 +288,7 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       def fetch!(state, {:default}, _from, _context, _options), do: {:reply, state, state}
       def fetch!(state, {:inner_state}, _from, _context, _options), do: {:reply, state.inner_state, state}
       def fetch!(state, {:process}, _from, _context, _options), do: {:reply, {is_map(state.inner_state) && Noizu.ERP.ref(state.inner_state) || state.inner_state, self(), node()}, state}
-      def fetch!(_state, command, _context, _options) do
+      def fetch!(_state, command, _from, _context, _options) do
         IO.puts "[[[UNHANDLED FETCH COMMAND: #{inspect command}]]]"
         nil  # all inner_state implementations
       end

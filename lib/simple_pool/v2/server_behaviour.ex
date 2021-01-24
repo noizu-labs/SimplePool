@@ -36,7 +36,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
     alias Noizu.ElixirCore.OptionSettings
     alias Noizu.ElixirCore.OptionValue
     alias Noizu.ElixirCore.OptionList
-    alias Noizu.SimplePool.V2.Server.State
+    #alias Noizu.SimplePool.V2.Server.State
     require Logger
 
     # @todo alternative solution for specifying features.
@@ -65,7 +65,7 @@ defmodule Noizu.SimplePool.V2.ServerBehaviour do
 
 
 
-    defp get_semaphore(key, count \\ 1) do
+    defp get_semaphore(key, count) do
       try do
         Semaphore.acquire(key, count)
       rescue _e -> false

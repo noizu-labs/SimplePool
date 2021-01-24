@@ -64,16 +64,16 @@ end
 #-------------------------
 if !Amnesia.Table.exists?(Noizu.SimplePool.V2.Database.Cluster.Service.Instance.StateTable) do
   IO.puts "SETUP V2.B Tables"
-  :ok = Noizu.SimplePool.V2.Database.Cluster.SettingTable.create(disk: [:"db-one@10.240.0.5", node()])
-  :ok = Noizu.SimplePool.V2.Database.Cluster.StateTable.create(disk: [:"db-one@10.240.0.5", node()])
-  :ok = Noizu.SimplePool.V2.Database.Cluster.TaskTable.create(disk: [:"db-one@10.240.0.5", node()])
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.StateTable.create(disk: [:"db-one@10.240.0.5", node()])
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.WorkerTable.create(disk: [:"db-one@10.240.0.5", node()])
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.TaskTable.create(disk: [:"db-one@10.240.0.5", node()])
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.Instance.StateTable.create(disk: [:"db-one@10.240.0.5", node()])
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.StateTable.create(disk: [:"db-one@10.240.0.5", node()])
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.WorkerTable.create(disk: [:"db-one@10.240.0.5", node()])
-  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.TaskTable.create(disk: [:"db-one@10.240.0.5", node()])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.SettingTable.create(memory: [:"first@127.0.0.1"])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.StateTable.create(memory: [:"first@127.0.0.1"])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.TaskTable.create(memory: [:"first@127.0.0.1"])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.StateTable.create(memory: [:"first@127.0.0.1"])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.WorkerTable.create(memory: [:"first@127.0.0.1"])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.TaskTable.create(memory: [:"first@127.0.0.1"])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Service.Instance.StateTable.create(memory: [:"first@127.0.0.1"])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.StateTable.create(memory: [:"first@127.0.0.1"])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.WorkerTable.create(memory: [:"first@127.0.0.1"])
+  :ok = Noizu.SimplePool.V2.Database.Cluster.Node.TaskTable.create(memory: [:"first@127.0.0.1"])
 end
 
 
@@ -171,7 +171,7 @@ if (node() == :"first@127.0.0.1") do
   IO.puts "waiting for remote registry"
   IO.puts "//////////////////////////////////////////////////////"
 
-  :ok == Noizu.SimplePool.TestHelpers.wait_for_condition(
+  :ok = Noizu.SimplePool.TestHelpers.wait_for_condition(
     fn() ->
       :rpc.call(:"second@127.0.0.1", Registry, :lookup, [Noizu.SimplePool.Support.TestV2TwoPool.Registry, {:worker, :aple}]) == []
     end,
