@@ -307,7 +307,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.ClusterManager do
     #-----------------------------
     def info__cluster_heart_beat(state, context) do
       # @todo update reports, send alert messages, etc.
-      Logger.info("Cluster Heart Beat")
+      # Logger.info("Cluster Heart Beat")
       {:ok, _h_ref} = :timer.send_after(5_000, self(), {:passive, {:i, {:cluster_heart_beat}, context}})
       {:noreply, state}
     end
