@@ -497,7 +497,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
     case exception do
       {:timeout, c} ->
         try do
-          Logger.warn fn -> pool_server.banner("#{pool_server}.#{s_type} - timeout.\n call: #{inspect extended_call}") end
+          Logger.warn fn -> {pool_server.banner("#{pool_server}.#{s_type} - timeout.\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
           if pool_server.router().option(:record_timeout, false) == true do
             pool_server.worker_management().record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
           end
@@ -507,7 +507,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
         end # end inner try
       o  ->
         try do
-          Logger.warn fn -> pool_server.banner("#{pool_server}.#{s_type} - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}") end
+          Logger.warn fn -> {pool_server.banner("#{pool_server}.#{s_type} - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
           if pool_server.router().option(:record_timeout, false) == true do
             pool_server.worker_management().record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
           end

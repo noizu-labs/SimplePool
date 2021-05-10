@@ -360,16 +360,16 @@ defmodule Noizu.SimplePool.V2.WorkerManagement.WorkerManagementProvider do
   @doc """
 
   """
-  def record_event!(_pool_server, _ref, _event, _details, _context, _options \\ %{}) do
-    Logger.warn("[V2] New record_event!() Implementation Needed")
+  def record_event!(_pool_server, _ref, _event, _details, context, _options \\ %{}) do
+    Logger.warn("[V2] New record_event!() Implementation Needed", Noizu.ElixirCore.CallingContext.metadata(context))
     :wip
   end
 
   @doc """
 
   """
-  def events!(_pool_server, _ref, _context, _options \\ %{}) do
-    Logger.warn("[V2] New events!() Implementation Needed")
+  def events!(_pool_server, _ref, context, _options \\ %{}) do
+    Logger.warn("[V2] New events!() Implementation Needed", Noizu.ElixirCore.CallingContext.metadata(context))
     []
   end
 

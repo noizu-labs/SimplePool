@@ -123,8 +123,8 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
       #---------------------------------
       #
       #---------------------------------
-      def save!(outer_state, _context, _options) do
-        Logger.warn("#{__MODULE__}.save method not implemented.")
+      def save!(outer_state, context, _options) do
+        Logger.warn("#{__MODULE__}.save method not implemented.", Noizu.ElixirCore.CallingContext.metadata(context))
         {:reply, {:error, :implementation_required}, outer_state}
       end
 

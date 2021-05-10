@@ -149,8 +149,8 @@ defmodule Noizu.SimplePool.WorkerBehaviourDefault do
     end
   end # end handle_info/:activity_check
 
-  def handle_migrate_shutdown(_mod, _server, _worker_state_entity, _inactivity_check, {:i, {:migrate_shutdown, _ref}, _context}, %Noizu.SimplePool.Worker.State{migrating: false} = state) do
-    Logger.error(fn -> "#{__MODULE__}.migrate_shutdown called when not in migrating state"  end)
+  def handle_migrate_shutdown(_mod, _server, _worker_state_entity, _inactivity_check, {:i, {:migrate_shutdown, _ref}, context}, %Noizu.SimplePool.Worker.State{migrating: false} = state) do
+    Logger.error(fn -> {"#{__MODULE__}.migrate_shutdown called when not in migrating state" , Noizu.ElixirCore.CallingContext.metadata(context)} end)
     {:noreply, state}
   end # end handle_info/:activity_check
 

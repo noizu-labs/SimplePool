@@ -78,14 +78,14 @@ defmodule Noizu.SimplePool.WorkerBehaviour do
       if (unquote(required.start_link)) do
         def start_link(ref, context) do
           if (verbose()) do
-            Logger.info(fn -> @base.banner("START_LINK/1 #{__MODULE__} (#{inspect ref})") end)
+            Logger.info(fn -> {@base.banner("START_LINK/1 #{__MODULE__} (#{inspect ref})"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
           GenServer.start_link(__MODULE__, {ref, context})
         end
 
         def start_link(ref, args, context) do
           if (verbose()) do
-            Logger.info(fn -> @base.banner("START_LINK/2.migrate #{__MODULE__} (#{inspect args})") end)
+            Logger.info(fn -> {@base.banner("START_LINK/2.migrate #{__MODULE__} (#{inspect args})"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
           GenServer.start_link(__MODULE__, {:migrate, ref, args, context})
         end

@@ -149,8 +149,8 @@ defmodule Noizu.SimplePool.V2.ServiceManagement.ServiceManagementProvider do
   @doc """
 
   """
-  def record_service_event!(pool_server, event, details, _context, _options) do
-    Logger.error("Service Manager V2 record_service_event NYI| #{inspect pool_server}, #{inspect event}, #{inspect details}")
+  def record_service_event!(pool_server, event, details, context, _options) do
+    Logger.error("Service Manager V2 record_service_event NYI| #{inspect pool_server}, #{inspect event}, #{inspect details}", Noizu.ElixirCore.CallingContext.metadata(context))
     :ok
   end
 

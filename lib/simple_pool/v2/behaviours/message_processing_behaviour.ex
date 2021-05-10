@@ -36,25 +36,25 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
     """
     def __handle_call(module, {:msg_redirect, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, from, state), do: __handle_call(module, call, from, state)
     def __handle_call(module, {:msg_redirect, {call_server, {_call_type, ref, _timeout}}, call = {_spawn, {_msg_type, _call, context}}} = fc, _from, state) do
-      Logger.warn fn -> "Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n" end
+      Logger.warn fn -> {"Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
       try do
         Logger.error fn -> {"Redirect Failed! #{inspect call_server}-#{inspect fc, pretty: true}", Noizu.ElixirCore.CallingContext.metadata(context)} end
         # Clear lookup entry to allow system to assign correct entry and spawn new entry.
         call_server.worker_management().unregister!(ref, context, %{})
-      rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}"
-      catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}"
+      rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}", Noizu.ElixirCore.CallingContext.metadata(context)
+      catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}", Noizu.ElixirCore.CallingContext.metadata(context)
       end
       {:reply, {:s_retry, call_server, module}, state}
     end
     def __handle_call(module, {:msg_envelope, {module, _delivery_details}, call = {_spawn, {_msg_type, _call, _context}}}, from, state), do: __handle_call(module, call, from, state)
     def __handle_call(module, {:msg_envelope, {call_server, {_call_type, ref, _timeout}}, call = {_spawn, {_msg_type, _call, context}}}, _from, state) do
-      Logger.warn fn -> "Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n" end
+      Logger.warn fn -> {"Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
       try do
         Logger.warn fn -> {"Redirecting Call #{inspect call_server}-#{inspect call, pretty: true}\n\n", Noizu.ElixirCore.CallingContext.metadata(context)} end
         # Clear lookup entry to allow system to assign correct entry and spawn new entry.
         call_server.worker_management().unregister!(ref, context, %{})
-      rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}"
-      catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}"
+      rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}", Noizu.ElixirCore.CallingContext.metadata(context)
+      catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}", Noizu.ElixirCore.CallingContext.metadata(context)
       end
       {:reply, {:s_retry, call_server, module}, state}
     end
@@ -77,8 +77,8 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           # Clear lookup entry to allow system to assign correct entry and spawn new entry.
           call_server.worker_management().unregister!(ref, context, %{})
           apply(call_server.router(), call_type, [ref, payload, context]) # todo, deal with call options.
-        rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}"
-        catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}"
+        rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}", Noizu.ElixirCore.CallingContext.metadata(context)
+        catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}", Noizu.ElixirCore.CallingContext.metadata(context)
         end
       end
       {:noreply, state}
@@ -91,8 +91,8 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
           # Clear lookup entry to allow system to assign correct entry and spawn new entry.
           call_server.worker_management().unregister!(ref, context, %{})
           apply(call_server.router(), call_type, [ref, payload, context]) # todo, deal with call options.
-        rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}"
-        catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}"
+        rescue e -> Logger.error "[MessageProcessing] - Exception Raised #{inspect e}", Noizu.ElixirCore.CallingContext.metadata(context)
+        catch e -> Logger.error "[MessageProcessing] - Exception Thrown #{inspect e}", Noizu.ElixirCore.CallingContext.metadata(context)
         end
       end
       {:noreply, state}

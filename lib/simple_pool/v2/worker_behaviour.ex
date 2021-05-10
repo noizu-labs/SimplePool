@@ -227,12 +227,12 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
 
 
       def start_link(ref, context) do
-        verbose() && Logger.info(fn -> banner("START_LINK/2 #{__MODULE__} (#{inspect ref})") end)
+        verbose() && Logger.info(fn -> {banner("START_LINK/2 #{__MODULE__} (#{inspect ref})"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
         GenServer.start_link(__MODULE__, {ref, context})
       end
 
       def start_link(ref, migrate_args, context) do
-        verbose() && Logger.info(fn -> banner("START_LINK/3 #{__MODULE__} (#{inspect migrate_args})") end)
+        verbose() && Logger.info(fn -> {banner("START_LINK/3 #{__MODULE__} (#{inspect migrate_args})"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
         GenServer.start_link(__MODULE__, {:migrate, ref, migrate_args, context})
       end
 
@@ -327,24 +327,24 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       #-----------------------------
       # shutdown!/5
       #-----------------------------
-      def shutdown!(state, _args, _from, _context, _opts \\ nil) do
-        Logger.error("#{__MODULE__}.shutdown NYI")
+      def shutdown!(state, _args, _from, context, _opts \\ nil) do
+        Logger.error("#{__MODULE__}.shutdown NYI", Noizu.ElixirCore.CallingContext.metadata(context))
         {:reply, :nyi, state}
       end
 
       #-----------------------------
       # migrate!/5
       #-----------------------------
-      def migrate!(state, {ref, rebase} = _args, _from, _context, _opts \\ nil) do
-        Logger.error("#{__MODULE__}.migrate! NYI")
+      def migrate!(state, {ref, rebase} = _args, _from, context, _opts \\ nil) do
+        Logger.error("#{__MODULE__}.migrate! NYI", Noizu.ElixirCore.CallingContext.metadata(context))
         {:reply, :nyi, state}
       end
 
       #-----------------------------
       # health_check!/5
       #-----------------------------
-      def health_check!(state, _args, _from, _context, _opts \\ nil) do
-        Logger.error("#{__MODULE__}.health_check! NYI")
+      def health_check!(state, _args, _from, context, _opts \\ nil) do
+        Logger.error("#{__MODULE__}.health_check! NYI", Noizu.ElixirCore.CallingContext.metadata(context))
         {:reply, :nyi, state}
       end
 
@@ -366,8 +366,8 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       #-----------------------------
       # inactivity_check/5
       #-----------------------------
-      def inactivity_check(state, _args, _from, _context, _opts \\ nil) do
-        Logger.error("#{__MODULE__}.inactivity_check! NYI")
+      def inactivity_check(state, _args, _from, context, _opts \\ nil) do
+        Logger.error("#{__MODULE__}.inactivity_check! NYI", Noizu.ElixirCore.CallingContext.metadata(context))
         {:noreply, state}
       end
 

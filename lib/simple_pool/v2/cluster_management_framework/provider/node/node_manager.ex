@@ -277,7 +277,7 @@ defmodule Noizu.SimplePool.V2.ClusterManagementFramework.Cluster.NodeManager do
                   |> put_in([v.service, Access.key(:pending_state)], :online)
               end
             e ->
-              Logger.error("Problem starting Node Manager - #{inspect e}")
+              Logger.error("Problem starting Node Manager - #{inspect e}", Noizu.ElixirCore.CallingContext.metadata(context))
               cond do
                 acc[v.service] ->
                   acc

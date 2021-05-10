@@ -39,7 +39,7 @@ defmodule Noizu.SimplePool.Server.ProviderBehaviour.Default do
 
     def terminate(server, reason, %State{} = this, context, options) do
       server.record_service_event!(:terminate, %{reason: reason}, context, options)
-      Logger.warn( fn -> server.base().banner("Terminate #{inspect this, pretty: true}\nReason: #{inspect reason}") end)
+      Logger.warn( fn -> {server.base().banner("Terminate #{inspect this, pretty: true}\nReason: #{inspect reason}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
       server.disable_server!()
       :ok
     end

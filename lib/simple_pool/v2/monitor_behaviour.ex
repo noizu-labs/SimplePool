@@ -45,11 +45,11 @@ defmodule Noizu.SimplePool.V2.MonitorBehaviour do
       @temporary_core_events
     end
 
-    def record_service_event!(pool, event, _details, _context, _opts) do
+    def record_service_event!(pool, event, _details, context, _opts) do
       if MapSet.member?(core_events(pool), event) do
-        Logger.info("TODO - write to ServiceEventTable #{inspect event}")
+        Logger.info(fn() -> {"TODO - write to ServiceEventTable #{inspect event}", Noizu.ElixirCore.CallingContext.metadata(context)} end)
       else
-        Logger.info("TODO - write to DetailedServiceEventTable #{inspect event}")
+        Logger.info(fn() -> {"TODO - write to DetailedServiceEventTable #{inspect event}", Noizu.ElixirCore.CallingContext.metadata(context)} end)
       end
     end
   end

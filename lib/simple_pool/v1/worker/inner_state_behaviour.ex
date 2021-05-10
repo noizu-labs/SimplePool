@@ -165,18 +165,18 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
         # @Deprecated
         def call_forwarding_catchall(call, context, _from, %__MODULE__{} = this) do
           if context do
-            Logger.warn("[#{context.token}] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+            Logger.warn("[#{context.token}] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}", Noizu.ElixirCore.CallingContext.metadata(context))
           else
-            Logger.warn("[NO_TOKEN] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+            Logger.warn("[NO_TOKEN] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}", Noizu.ElixirCore.CallingContext.metadata(context))
           end
           {:reply, :unsupported_call, this}
         end
 
         def call_forwarding_catchall(call, context, %__MODULE__{} = this) do
           if context do
-            Logger.warn("[#{context.token}] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+            Logger.warn("[#{context.token}] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}", Noizu.ElixirCore.CallingContext.metadata(context))
           else
-            Logger.warn("[NO_TOKEN] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+            Logger.warn("[NO_TOKEN] #{__MODULE__} Unhandle Call #{inspect {call, __MODULE__.ref(this)}}", Noizu.ElixirCore.CallingContext.metadata(context))
           end
           {:noreply, this}
         end
@@ -224,9 +224,9 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       def call_forwarding({:fetch, fetch_options}, context, _from, %__MODULE__{} = this), do: fetch(this, fetch_options,  context)
       def call_forwarding(call, context, _from, %__MODULE__{} = this) do
         if context do
-          Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+          Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}", Noizu.ElixirCore.CallingContext.metadata(context))
         else
-          Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+          Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}", Noizu.ElixirCore.CallingContext.metadata(context))
         end
         {:reply, :unsupported_call, this}
       end
@@ -240,9 +240,9 @@ defmodule Noizu.SimplePool.InnerStateBehaviour do
       def call_forwarding({:crash!, options}, context, %__MODULE__{} = this), do: crash!(this, context, options)
       def call_forwarding(call, context, %__MODULE__{} = this) do
         if context do
-          Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+          Logger.warn("[#{context.token}] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}", Noizu.ElixirCore.CallingContext.metadata(context))
         else
-          Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}")
+          Logger.warn("[NO_TOKEN] Unhandle Call #{inspect {call, __MODULE__.ref(this)}}", Noizu.ElixirCore.CallingContext.metadata(context))
         end
         {:noreply, this}
       end

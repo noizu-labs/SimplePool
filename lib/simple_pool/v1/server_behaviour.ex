@@ -310,7 +310,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               call = {:transfer_state, {:state, transfer_state, time: :os.system_time(:second)}}
               extended_call = if @s_redirect_feature, do: {:s_call!, {__MODULE__, ref, timeout}, {:s, call, context}}, else: {:s, call, context}
               GenServer.cast(pid, extended_call)
-              Logger.warn(fn ->"#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}" end)
+              Logger.warn(fn -> {"#{__MODULE__} attempted a worker_transfer on an already running instance. #{inspect ref} -> #{inspect node()}@#{inspect pid}", Noizu.ElixirCore.CallingContext.metadata(context)} end)
               {:ack, pid}
             {:error, :already_present} ->
               # We may no longer simply restart child as it may have been initilized
