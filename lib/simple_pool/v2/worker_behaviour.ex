@@ -309,9 +309,13 @@ defmodule Noizu.SimplePool.V2.WorkerBehaviour do
       #-----------------------------
       # reload!/5
       #-----------------------------
-      def reload!(state, _args, _from, _context, _opts \\ nil) do
-        Logger.error("#{__MODULE__}.reload! Required")
-        {:reply, :nyi, state}
+      def reload!(state, _args, _from, context, opts \\ nil) do
+        worker_state_entity = __MODULE__.pool_worker_state_entity()
+        inner_state = cond do
+          state.initialized -> worker_state_entity.reload(state.inner_state, context, opts)
+          :else -> worker_state_entity.load(state.worker_ref, context, opts)
+        end
+        {:reply, inner_state, %Noizu.SimplePool.Worker.State{state| inner_state: inner_state, initialized: inner_state && true || false}}
       end
 
       #-----------------------------

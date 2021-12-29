@@ -108,16 +108,11 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
       #---------------------------------
       def get_direct_link!(ref, context), do: @server.router().get_direct_link!(ref, context)
 
-
-      #-------------------------------------------------------------------------------
-      # Outer Context - Exceptions
-      #-------------------------------------------------------------------------------
-      def reload!(%Noizu.SimplePool.Worker.State{} = state, context, options) do
-        case load(state.worker_ref, context, options) do
-          nil -> {:reply, :error, state}
-          inner_state ->
-            {:reply, :ok, %Noizu.SimplePool.Worker.State{state| initialized: true, inner_state: inner_state, last_activity: :os.system_time(:seconds)}}
-        end
+      #---------------------------------
+      #
+      #---------------------------------
+      def reload(inner_state, _context, _options) do
+        inner_state
       end
 
       #---------------------------------
@@ -239,7 +234,7 @@ defmodule Noizu.SimplePool.V2.InnerStateBehaviour do
       defoverridable [
         supervisor_hint: 1,
         get_direct_link!: 2,
-        reload!: 3,
+        reload: 3,
         save!: 3,
         fetch!: 4,
         fetch!: 5,
