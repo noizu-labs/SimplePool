@@ -78,14 +78,22 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour do
 
       """
       def child(ref, context) do
-        worker(pool_worker() , [ref, context], [id: ref, restart: @options.restart_type])
+        %{
+          id: ref,
+          start: {pool_worker(), :start_link, [ref, context]},
+          restart: @options.restart_type,
+        }
       end
 
       @doc """
 
       """
       def child(ref, params, context) do
-        worker(pool_worker(), [ref, params, context], [id: ref, restart: @options.restart_type])
+        %{
+          id: ref,
+          start: {pool_worker(), :start_link, [ref, params, context]},
+          restart: @options.restart_type,
+        }
       end
 
       @doc """
@@ -93,7 +101,11 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisor.Layer2Behaviour do
       """
       def child(ref, params, context, options) do
         restart = options[:restart] || @options.restart_type
-        worker(pool_worker(), [ref, params, context], [id: ref, restart: restart])
+        %{
+          id: ref,
+          start: {pool_worker(), :start_link, [ref, params, context]},
+          restart: restart,
+        }
       end
 
       #-----------
