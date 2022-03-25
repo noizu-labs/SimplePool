@@ -8,7 +8,7 @@ defmodule Noizu.SimplePool.Mixfile do
 
   def project do
     [app: :noizu_simple_pool,
-     version: "2.1.2",
+     version: "2.2.0",
      elixir: "~> 1.9",
      package: package(),
      deps: deps(),
@@ -27,7 +27,11 @@ defmodule Noizu.SimplePool.Mixfile do
   end # end package
 
   def application do
-    [ applications: [:logger] ]
+    [
+      applications: [:logger],
+      extra_applications: [:amnesia, :noizu_mnesia_versioning, :noizu_scaffolding, :noizu_core, :fastglobal, :semaphore]
+
+    ]
   end # end application
 
   defp deps do
@@ -36,8 +40,8 @@ defmodule Noizu.SimplePool.Mixfile do
       {:markdown, github: "devinus/markdown", only: [:dev], optional: true}, # Markdown processor for ex_doc
       {:amnesia, git: "https://github.com/noizu/amnesia.git", ref: "9266002"}, # Mnesia Wrapper
       {:noizu_mnesia_versioning, github: "noizu/MnesiaVersioning", tag: "0.1.9"},
-      {:noizu_core, github: "noizu/ElixirCore", tag: "1.0.8", override: true},
-      {:noizu_scaffolding, github: "noizu/ElixirScaffolding", tag: "1.1.42"},
+      {:noizu_core, github: "noizu/ElixirCore", tag: "1.0.10", override: true},
+      {:noizu_scaffolding, github: "noizu/ElixirScaffolding", tag: "1.2.4"},
       {:fastglobal, "~> 1.0"}, # https://github.com/discordapp/fastglobal
       {:semaphore, "~> 1.0"}, # https://github.com/discordapp/semaphore
     ]

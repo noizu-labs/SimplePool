@@ -813,7 +813,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
 
         state = try do
                   update_effective(state, context, options)
-        rescue e -> state
+        rescue _e -> state
                 end
 
         # 2. Grab Server Status

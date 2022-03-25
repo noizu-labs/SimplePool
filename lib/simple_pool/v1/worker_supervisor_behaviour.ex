@@ -105,16 +105,34 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       # @child
       if (unquote(required.child)) do
         def child(ref, context) do
-          worker(@worker, [ref, context], [id: ref, restart: @restart_type])
+          %{
+            id: ref,
+            start: {@worker, :start_link, [ref, context]},
+            restart: @restart_type,
+            shutdown: 300_000,
+          }
+          # worker(@worker, [ref, context], [id: ref, restart: @restart_type])
         end
 
         def child(ref, params, context) do
-          worker(@worker, [ref, params, context], [id: ref, restart: @restart_type])
+          %{
+            id: ref,
+            start: {@worker, :start_link, [ref, params, context]},
+            restart: @restart_type,
+            shutdown: 300_000,
+          }
+          #worker(@worker, [ref, params, context], [id: ref, restart: @restart_type])
         end
 
         def child(ref, params, context, options) do
           restart = options[:restart] || @restart_type
-          worker(@worker, [ref, params, context], [id: ref, restart: restart])
+          %{
+            id: ref,
+            start: {@worker, :start_link, [ref, params, context]},
+            restart: restart,
+            shutdown: 300_000,
+          }
+          #worker(@worker, [ref, params, context], [id: ref, restart: restart])
         end
       end # end child
 

@@ -348,8 +348,23 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       #
       #-------------------
       def pass_through_supervise(children,opts), do: Supervisor.init(children, opts)
-      def pass_through_supervisor(definition, arguments, options), do: supervisor(definition, arguments, options)
-      def pass_through_worker(definition, arguments, options), do: worker(definition, arguments, options)
+      def pass_through_supervisor(definition, arguments, options) do
+        %{
+          id: options[:id] || definition,
+          start: {definition, :start_link, arguments},
+          restart: options[:restart] || :permanent,
+          shutdown: options[:shutdown] || :infinity
+        }
+      end
+      #, do: supervisor(definition, arguments, options)
+      def pass_through_worker(definition, arguments, options) do
+        %{
+          id: options[:id] || definition,
+          start: {definition, :start_link, arguments},
+          restart: options[:restart] || :permanent,
+          shutdown: options[:shutdown] || 5_000,
+        }
+      end
 
       defoverridable [
         start_link: 2,

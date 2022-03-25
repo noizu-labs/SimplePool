@@ -287,8 +287,17 @@ defmodule Noizu.SimplePool.V2.WorkerSupervisorBehaviour do
       def init([definition, context] = args) do
         verbose() && Logger.info(fn -> {banner("#{__MODULE__} INIT", "args: #{inspect args}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
         available_supervisors()
-        |> Enum.map(&(supervisor(&1, [definition, context], [restart: @options.layer2_restart_type, max_restarts: @options.layer2_max_restarts, max_seconds: @options.layer2_max_seconds] )))
+        |> Enum.map(&(expand_supervisor_struct(&1, [definition, context], [restart: @options.layer2_restart_type, max_restarts: @options.layer2_max_restarts, max_seconds: @options.layer2_max_seconds] )))
         |> Supervisor.init([{:strategy,  @options.strategy}, {:max_restarts, @options.max_restarts}, {:max_seconds, @options.max_seconds}])
+      end
+
+      def expand_supervisor_struct(definition, arguments, options) do
+        %{
+          id: options[:id] || definition,
+          start: {definition, :start_link, arguments},
+          restart: options[:restart] || :permanent,
+          shutdown: options[:shutdown] || :infinity
+        }
       end
 
 

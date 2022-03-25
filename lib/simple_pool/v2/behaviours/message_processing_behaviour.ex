@@ -60,9 +60,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
     end
 
 
-    @doc """
-    Catchall
-    """
+    # Catch All
     def __handle_call(module, envelope, from, state), do: module.__call_handler(envelope, from, state)
 
     #-----------------------------------------------------
@@ -98,9 +96,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       {:noreply, state}
     end
 
-    @doc """
-    Catchall
-    """
+    # Catchall
     def __handle_cast(module, envelope, state), do: module.__cast_handler(envelope, state)
 
     #-----------------------------------------------------
@@ -136,9 +132,7 @@ defmodule Noizu.SimplePool.V2.MessageProcessingBehaviour do
       {:noreply, state}
     end
 
-    @doc """
-    Catchall
-    """
+    # Catchall
     def __handle_info(module, envelope, state), do: module.__info_handler(envelope, state)
 
     #===============================================================================================================
