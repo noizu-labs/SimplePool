@@ -8,7 +8,7 @@
 #
 # This configuration file is loaded before any dependency and
 # is restricted to this project.
-use Mix.Config
+import Config
 
 config :ex_doc, :markdown_processor, ExDoc.Markdown.Hoedown
 
@@ -22,3 +22,6 @@ config :noizu_mnesia_versioning,
 config :logger, :console,
        format: "$time $metadata[$level] $message\n",
        metadata: [:context_token]
+
+config :noizu_scaffolding,
+        default_nmid_generator: Noizu.SimplePool.NmidAdapter

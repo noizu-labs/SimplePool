@@ -8,8 +8,8 @@ defmodule Noizu.SimplePool.Mixfile do
 
   def project do
     [app: :noizu_simple_pool,
-     version: "2.2.1",
-     elixir: "~> 1.9",
+     version: "2.2.2",
+     elixir: "~> 1.13",
      package: package(),
      deps: deps(),
      description: "Noizu Simple Pool",
@@ -36,14 +36,15 @@ defmodule Noizu.SimplePool.Mixfile do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.16.2", only: [:dev, :test], optional: true}, # Documentation Provider
+      {:ex_doc, "~> 0.28.3", only: [:dev, :test], optional: true}, # Documentation Provider
       {:markdown, github: "devinus/markdown", only: [:dev], optional: true}, # Markdown processor for ex_doc
       {:amnesia, git: "https://github.com/noizu/amnesia.git", ref: "9266002"}, # Mnesia Wrapper
-      {:noizu_mnesia_versioning, github: "noizu/MnesiaVersioning", tag: "0.1.9"},
-      {:noizu_core, github: "noizu/ElixirCore", tag: "1.0.10", override: true},
-      {:noizu_scaffolding, github: "noizu/ElixirScaffolding", tag: "1.2.4"},
+      {:noizu_scaffolding, github: "noizu/ElixirScaffolding", tag: "1.2.5"},
       {:fastglobal, "~> 1.0"}, # https://github.com/discordapp/fastglobal
       {:semaphore, "~> 1.0"}, # https://github.com/discordapp/semaphore
+      {:redix, github: "whatyouhide/redix", tag: "v0.7.0", optional: true},
+      {:poison, "~> 3.1.0", optional: true},
+      {:elixir_uuid, "~> 1.2", only: :test, optional: true}
     ]
   end # end deps
 
