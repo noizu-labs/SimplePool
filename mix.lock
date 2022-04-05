@@ -14,7 +14,7 @@
   "nimble_parsec": {:hex, :nimble_parsec, "1.2.3", "244836e6e3f1200c7f30cb56733fd808744eca61fd182f731eac4af635cc6d0b", [:mix], [], "hexpm", "c8d789e39b9131acf7b99291e93dae60ab48ef14a7ee9d58c6964f59efb570b0"},
   "noizu_core": {:git, "https://github.com/noizu/ElixirCore.git", "797809decc63ed08bfc630e8e59d93265819aa61", [tag: "1.0.12"]},
   "noizu_mnesia_versioning": {:git, "https://github.com/noizu/MnesiaVersioning.git", "876860c51eeec464cd65cca265e50ff0fe2326db", [tag: "0.1.10"]},
-  "noizu_scaffolding": {:git, "https://github.com/noizu/ElixirScaffolding.git", "c5d1fe7bbd56a8bc805126b54c2096dae6dee213", [tag: "1.2.5"]},
+  "noizu_scaffolding": {:git, "https://github.com/noizu/ElixirScaffolding.git", "1c4fcad6f48ec164815cd4d05b00e7684f8ded1f", [tag: "1.2.5"]},
   "poison": {:hex, :poison, "3.1.0", "d9eb636610e096f86f25d9a46f35a9facac35609a7591b3be3326e99a0484665", [:mix], [], "hexpm", "fec8660eb7733ee4117b85f55799fd3833eb769a6df71ccf8903e8dc5447cfce"},
   "redix": {:git, "https://github.com/whatyouhide/redix.git", "5b2edd731e19e4703973d3b780f52df71223806f", [tag: "v0.7.0"]},
   "semaphore": {:hex, :semaphore, "1.1.0", "435e20bf121da8b18faf5327540818050e9102723804c490e06c2f6d24b2a5a4", [:mix], [], "hexpm", "29b48df988af9ac3833a82d4350e5ce41a5944ad898607b8121131771fb5bdbc"},
