@@ -11,4 +11,25 @@ defimpl Noizu.ERP, for: Atom do
   def entity!(nil, _options \\ nil), do: nil
   def record(nil, _options \\ nil), do: nil
   def record!(nil, _options \\ nil), do: nil
+
+  def id_ok(o) do
+    r = ref(o)
+    r && {:ok, r} || {:error, o}
+  end
+  def ref_ok(o) do
+    r = ref(o)
+    r && {:ok, r} || {:error, o}
+  end
+  def sref_ok(o) do
+    r = sref(o)
+    r && {:ok, r} || {:error, o}
+  end
+  def entity_ok(o, options \\ %{}) do
+    r = entity(o, options)
+    r && {:ok, r} || {:error, o}
+  end
+  def entity_ok!(o, options \\ %{}) do
+    r = entity!(o, options)
+    r && {:ok, r} || {:error, o}
+  end
 end
