@@ -39,7 +39,7 @@ defmodule Noizu.SimplePool.Mixfile do
       {:ex_doc, "~> 0.28.3", only: [:dev, :test], optional: true}, # Documentation Provider
       {:markdown, github: "devinus/markdown", only: [:dev], optional: true}, # Markdown processor for ex_doc
       {:amnesia, git: "https://github.com/noizu/amnesia.git", ref: "9266002"}, # Mnesia Wrapper
-      {:noizu_scaffolding, github: "noizu/ElixirScaffolding", tag: "1.2.5"},
+      {:noizu_scaffolding, github: "noizu/ElixirScaffolding", tag: "1.2.6"},
       {:fastglobal, "~> 1.0"}, # https://github.com/discordapp/fastglobal
       {:semaphore, "~> 1.0"}, # https://github.com/discordapp/semaphore
       {:redix, github: "whatyouhide/redix", tag: "v0.7.0", optional: true},
