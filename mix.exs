@@ -8,7 +8,7 @@ defmodule Noizu.SimplePool.Mixfile do
 
   def project do
     [app: :noizu_simple_pool,
-     version: "2.2.3",
+     version: "2.2.4",
      elixir: "~> 1.13",
      package: package(),
      deps: deps(),
@@ -44,7 +44,7 @@ defmodule Noizu.SimplePool.Mixfile do
       {:semaphore, "~> 1.0"}, # https://github.com/discordapp/semaphore
       {:redix, github: "whatyouhide/redix", tag: "v0.7.0", optional: true},
       {:poison, "~> 3.1.0", optional: true},
-      {:elixir_uuid, "~> 1.2", only: :test, optional: true}
+      {:elixir_uuid, "~> 1.2", only: :test, optional: true},
     ]
   end # end deps
 
