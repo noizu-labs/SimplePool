@@ -159,6 +159,29 @@ defmodule Noizu.SimplePool.DispatchRepoBehaviour do
         def entity!(obj, _options \\ nil) do
           obj.entity
         end # end defimpl EntityReferenceProtocol, for: Tuple
+
+
+        def id_ok(o) do
+          r = id(o)
+          r && {:ok, r} || {:error, o}
+        end
+        def ref_ok(o) do
+          r = ref(o)
+          r && {:ok, r} || {:error, o}
+        end
+        def sref_ok(o) do
+          r = sref(o)
+          r && {:ok, r} || {:error, o}
+        end
+        def entity_ok(o, options \\ %{}) do
+          r = entity(o, options)
+          r && {:ok, r} || {:error, o}
+        end
+        def entity_ok!(o, options \\ %{}) do
+          r = entity!(o, options)
+          r && {:ok, r} || {:error, o}
+        end
+
       end # end defimpl
     end # end quote
   end # end __suing__
