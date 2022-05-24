@@ -1266,7 +1266,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
           end
         end
         profiles
-      endnew
+      end
 
       #--------------------------------------
       #
