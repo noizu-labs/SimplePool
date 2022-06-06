@@ -8,7 +8,7 @@ defmodule Noizu.SimplePool.Mixfile do
 
   def project do
     [app: :noizu_simple_pool,
-     version: "2.2.4",
+     version: "2.2.5",
      elixir: "~> 1.13",
      package: package(),
      deps: deps(),
@@ -45,6 +45,7 @@ defmodule Noizu.SimplePool.Mixfile do
       {:redix, github: "whatyouhide/redix", tag: "v0.7.0", optional: true},
       {:poison, "~> 3.1.0", optional: true},
       {:elixir_uuid, "~> 1.2", only: :test, optional: true},
+      {:plug, "~> 1.11.1", optional: true},
     ]
   end # end deps
 

@@ -89,6 +89,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
         def options(), do: @options
       end
 
+      # @todo add a scan_children callback that scans Supervisor.which_children and kicks any worker supervisors that have halted.
 
       # @start_link
       if (unquote(required.start_link)) do
@@ -102,7 +103,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
               start_children(__MODULE__, context, definition)
               {:ok, sup}
             {:error, {:already_started, sup}} ->
-              Logger.info(fn -> {"#{__MODULE__}.start_link Supervisor Already Started. Handling unexected state.  #{inspect sup}" , Noizu.ElixirCore.CallingContext.metadata(context)} end)
+              Logger.info(fn -> {"#{__MODULE__}.start_link Supervisor Already Started. Handling unexpected state.  #{inspect sup}" , Noizu.ElixirCore.CallingContext.metadata(context)} end)
               start_children(__MODULE__, context, definition)
               {:ok, sup}
           end
@@ -147,7 +148,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
                     {
                       """
 
-                      #{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Already Started. Handling unexepected state.
+                      #{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Already Started. Handling unexpected state.
                       #{inspect error}
                       """, Noizu.ElixirCore.CallingContext.metadata(context)}
                   end)
@@ -166,7 +167,6 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
         def start_worker_supervisors(sup, definition, context) do
           supervisors = @pool_server.available_supervisors()
           for s <- supervisors do
-
             supervisor = %{
               id: s,
               start: {s, :start_link, [definition, context]},
@@ -184,7 +184,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
                     Logger.info(fn ->{
                                        """
 
-                                       #{__MODULE__}.start_children(3) #{inspect s} Already Started. Handling unexepected state.
+                                       #{__MODULE__}.start_children(3) #{inspect s} Already Started. Handling unexpected state.
                                        #{inspect error}
                                        """, Noizu.ElixirCore.CallingContext.metadata(context)}
                     end)
@@ -194,7 +194,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
                 Logger.info(fn -> {
                                     """
 
-                                    #{__MODULE__}.start_children(4) #{inspect s} Already Started. Handling unexepected state.
+                                    #{__MODULE__}.start_children(4) #{inspect s} Already Started. Handling unexpected state.
                                     #{inspect error}
                                     """, Noizu.ElixirCore.CallingContext.metadata(context)}
                 end)

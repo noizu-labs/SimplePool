@@ -6,6 +6,8 @@
 defmodule Noizu.SimplePool.WorkerBehaviourDefault do
   require Logger
 
+  @telemetry_handler Application.get_env(:noizu_simple_pool, :telemetry_handler, Noizu.SimplePool.Telemetry)
+
   def verbose(verbose, base) do
     if verbose == :auto do
       if Application.get_env(:noizu_simple_pool, base, %{})[:PoolSupervisor][:verbose] do
@@ -19,33 +21,23 @@ defmodule Noizu.SimplePool.WorkerBehaviourDefault do
   end
 
   def init({_mod, server, base, _worker_state_entity, _inactivity_check, _lazy_load}, {:migrate, ref, initial_state, context}) do
-    br = :os.system_time(:millisecond)
-    server.worker_lookup_handler().register!(ref, context)
-    task = server.worker_lookup_handler().set_node!(ref, context)
-    r = Task.yield(task, 500)
-    ar = :os.system_time(:millisecond)
-    td = ar - br
-    cond do
-      td > 450 -> Logger.error(fn -> {base.banner("[Reg Time] - Critical #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-      td > 250 -> Logger.warn(fn -> {base.banner("[Reg Time] - Delayed #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-      :else -> :ok
-    end
-    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task: r || task}, initialized: :delayed_init, worker_ref: ref, inner_state: {:transfer, initial_state}}}
+    @telemetry_handler.worker_init_span(base, ref,
+      fn ->
+        server.worker_lookup_handler().register!(ref, context)
+        task = server.worker_lookup_handler().set_node!(ref, context)
+        r = Task.yield(task, 500)
+        {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task: r || task}, initialized: :delayed_init, worker_ref: ref, inner_state: {:transfer, initial_state}}}
+      end, context)
   end
 
   def init({_mod, server, base, _worker_state_entity, _inactivity_check, _lazy_load}, {ref, context}) do
-    br = :os.system_time(:millisecond)
-    server.worker_lookup_handler().register!(ref, context)
-    task = server.worker_lookup_handler().set_node!(ref, context)
-    r = Task.yield(task, 500)
-    ar = :os.system_time(:millisecond)
-    td = ar - br
-    cond do
-      td > 450 -> Logger.error(fn -> {base.banner("[Reg Time] - Critical #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-      td > 250 -> Logger.warn(fn -> {base.banner("[Reg Time] - Delayed #{__MODULE__} (#{inspect ref } = #{td} milliseconds"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
-      :else -> :ok
-    end
-    {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task:  r || task}, initialized: :delayed_init, worker_ref: ref, inner_state: :start}}
+    @telemetry_handler.worker_init_span(base, ref,
+      fn ->
+        server.worker_lookup_handler().register!(ref, context)
+        task = server.worker_lookup_handler().set_node!(ref, context)
+        r = Task.yield(task, 500)
+        {:ok, %Noizu.SimplePool.Worker.State{extended: %{set_node_task:  r || task}, initialized: :delayed_init, worker_ref: ref, inner_state: :start}}
+      end, context)
   end
 
   def delayed_init({mod, _server, base, worker_state_entity, inactivity_check, lazy_load}, state, context) do
