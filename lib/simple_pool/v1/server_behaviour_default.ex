@@ -7,18 +7,32 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
   alias Noizu.SimplePool.Worker.Link
   require Logger
 
+  @telemetry_handler Application.get_env(:noizu_simple_pool, :telemetry_handler, Noizu.SimplePool.Telemetry)
+
   defp get_semaphore(key, _count) do
     try do
       Semaphore.acquire(key, 5)
-      rescue _e -> false
-      catch _e -> false
+    rescue _e -> false
+    catch _e -> false
     end
+  end
+
+  defp obtain_semaphore(key, count \\ 1) do
+    try do
+      Semaphore.acquire(key, count)
+    rescue _e -> false
+    catch _e -> false
+    end
+  end
+
+  def rate_limited_log(mod, action, event, params, context, options \\ [], delay \\ 15_000, frequency \\ 5) do
+    @telemetry_handler.rate_limited_log(mod, action, event, params, context, options, delay, frequency)
   end
 
   def enable_server!(mod, active_key, elixir_node \\ nil) do
     cond do
       elixir_node == nil || elixir_node == node() ->
-        if get_semaphore({:fg_write_record, active_key} , 5) do
+        if obtain_semaphore({:fg_write_record, active_key} , 5) do
           r = FastGlobal.put(active_key, true)
           Semaphore.release({:fg_write_record, active_key})
           r
@@ -27,7 +41,7 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
           r = FastGlobal.put(active_key, true)
           spawn fn ->
             Process.sleep(750)
-            if get_semaphore({:fg_write_record, active_key} , 5) do
+            if obtain_semaphore({:fg_write_record, active_key} , 5) do
               FastGlobal.put(active_key, true)
               Semaphore.release({:fg_write_record, active_key})
             else
@@ -45,13 +59,13 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
       elixir_node == nil || elixir_node == node() ->
         case FastGlobal.get(active_key, :no_match) do
           :no_match ->
-            if get_semaphore({:fg_write_record, active_key} , 1) do
+            if obtain_semaphore({:fg_write_record, active_key} , 1) do
               # Race condition check
               r = case FastGlobal.get(active_key, :no_match) do
-                :no_match ->
-                  FastGlobal.put(active_key, false)
-                v -> v
-              end
+                    :no_match ->
+                      FastGlobal.put(active_key, false)
+                    v -> v
+                  end
               Semaphore.release({:fg_write_record, active_key})
               r
             else
@@ -66,7 +80,7 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
   def disable_server!(mod, active_key, elixir_node \\ nil) do
     cond do
       elixir_node == nil || elixir_node == node() ->
-        if get_semaphore({:fg_write_record, active_key} , 5) do
+        if obtain_semaphore({:fg_write_record, active_key} , 5) do
           r = FastGlobal.put(active_key, false)
           Semaphore.release({:fg_write_record, active_key})
           r
@@ -75,7 +89,7 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
           r = FastGlobal.put(active_key, true)
           spawn fn ->
             Process.sleep(750)
-            if get_semaphore({:fg_write_record, active_key} , 5) do
+            if obtain_semaphore({:fg_write_record, active_key} , 5) do
               FastGlobal.put(active_key, true)
               Semaphore.release({:fg_write_record, active_key})
             else
@@ -130,25 +144,27 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
   #-------------------------------------------------------------------------
   def bulk_migrate!(mod, transfer_server, context, options) do
     tasks = if options[:sync] do
-      to = options[:timeout] || 60_000
-      options_b = put_in(options, [:timeout], to)
+              to = options[:timeout] || 60_000
+              options_b = put_in(options, [:timeout], to)
 
-      Task.async_stream(transfer_server, fn({server, refs}) ->
-                                           o = Task.async_stream(refs, fn(ref) ->
-                                                                         {ref, mod.o_call(ref, {:migrate!, ref, server, options_b}, context, options_b, to)}
-                                           end, timeout: to)
-                                           {server, o |> Enum.to_list()}
-      end, timeout: to)
+              Task.async_stream(transfer_server, fn({server, refs}) ->
+                                                   o = Task.async_stream(refs,
+                                                     fn(ref) ->
+                                                       {ref, mod.o_call(ref, {:migrate!, ref, server, options_b}, context, options_b, to)}
+                                                     end, timeout: to)
+                                                   {server, o |> Enum.to_list()}
+              end, timeout: to)
     else
       to = options[:timeout] || 60_000
       options_b = put_in(options, [:timeout], to)
       Task.async_stream(transfer_server, fn({server, refs}) ->
-                                           o = Task.async_stream(refs, fn(ref) ->
-                                                                         {ref, mod.o_cast(ref, {:migrate!, ref, server, options_b}, context)}
-                                           end, timeout: to)
+                                           o = Task.async_stream(refs,
+                                             fn(ref) ->
+                                               {ref, mod.o_cast(ref, {:migrate!, ref, server, options_b}, context)}
+                                             end, timeout: to)
                                            {server, o |> Enum.to_list()}
       end, timeout: to)
-    end
+            end
 
     r = Enum.reduce(tasks, %{}, fn(task_outcome, acc) ->
       case task_outcome do
@@ -172,10 +188,10 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
         %Link{ref: ref, handler: mod, handle: nil, state: {:error, details}}
       ref ->
         options_b = if Map.has_key?(options, :spawn) do
-          options
+                      options
         else
           put_in(options, [:spawn], false)
-        end
+                    end
 
         case mod.worker_pid!(ref, context, options_b) do
           {:ack, pid} ->
@@ -230,11 +246,14 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
           case e do
             {:timeout, c} ->
               try do
-                if log_timeout do
-                  worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
-                else
-                  Logger.warn fn -> {base.banner("#{mod}.s_call! - timeout.\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                cond do
+                  log_timeout ->
+                    worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+                  rate_limited_log(mod, :s_call!, :timeout, extended_call, context, options) ->
+                    Logger.warn fn -> {base.banner("#{mod}.s_call! - timeout. (#{inspect c})\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                  :else -> :nop
                 end
+
                 {:error, {:timeout, c}}
               catch
                 :exit, e ->  {:error, {:exit, e}}
@@ -246,6 +265,14 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
                 else
                   Logger.warn fn -> {base.banner("#{mod}.s_call! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
                 end
+                cond do
+                  log_timeout ->
+                    worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+                  rate_limited_log(mod, :s_cast!, :exit, extended_call, context, options) ->
+                    Logger.warn fn -> {base.banner("#{mod}.s_cal! - exit raised.\n call: #{inspect extended_call}\nraise: #{Exception.format(:error, o, __STACKTRACE__)}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                  :else -> :nop
+                end
+
                 {:error, {:exit, o}}
               catch
                 :exit, e ->
@@ -254,6 +281,14 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
           end
       end # end try
     else
+      cond do
+        log_timeout ->
+          worker_lookup_handler.record_event!(identifier, :offline, %{call: extended_call}, context, options)
+        rate_limited_log(mod, :s_call!, :offline, extended_call, context, options) ->
+          Logger.warn fn -> {base.banner("#{mod}.s_call! - server_offline!\nCall #{mod}.enable_server!(#{inspect node()}) to enable\n call: #{inspect extended_call}\n"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+        :else -> :nop
+      end
+
       {:error, {:service, :offline}}
     end
   end
@@ -274,6 +309,7 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
     end
   end # end s_call!
 
+
   def crash_protection_rs_cast!({mod, base, worker_lookup_handler, s_redirect_feature, log_timeout}, identifier, call, context, options) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast!, {mod, identifier}, {:s, call, context}}, else: {:s, call, context}
     if mod.server_online?() do
@@ -284,10 +320,12 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
           case e do
             {:timeout, c} ->
               try do
-                if log_timeout do
-                  worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
-                else
-                  Logger.warn fn -> {base.banner("#{mod}.s_cast! - timeout.\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                cond do
+                  log_timeout ->
+                    worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+                  rate_limited_log(mod, :s_cast!, :timeout, extended_call, context, options) ->
+                    Logger.warn fn -> {base.banner("#{mod}.s_cast! - timeout. (#{inspect c})\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                  :else -> :nop
                 end
                 {:error, {:timeout, c}}
               catch
@@ -295,10 +333,12 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
               end # end inner try
             o  ->
               try do
-                if log_timeout do
-                  worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
-                else
-                  Logger.warn fn -> {base.banner("#{mod}.s_cast! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                cond do
+                  log_timeout ->
+                    worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+                  rate_limited_log(mod, :s_cast!, :exit, extended_call, context, options) ->
+                    Logger.warn fn -> {base.banner("#{mod}.s_cast! - exit raised.\n call: #{inspect extended_call}\nraise: #{Exception.format(:error, o, __STACKTRACE__)}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                  :else -> :nop
                 end
 
                 {:error, {:exit, o}}
@@ -309,6 +349,14 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
           end
       end # end try
     else
+      cond do
+        log_timeout ->
+          worker_lookup_handler.record_event!(identifier, :offline, %{call: extended_call}, context, options)
+        rate_limited_log(mod, :s_cast!, :offline, extended_call, context, options) ->
+          Logger.warn fn -> {base.banner("#{mod}.s_cast! - server_offline!\nCall #{mod}.enable_server!(#{inspect node()}) to enable\n call: #{inspect extended_call}\n"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+        :else -> :nop
+      end
+
       {:error, {:service, :offline}}
     end
   end
@@ -331,37 +379,54 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
 
   def crash_protection_rs_call({mod, base, worker_lookup_handler, s_redirect_feature, log_timeout}, identifier, call, context, options, timeout) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_call, {mod, identifier, timeout}, {:s, call, context}}, else: {:s, call, context}
-    try do
-      mod.s_call_unsafe(identifier, extended_call, context, options, timeout)
-    catch
-      :exit, e ->
-        case e do
-          {:timeout, c} ->
-            try do
-              if log_timeout do
-                worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
-              else
-                Logger.warn fn -> {base.banner("#{mod}.s_call - timeout.\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
-              end
+    if mod.server_online?() do
+      try do
+        mod.s_call_unsafe(identifier, extended_call, context, options, timeout)
+      catch
+        :exit, e ->
+          case e do
+            {:timeout, c} ->
+              try do
+                cond do
+                  log_timeout ->
+                    worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
+                  rate_limited_log(mod, :s_cast!, :timeout, extended_call, context, options) ->
+                    Logger.warn fn -> {base.banner("#{mod}.s_call - timeout. (#{inspect c})\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                  :else -> :nop
+                end
 
-              {:error, {:timeout, c}}
-            catch
-              :exit, e ->  {:error, {:exit, e}}
-            end # end inner try
-          o  ->
-            try do
-              if log_timeout do
-                worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
-              else
-                Logger.warn fn -> {base.banner("#{mod}.s_call - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
-              end
-              {:error, {:exit, o}}
-            catch
-              :exit, e ->
-                {:error, {:exit, e}}
-            end # end inner try
-        end
-    end # end try
+                {:error, {:timeout, c}}
+              catch
+                :exit, e ->  {:error, {:exit, e}}
+              end # end inner try
+            o  ->
+              try do
+                cond do
+                  log_timeout ->
+                    worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+                  rate_limited_log(mod, :s_cast!, :exit, extended_call, context, options) ->
+                    Logger.warn fn -> {base.banner("#{mod}.s_call - exit raised.\n call: #{inspect extended_call}\nraise: #{Exception.format(:error, o, __STACKTRACE__)}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                  :else -> :nop
+                end
+
+                {:error, {:exit, o}}
+              catch
+                :exit, e ->
+                  {:error, {:exit, e}}
+              end # end inner try
+          end
+      end # end try
+    else
+      cond do
+        log_timeout ->
+          worker_lookup_handler.record_event!(identifier, :offline, %{call: extended_call}, context, options)
+        rate_limited_log(mod, :s_call, :offline, extended_call, context, options) ->
+          Logger.warn fn -> {base.banner("#{mod}.s_call - server_offline!\nCall #{mod}.enable_server!(#{inspect node()}) to enable\n call: #{inspect extended_call}\n"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+        :else -> :nop
+      end
+
+      {:error, {:service, :offline}}
+    end
   end
 
   @doc """
@@ -382,36 +447,54 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
 
   def crash_protection_rs_cast({mod, base, worker_lookup_handler, s_redirect_feature, log_timeout}, identifier, call, context, options) do
     extended_call = if (options[:redirect] || s_redirect_feature), do: {:s_cast, {mod, identifier}, {:s, call, context}}, else: {:s, call, context}
-    try do
-      mod.s_cast_unsafe(identifier, extended_call, context, options)
-    catch
-      :exit, e ->
-        case e do
-          {:timeout, c} ->
-            try do
-              if log_timeout do
-                worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
-              else
-                Logger.warn fn -> {base.banner("#{mod}.s_call! - timeout.\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
-              end
-              {:error, {:timeout, c}}
-            catch
-              :exit, e ->  {:error, {:exit, e}}
-            end # end inner try
-          o  ->
-            try do
-              if log_timeout do
-                worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
-              else
-                Logger.warn fn -> {base.banner("#{mod}.s_call! - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
-              end
-              {:error, {:exit, o}}
-            catch
-              :exit, e ->
-                {:error, {:exit, e}}
-            end # end inner try
-        end
-    end # end try
+    if mod.server_online?() do
+      try do
+        mod.s_cast_unsafe(identifier, extended_call, context, options)
+      catch
+        :exit, e ->
+          case e do
+            {:timeout, c} ->
+              try do
+                cond do
+                  log_timeout ->
+                    worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
+                  rate_limited_log(mod, :s_cast!, :timeout, extended_call, context, options) ->
+                    Logger.warn fn -> {base.banner("#{mod}.s_cast - timeout. (#{inspect c})\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                  :else -> :nop
+                end
+
+                {:error, {:timeout, c}}
+              catch
+                :exit, e ->  {:error, {:exit, e}}
+              end # end inner try
+            o  ->
+              try do
+                cond do
+                  log_timeout ->
+                    worker_lookup_handler.record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
+                  rate_limited_log(mod, :s_cast!, :exit, extended_call, context, options) ->
+                    Logger.warn fn -> {base.banner("#{mod}.s_cast - exit raised.\n call: #{inspect extended_call}\nraise: #{Exception.format(:error, o, __STACKTRACE__)}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                  :else -> :nop
+                end
+
+                {:error, {:exit, o}}
+              catch
+                :exit, e ->
+                  {:error, {:exit, e}}
+              end # end inner try
+          end
+      end # end try
+    else
+      cond do
+        log_timeout ->
+          worker_lookup_handler.record_event!(identifier, :offline, %{call: extended_call}, context, options)
+        rate_limited_log(mod, :s_cast, :offline, extended_call, context, options) ->
+          Logger.warn fn -> {base.banner("#{mod}.s_cast - server_offline!\nCall #{mod}.enable_server!(#{inspect node()}) to enable\n call: #{inspect extended_call}\n"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+        :else -> :nop
+      end
+
+      {:error, {:service, :offline}}
+    end
   end
 
   @doc """
@@ -505,23 +588,39 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
             GenServer.cast(pid, extended_call)
             rc = if link.update_after == :infinity, do: :infinity, else: now_ts + link.update_after + :rand.uniform(div(link.update_after, 2))
             {:ok, %Link{link| handle: pid, state: :valid, expire: rc}}
-          {:nack, details} -> {:error, %Link{link| handle: nil, state: {:error, {:nack, details}}}}
+          {:nack, details} ->
+            if rate_limited_log(mod, :s_forward, :nack, extended_call, context, options) do
+              Logger.warn(fn -> {base.banner("#{__MODULE__}.s_forward - nack\nlink: (#{inspect link})\ndetails: #{inspect {:nack, details}}\n"),  Noizu.ElixirCore.CallingContext.metadata(context)} end )
+            end
+            {:error, %Link{link| handle: nil, state: {:error, {:nack, details}}}}
           {:error, details} ->
+            if rate_limited_log(mod, :s_forward, :error, extended_call, context, options) do
+              Logger.warn(fn -> {base.banner("#{__MODULE__}.s_forward - error\nlink: (#{inspect link})\ndetails: #{inspect {:error, details}}\n"),  Noizu.ElixirCore.CallingContext.metadata(context)} end )
+            end
             {:error, %Link{link| handle: nil, state: {:error, details}}}
           error ->
+            if rate_limited_log(mod, :s_forward, :invalid_response, extended_call, context, options) do
+              Logger.warn(fn -> {base.banner("#{__MODULE__}.s_forward - invalid_response\nlink: (#{inspect link})\ndetails: #{inspect error}\n"),  Noizu.ElixirCore.CallingContext.metadata(context)} end )
+            end
             {:error, %Link{link| handle: nil, state: {:error, error}}}
         end # end case worker_pid!
       end # end if else
     catch
       :exit, e ->
         try do
-          Logger.warn(fn -> {base.banner("#{__MODULE__}.s_forward - dead worker (#{inspect link})\n\n"),  Noizu.ElixirCore.CallingContext.metadata(context)} end )
+          if rate_limited_log(mod, :s_forward, :exit, extended_call, context, options) do
+            Logger.warn(fn -> {base.banner("#{__MODULE__}.s_forward - dead worker\nlink: (#{inspect link})\nException: #{Exception.format(:exit, e, __STACKTRACE__)}\n"),  Noizu.ElixirCore.CallingContext.metadata(context)} end )
+          end
           {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
         catch
           :exit, e ->
             {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
         end # end inner try
-      e -> {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
+      e ->
+        if rate_limited_log(mod, :s_forward, :error, extended_call, context, options) do
+          Logger.warn(fn -> {base.banner("#{__MODULE__}.s_forward - catch\nlink: (#{inspect link})\nException: #{Exception.format(:error, e, __STACKTRACE__)}\n"),  Noizu.ElixirCore.CallingContext.metadata(context)} end)
+        end
+        {:error, %Link{link| handle: nil, state: {:error, {:exit, e}}}}
     end # end try
   end # end link_forward!
 

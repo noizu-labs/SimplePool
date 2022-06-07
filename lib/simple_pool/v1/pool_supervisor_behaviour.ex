@@ -166,41 +166,46 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       if (unquote(required.start_worker_supervisors)) do
         def start_worker_supervisors(sup, definition, context) do
           supervisors = @pool_server.available_supervisors()
-          for s <- supervisors do
-            supervisor = %{
-              id: s,
-              start: {s, :start_link, [definition, context]},
-              restart: :permanent,
-              shutdown: :infinity
-            }
+          Task.async_stream(supervisors,
+            fn(s) ->
+              supervisor = %{
+                id: s,
+                start: {s, :start_link, [definition, context]},
+                restart: :permanent,
+                shutdown: :infinity
+              }
 
-            # supervisor(s, [definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)] )
-            case Supervisor.start_child(sup, supervisor) do
-              {:ok, _pool_supervisor} ->  :ok
-              {:error, {:already_started, process_id}} ->
-                case Supervisor.restart_child(__MODULE__, process_id) do
-                  {:ok, pid} -> :ok
-                  error ->
-                    Logger.info(fn ->{
-                                       """
+              # supervisor(s, [definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)] )
+              case Supervisor.start_child(sup, supervisor) do
+                {:ok, _pool_supervisor} ->  :ok
+                {:error, {:already_started, process_id}} ->
+                  case Supervisor.restart_child(__MODULE__, process_id) do
+                    {:ok, pid} -> :ok
+                    error ->
+                      Logger.info(fn ->{
+                                         """
 
-                                       #{__MODULE__}.start_children(3) #{inspect s} Already Started. Handling unexpected state.
-                                       #{inspect error}
-                                       """, Noizu.ElixirCore.CallingContext.metadata(context)}
-                    end)
-                    :error
-                end
-              error ->
-                Logger.info(fn -> {
-                                    """
+                                         #{__MODULE__}.start_worker_supervisors() #{inspect s} Already Started. Handling unexpected state.
+                                         #{inspect error}
+                                         """, Noizu.ElixirCore.CallingContext.metadata(context)}
+                      end)
+                      :error
+                  end
+                error ->
+                  Logger.warn(fn -> {
+                                      """
 
-                                    #{__MODULE__}.start_children(4) #{inspect s} Already Started. Handling unexpected state.
-                                    #{inspect error}
-                                    """, Noizu.ElixirCore.CallingContext.metadata(context)}
-                end)
-                :error
-            end # end case
-          end # end for
+                                      #{__MODULE__}.start_worker_supervisors() #{inspect s} Error.
+                                      #{inspect error}
+                                      """, Noizu.ElixirCore.CallingContext.metadata(context)}
+                  end)
+                  :error
+              end # end case
+            end, ordered: false, timeout: 300_000)
+          |> Enum.map(fn
+            ({:ok, v}) ->  v
+            (error) -> error
+          end)
         end # end start_worker_supervisors
       end # end if required
 
