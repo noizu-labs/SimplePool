@@ -15,6 +15,11 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
   require Logger
   @default_timeout 30_000
 
+  @telemetry_handler Application.get_env(:noizu_simple_pool, :telemetry_handler, Noizu.SimplePool.Telemetry)
+  def rate_limited_log(mod, action, event, params, context, options \\ [], delay \\ 15_000, frequency \\ 5) do
+    @telemetry_handler.rate_limited_log(mod, action, event, params, context, options, delay, frequency)
+  end
+  
   @doc """
     Run a function(mfa) on the host responsible for the specified ref.
 
@@ -498,7 +503,7 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
       {:timeout, c} ->
         try do
           if rate_limited_log(pool_server, s_type, :timeout, extended_call, context, options) do
-            Logger.warn fn -> {pool_server.banner("#{pool_server}.#{s_type} - timeout.\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+            Logger.warn fn -> {pool_server.banner("#{pool_server}.#{s_type} - timeout. (#{c})\n call: #{inspect extended_call, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
           end
           if pool_server.router().option(:record_timeout, false) == true do
             pool_server.worker_management().record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
@@ -509,7 +514,11 @@ defmodule Noizu.SimplePool.V2.Router.RouterProvider do
         end # end inner try
       o  ->
         try do
-          Logger.warn fn -> {pool_server.banner("#{pool_server}.#{s_type} - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+          
+          if rate_limited_log(pool_server, s_type, :exit, extended_call, context, options) do
+            Logger.warn fn -> {pool_server.banner("#{pool_server}.#{s_type} - exit raised.\n call: #{inspect extended_call}\nraise: #{inspect o}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+          end
+          
           if pool_server.router().option(:record_timeout, false) == true do
             pool_server.worker_management().record_event!(identifier, :exit, %{exit: o, call: extended_call}, context, options)
           end

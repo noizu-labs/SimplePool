@@ -250,7 +250,7 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
                   log_timeout ->
                     worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
                   rate_limited_log(mod, :s_call!, :timeout, extended_call, context, options) ->
-                    Logger.warn fn -> {base.banner("#{mod}.s_call! - timeout. (#{inspect c})\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                    Logger.warn fn -> {base.banner("#{mod}.s_call! - timeout. (#{inspect c})\n call: #{inspect extended_call, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
                   :else -> :nop
                 end
 
@@ -324,7 +324,7 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
                   log_timeout ->
                     worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
                   rate_limited_log(mod, :s_cast!, :timeout, extended_call, context, options) ->
-                    Logger.warn fn -> {base.banner("#{mod}.s_cast! - timeout. (#{inspect c})\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                    Logger.warn fn -> {base.banner("#{mod}.s_cast! - timeout. (#{inspect c})\n call: #{inspect extended_call, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
                   :else -> :nop
                 end
                 {:error, {:timeout, c}}
@@ -391,7 +391,7 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
                   log_timeout ->
                     worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: timeout, call: extended_call}, context, options)
                   rate_limited_log(mod, :s_cast!, :timeout, extended_call, context, options) ->
-                    Logger.warn fn -> {base.banner("#{mod}.s_call - timeout. (#{inspect c})\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                    Logger.warn fn -> {base.banner("#{mod}.s_call - timeout. (#{inspect c})\n call: #{inspect extended_call, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
                   :else -> :nop
                 end
 
@@ -459,7 +459,7 @@ defmodule Noizu.SimplePool.ServerBehaviourDefault do
                   log_timeout ->
                     worker_lookup_handler.record_event!(identifier, :timeout, %{timeout: c, call: extended_call}, context, options)
                   rate_limited_log(mod, :s_cast!, :timeout, extended_call, context, options) ->
-                    Logger.warn fn -> {base.banner("#{mod}.s_cast - timeout. (#{inspect c})\n call: #{inspect extended_call}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
+                    Logger.warn fn -> {base.banner("#{mod}.s_cast - timeout. (#{inspect c})\n call: #{inspect extended_call, pretty: true}"), Noizu.ElixirCore.CallingContext.metadata(context)} end
                   :else -> :nop
                 end
 
