@@ -117,6 +117,12 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
 
   defmacro __before_compile__(_env) do
     quote do
+  
+      def handle_call(:force_kill, _from, _state) do
+        # For testing worker_supervisor recovery.
+        throw "Crash WorkerSupervisor"
+      end
+      
       def handle_call(uncaught, _from, state) do
         Logger.info(fn -> "Uncaught handle_call to #{__MODULE__} . . . #{inspect uncaught}"  end)
         {:noreply, state}
