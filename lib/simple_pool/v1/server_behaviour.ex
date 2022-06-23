@@ -12,6 +12,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
   @callback option_settings() :: Map.t
   @callback start_link(any, any, any) :: any
+  @callback child(any, any) :: any
+
 
   @methods ([
               :accept_transfer!, :verbose, :worker_state_entity, :option_settings, :options, :start_link, :init,
@@ -27,7 +29,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
               :link_forward!, :record_service_event!, :lock!, :release!, :status_wait, :entity_status,
               :bulk_migrate!, :o_call, :o_cast,
               :active_supervisors, :supervisor_by_index, :available_supervisors, :current_supervisor, :count_supervisor_children, :group_supervisor_children,
-              :catch_all
+              :catch_all, :child
             ])
   @features ([:auto_identifier, :lazy_load, :async_load, :inactivity_check, :s_redirect, :s_redirect_handle, :ref_lookup_cache, :call_forwarding, :graceful_stop, :crash_protection])
   @default_features ([:lazy_load, :s_redirect, :s_redirect_handle, :inactivity_check, :call_forwarding, :graceful_stop, :crash_protection])
@@ -43,6 +45,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         override: %OptionList{option: :override, default: [], valid_members: @methods, membership_set: true},
         verbose: %OptionValue{option: :verbose, default: :auto},
         worker_state_entity: %OptionValue{option: :worker_state_entity, default: :auto},
+        restart_type: %OptionValue{option: :restart_type, default: Application.get_env(:noizu_simple_pool, :pool_restart_type, :transient)},
         default_timeout: %OptionValue{option: :default_timeout, default:  Application.get_env(:noizu_simple_pool, :default_timeout, @default_timeout)},
         shutdown_timeout: %OptionValue{option: :shutdown_timeout, default: Application.get_env(:noizu_simple_pool, :default_shutdown_timeout, @default_shutdown_timeout)},
         default_definition: %OptionValue{option: :default_definition, default: :auto},
@@ -77,6 +80,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
     shutdown_timeout = options.shutdown_timeout
     server_monitor = options.server_monitor
     log_timeouts = options.log_timeouts
+    restart_type = options.restart_type
     case Map.keys(option_settings.output.errors) do
       [] -> :ok
       l when is_list(l) ->
@@ -106,13 +110,14 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       @pool_supervisor (Module.concat([@base, "PoolSupervisor"]))
       @pool_async_load (unquote(Map.get(options, :async_load, false)))
       @simple_pool_group ({@base, @worker, @worker_supervisor, __MODULE__, @pool_supervisor})
-
+      
       @worker_state_entity (Noizu.SimplePool.Behaviour.expand_worker_state_entity(@base, unquote(options.worker_state_entity)))
       @server_provider (unquote(options.server_provider))
       @worker_lookup_handler (unquote(worker_lookup_handler))
       @module_and_lookup_handler ({__MODULE__, @worker_lookup_handler})
 
-
+      @restart_type unquote(restart_type)
+      
       @timeout (unquote(default_timeout))
       @shutdown_timeout (unquote(shutdown_timeout))
 
@@ -160,7 +165,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.count_supervisor_children) do
         def count_supervisor_children() do
           Enum.reduce(available_supervisors(), %{active: 0, specs: 0, supervisors: 0, workers: 0}, fn(s, acc) ->
-            u = Supervisor.count_children(s)
+            u = DynamicSupervisor.count_children(s)
             %{acc| active: acc.active + u.active, specs: acc.specs + u.specs, supervisors: acc.supervisors + u.supervisors, workers: acc.workers + u.workers}
           end)
         end
@@ -169,7 +174,7 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if unquote(required.group_supervisor_children) do
         def group_supervisor_children(group_fun) do
           Task.async_stream(available_supervisors(), fn(s) ->
-            children = Supervisor.which_children(s)
+            children = DynamicSupervisor.which_children(s)
             sg = Enum.reduce(children, %{}, fn(worker, acc) ->
                g = group_fun.(worker)
                if g do
@@ -297,13 +302,50 @@ defmodule Noizu.SimplePool.ServerBehaviour do
         Noizu.SimplePool.ServerBehaviourDefault.disable_server!(__MODULE__, @active_key, elixir_node)
       end
 
+
+
+      # @child
+      if (unquote(required.child)) do
+        def child(ref, context) do
+          %{
+            id: ref,
+            start: {@worker, :start_link, [ref, context]},
+            restart: @restart_type,
+            shutdown: 300_000,
+          }
+          # worker(@worker, [ref, context], [id: ref, restart: @restart_type])
+        end
+  
+        def child(ref, params, context) do
+          %{
+            id: ref,
+            start: {@worker, :start_link, [ref, params, context]},
+            restart: @restart_type,
+            shutdown: 300_000,
+          }
+          #worker(@worker, [ref, params, context], [id: ref, restart: @restart_type])
+        end
+  
+        def child(ref, params, context, options) do
+          restart = options[:restart] || @restart_type
+          %{
+            id: ref,
+            start: {@worker, :start_link, [ref, params, context]},
+            restart: restart,
+            shutdown: 300_000,
+          }
+          #worker(@worker, [ref, params, context], [id: ref, restart: restart])
+        end
+      end # end child
+
+
       if (unquote(required.worker_sup_start)) do
         def worker_sup_start(ref, transfer_state, context) do
 
           worker_sup = current_supervisor(ref)
 
-          childSpec = worker_sup.child(ref, transfer_state, context)
-          case Supervisor.start_child(worker_sup, childSpec) do
+          childSpec = __MODULE__.child(ref, transfer_state, context)
+          case DynamicSupervisor.start_child(worker_sup, childSpec) do
             {:ok, pid} -> {:ack, pid}
             {:error, {:already_started, pid}} ->
               timeout = @timeout
@@ -315,8 +357,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             {:error, :already_present} ->
               # We may no longer simply restart child as it may have been initilized
               # With transfer_state and must be restarted with the correct context.
-              Supervisor.delete_child(worker_sup, ref)
-              case Supervisor.start_child(worker_sup, childSpec) do
+              #DynamicSupervisor.delete_child(worker_sup, ref)
+              case DynamicSupervisor.start_child(worker_sup, childSpec) do
                 {:ok, pid} -> {:ack, pid}
                 {:error, {:already_started, pid}} -> {:ack, pid}
                 error -> error
@@ -327,16 +369,16 @@ defmodule Noizu.SimplePool.ServerBehaviour do
 
         def worker_sup_start(ref, context) do
           worker_sup = current_supervisor(ref)
-          childSpec = worker_sup.child(ref, context)
-          case Supervisor.start_child(worker_sup, childSpec) do
+          childSpec = __MODULE__.child(ref, context)
+          case DynamicSupervisor.start_child(worker_sup, childSpec) do
             {:ok, pid} -> {:ack, pid}
             {:error, {:already_started, pid}} ->
               {:ack, pid}
             {:error, :already_present} ->
               # We may no longer simply restart child as it may have been initilized
               # With transfer_state and must be restarted with the correct context.
-              Supervisor.delete_child(worker_sup, ref)
-              case Supervisor.start_child(worker_sup, childSpec) do
+              #DynamicSupervisor.delete_child(worker_sup, ref)
+              case DynamicSupervisor.start_child(worker_sup, childSpec) do
                 {:ok, pid} -> {:ack, pid}
                 {:error, {:already_started, pid}} -> {:ack, pid}
                 error -> error
@@ -349,8 +391,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
       if (unquote(required.worker_sup_terminate)) do
         def worker_sup_terminate(ref, sup, context, options \\ %{}) do
           worker_sup = current_supervisor(ref)
-          Supervisor.terminate_child(worker_sup, ref)
-          Supervisor.delete_child(worker_sup, ref)
+          DynamicSupervisor.terminate_child(worker_sup, ref)
+          #DynamicSupervisor.delete_child(worker_sup, ref)
         end # end remove/3
       end
 
@@ -361,8 +403,8 @@ defmodule Noizu.SimplePool.ServerBehaviour do
             s_call(ref, {:shutdown, [force: true]}, context, options, @shutdown_timeout)
           end
           worker_sup = current_supervisor(ref)
-          Supervisor.terminate_child(worker_sup, ref)
-          Supervisor.delete_child(worker_sup, ref)
+          DynamicSupervisor.terminate_child(worker_sup, ref)
+          #DynamicSupervisor.delete_child(worker_sup, ref)
         end # end remove/3
       end
 

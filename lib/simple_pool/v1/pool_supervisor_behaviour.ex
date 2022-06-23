@@ -65,7 +65,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
     features = MapSet.new(options.features)
 
     quote do
-      use Supervisor
+      use DynamicSupervisor
       require Logger
       @auto_load unquote(MapSet.member?(features, :auto_load))
       @behaviour Noizu.SimplePool.PoolSupervisorBehaviour
@@ -97,14 +97,21 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
           if verbose() do
             Logger.info(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__}.start_link", "args: #{inspect %{context: context, definition: definition}} "), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
-          case Supervisor.start_link(__MODULE__, [context], [{:name, __MODULE__}, {:restart, :permanent}]) do
+          init_options = [
+            name: __MODULE__,
+            strategy: unquote(strategy),
+            restart: :permanent,
+            max_restars: unquote(max_restarts),
+            max_seconds: unquote(max_seconds),
+          ]
+          case DynamicSupervisor.start_link(__MODULE__, [context], init_options) do
             {:ok, sup} ->
               Logger.info(fn ->  {"#{__MODULE__}.start_link Supervisor Not Started. #{inspect sup}", Noizu.ElixirCore.CallingContext.metadata(context)} end)
-              start_children(__MODULE__, context, definition)
+              start_children(sup, context, definition)
               {:ok, sup}
             {:error, {:already_started, sup}} ->
               Logger.info(fn -> {"#{__MODULE__}.start_link Supervisor Already Started. Handling unexpected state.  #{inspect sup}" , Noizu.ElixirCore.CallingContext.metadata(context)} end)
-              start_children(__MODULE__, context, definition)
+              start_children(sup, context, definition)
               {:ok, sup}
           end
         end
@@ -129,7 +136,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             end)
           end
 
-          _o = start_worker_supervisors(sup, definition, context)
+          start_worker_supervisors(sup, definition, context)
 
           worker = %{
             id: @pool_server,
@@ -138,11 +145,11 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             shutdown: :infinity,
           }
           #  worker(@pool_server, [:deprecated, definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)])
-          s = case Supervisor.start_child(sup, worker) do
+          s = case DynamicSupervisor.start_child(sup, worker) do
                 {:ok, pid} ->
                   {:ok, pid}
-                {:error, {:already_started, process2_id}} ->
-                  Supervisor.restart_child(__MODULE__, process2_id)
+                #{:error, {:already_started, process2_id}} ->
+                  #DynamicSupervisor.restart_child(__MODULE__, process2_id)
                 error ->
                   Logger.error(fn ->
                     {
@@ -161,8 +168,6 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
         end # end start_children
       end # end if required
 
-
-
       if (unquote(required.start_worker_supervisors)) do
         def start_worker_supervisors(sup, definition, context) do
           supervisors = @pool_server.available_supervisors()
@@ -176,21 +181,21 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
               }
 
               # supervisor(s, [definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)] )
-              case Supervisor.start_child(sup, supervisor) do
+              case DynamicSupervisor.start_child(sup, supervisor) do
                 {:ok, _pool_supervisor} ->  :ok
-                {:error, {:already_started, process_id}} ->
-                  case Supervisor.restart_child(__MODULE__, process_id) do
-                    {:ok, pid} -> :ok
-                    error ->
-                      Logger.info(fn ->{
-                                         """
-
-                                         #{__MODULE__}.start_worker_supervisors() #{inspect s} Already Started. Handling unexpected state.
-                                         #{inspect error}
-                                         """, Noizu.ElixirCore.CallingContext.metadata(context)}
-                      end)
-                      :error
-                  end
+#                {:error, {:already_started, process_id}} ->
+#                  case DynamicSupervisor.restart_child(__MODULE__, process_id) do
+#                    {:ok, pid} -> :ok
+#                    error ->
+#                      Logger.info(fn ->{
+#                                         """
+#
+#                                         #{__MODULE__}.start_worker_supervisors() #{inspect s} Already Started. Handling unexpected state.
+#                                         #{inspect error}
+#                                         """, Noizu.ElixirCore.CallingContext.metadata(context)}
+#                      end)
+#                      :error
+#                  end
                 error ->
                   Logger.warn(fn -> {
                                       """
@@ -215,7 +220,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
           if verbose() || true do
             Logger.warn(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect arg}"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
           end
-          Supervisor.init([], [{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}, {:restart, :permanent}])
+          DynamicSupervisor.init([{:strategy, unquote(strategy)}, {:max_restarts, unquote(max_restarts)}, {:max_seconds, unquote(max_seconds)}, {:restart, :permanent}])
         end
       end # end init
 

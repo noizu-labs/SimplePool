@@ -803,7 +803,13 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
       #--------------------------------------
       #
       #--------------------------------------
-      def perform_hint_update(state, components, context, options) do
+    @doc """
+    Temporarily disabling hint update due to it resulting in still active nodes being purged, and nodes not being re-added when healthy.
+    """
+    def perform_hint_update(state, _components, _context, _options) do
+      {:noreply, state}
+    end
+      def temp_disabled_perform_hint_update(state, components, context, options) do
         await_timeout = options[:wait] || 60_000
         # call each service node to get current health checks.
         # 1. Grab nodes
@@ -811,10 +817,10 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
           Noizu.SimplePool.Database.MonitoringFramework.NodeTable.where(1 == 1)  |> Amnesia.Selection.values
         end)
 
-        state = try do
-                  update_effective(state, context, options)
-        rescue _e -> state
-                end
+        state = (try do
+                   update_effective(state, context, options)
+                 rescue _e -> state
+                 end)
 
         # 2. Grab Server Status
         tasks = Enum.reduce(servers_raw, [], fn(x, acc) ->
@@ -896,7 +902,7 @@ defmodule Noizu.MonitoringFramework.EnvironmentPool do
           hint = Enum.reduce(candidates -- hint, hint, fn(x,acc3) ->
             cond do
               length(acc3) >= min_bar -> acc3
-              x.server_status == :online && Enum.member?([:online, :degraded, :critical], x.service_status)->  acc3 ++ [x]
+              x.server_status == :online && Enum.member?([:online, :degraded, :critical], x.service_status) ->  acc3 ++ [x]
               true -> acc3
             end
           end)

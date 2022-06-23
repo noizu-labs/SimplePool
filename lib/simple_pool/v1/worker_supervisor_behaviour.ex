@@ -9,8 +9,6 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
   alias Noizu.ElixirCore.OptionList
   require Logger
   @callback start_link() :: any
-  @callback child(any) :: any
-  @callback child(any, any) :: any
   @callback init(any) :: any
 
   @methods ([:start_link, :child, :init, :verbose, :options, :option_settings])
@@ -66,7 +64,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       #@before_compile unquote(__MODULE__)
       @base Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat
       @worker Module.concat([@base, "Worker"])
-      use Supervisor
+      use DynamicSupervisor
       import unquote(__MODULE__)
       require Logger
 
@@ -90,7 +88,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
       if (unquote(required.options)) do
         def options(), do: @options
       end
-
+      
       # @start_link
       if (unquote(required.start_link)) do
         def start_link(definition, context) do
@@ -98,43 +96,10 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
             Logger.info(fn -> {@base.banner("#{__MODULE__}.start_link"), Noizu.ElixirCore.CallingContext.metadata(context)} end)
             :skip
           end
-          Supervisor.start_link(__MODULE__, [definition, context], [{:name, __MODULE__}])
+          DynamicSupervisor.start_link(__MODULE__, [definition, context], [{:name, __MODULE__}])
         end
       end # end start_link
 
-      # @child
-      if (unquote(required.child)) do
-        def child(ref, context) do
-          %{
-            id: ref,
-            start: {@worker, :start_link, [ref, context]},
-            restart: @restart_type,
-            shutdown: 300_000,
-          }
-          # worker(@worker, [ref, context], [id: ref, restart: @restart_type])
-        end
-
-        def child(ref, params, context) do
-          %{
-            id: ref,
-            start: {@worker, :start_link, [ref, params, context]},
-            restart: @restart_type,
-            shutdown: 300_000,
-          }
-          #worker(@worker, [ref, params, context], [id: ref, restart: @restart_type])
-        end
-
-        def child(ref, params, context, options) do
-          restart = options[:restart] || @restart_type
-          %{
-            id: ref,
-            start: {@worker, :start_link, [ref, params, context]},
-            restart: restart,
-            shutdown: 300_000,
-          }
-          #worker(@worker, [ref, params, context], [id: ref, restart: restart])
-        end
-      end # end child
 
       # @init
       if (unquote(required.init)) do
@@ -142,7 +107,7 @@ defmodule Noizu.SimplePool.WorkerSupervisorBehaviour do
           if verbose() do
             Logger.info(fn -> {Noizu.SimplePool.Behaviour.banner("#{__MODULE__} INIT", "args: #{inspect context}"), Noizu.ElixirCore.CallingContext.metadata(context) } end)
           end
-          Supervisor.init([], [{:strategy,  @strategy}, {:max_restarts, @max_restarts}, {:max_seconds, @max_seconds}])
+          DynamicSupervisor.init([{:strategy,  @strategy}, {:max_restarts, @max_restarts}, {:max_seconds, @max_seconds}])
         end
       end # end init
 
