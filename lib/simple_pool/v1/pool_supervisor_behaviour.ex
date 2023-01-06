@@ -72,6 +72,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
       @base Module.split(__MODULE__) |> Enum.slice(0..-2) |> Module.concat
       @worker_supervisor Module.concat([@base, "WorkerSupervisor"])
       @pool_server Module.concat([@base, "Server"])
+      @task_supervisor Module.concat([@base, "TaskSupervisor"])
       @base_verbose unquote(verbose)
       @options unquote(Macro.escape(options))
       @option_settings unquote(Macro.escape(option_settings))
@@ -117,6 +118,7 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
         end
       end # end start_link
 
+    
       # @start_children
       if (unquote(required.start_children)) do
         def start_children(sup, context, definition) do
@@ -136,38 +138,60 @@ defmodule Noizu.SimplePool.PoolSupervisorBehaviour do
             end)
           end
 
+          # Task.Supervisor
+          start_task_supervisor(sup, context)
+          
+          # Worker Supervisors
           start_worker_supervisors(sup, definition, context)
-
-          worker = %{
-            id: @pool_server,
-            start: {@pool_server, :start_link, [:deprecated, definition, context]},
-            restart: :permanent,
-            shutdown: :infinity,
-          }
-          #  worker(@pool_server, [:deprecated, definition, context], [restart: :permanent, max_restarts: unquote(max_restarts), max_seconds: unquote(max_seconds)])
-          s = case DynamicSupervisor.start_child(sup, worker) do
-                {:ok, pid} ->
-                  {:ok, pid}
-                #{:error, {:already_started, process2_id}} ->
-                  #DynamicSupervisor.restart_child(__MODULE__, process2_id)
-                error ->
-                  Logger.error(fn ->
-                    {
-                      """
-
-                      #{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Already Started. Handling unexpected state.
-                      #{inspect error}
-                      """, Noizu.ElixirCore.CallingContext.metadata(context)}
-                  end)
-                  :error
-              end
-          if s != :error && @auto_load do
-            spawn fn -> @pool_server.load(context, @options) end
-          end
-          s
+          
+          # Pool Server
+          start_pool_server(sup, context, definition)
         end # end start_children
       end # end if required
 
+
+
+      def start_pool_server(sup, context, definition) do
+        worker = %{
+          id: @pool_server,
+          start: {@pool_server, :start_link, [:deprecated, definition, context]},
+          restart: :permanent,
+          shutdown: :infinity,
+        }
+        s = case DynamicSupervisor.start_child(sup, worker) do
+              {:ok, pid} -> {:ok, pid}
+              error = {:error, {:already_started, _}} ->
+                Logger.warn(fn ->
+                  {
+                    """
+                    #{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Already Started. Handling unexpected state.
+                    #{inspect error}
+                    """, Noizu.ElixirCore.CallingContext.metadata(context)}
+                end)
+                :error
+              error ->
+                Logger.error(fn ->
+                  {
+                    """
+                    #{__MODULE__}.start_children(1) #{inspect @worker_supervisor} Error. Handling unexpected state.
+                    #{inspect error}
+                    """, Noizu.ElixirCore.CallingContext.metadata(context)}
+                end)
+                :error
+            end |> tap(
+                     fn(s) ->
+                       if s != :error && @auto_load do
+                         spawn fn -> @pool_server.load(context, @options) end
+                       end
+                     end
+                   )
+      end
+
+      def start_task_supervisor(sup, _context) do
+        child = {Task.Supervisor, name: @task_supervisor}
+        DynamicSupervisor.start_child(sup, child)
+      end
+      
       if (unquote(required.start_worker_supervisors)) do
         def start_worker_supervisors(sup, definition, context) do
           supervisors = @pool_server.available_supervisors()

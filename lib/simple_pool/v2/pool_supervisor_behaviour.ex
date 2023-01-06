@@ -119,7 +119,10 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       if module.verbose(), do: start_children_banner(module, sup, definition, context)
 
       # Start Children
-
+      # Task.Supervisor
+      start_task_supervisor(module, sup, context)
+      
+      
       {worker_supervisor_process, registry_process} =
         if (module.pool().stand_alone()) do
           {{:ok, :offline}, {:ok, :offline}}
@@ -216,6 +219,11 @@ defmodule Noizu.SimplePool.V2.PoolSupervisorBehaviour do
       r
     end
 
+    defp start_task_supervisor(module, sup, _) do
+      child = {Task.Supervisor, name: module.task_supervisor()}
+      Supervisor.start_child(sup, child)
+    end
+    
     defp start_worker_supervisor_child(module, sup, definition, context) do
       max_seconds = module.meta()[:max_seconds]
       max_restarts = module.meta()[:max_restarts]

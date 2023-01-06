@@ -261,6 +261,7 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         @stand_alone unquote(stand_alone)
 
         @pool @module
+        @task_supervisor Module.concat([@pool, "TaskSupervisor"])
         @pool_server Module.concat([@pool, "Server"])
         @pool_supervisor Module.concat([@pool, "PoolSupervisor"])
         @pool_worker_supervisor Module.concat([@pool, "WorkerSupervisor"])
@@ -297,6 +298,7 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
         def base, do: @pool
         def pool, do: @pool
 
+        def task_supervisor, do: @task_supervisor
         def pool_server, do: @pool_server
         def pool_supervisor, do: @pool_supervisor
         def pool_monitor, do: @pool_monitor
@@ -354,6 +356,7 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
           base: 0,
           pool: 0,
           pool_worker_supervisor: 0,
+          task_supervisor: 0,
           pool_server: 0,
           pool_supervisor: 0,
           pool_worker: 0,
@@ -418,6 +421,7 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
 
         defdelegate pool(), to: @pool
         defdelegate pool_worker_supervisor(), to: @pool
+        defdelegate task_supervisor(), to: @pool
         defdelegate pool_server(), to: @pool
         defdelegate pool_supervisor(), to: @pool
         defdelegate pool_worker(), to: @pool
@@ -476,6 +480,7 @@ defmodule Noizu.SimplePool.V2.SettingsBehaviour do
           base: 0,
           pool: 0,
           pool_worker_supervisor: 0,
+          task_supervisor: 0,
           pool_server: 0,
           pool_supervisor: 0,
           pool_worker: 0,
